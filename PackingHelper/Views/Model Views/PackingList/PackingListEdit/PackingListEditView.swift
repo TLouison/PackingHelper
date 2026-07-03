@@ -33,14 +33,21 @@ struct PackingListEditView: View {
         return true
     }
     
+    var titleName: String {
+        switch (isTemplate) {
+            case true: return "Template"
+            case false: return "Section"
+        }
+    }
+    
     var titleString: String {
-        packingList == nil ? "Add Section" : "Edit Section"
+        return packingList == nil ? "Add \(self.titleName)" : "Edit \(self.titleName)"
     }
     
     var body: some View {
         NavigationStack {
             Form {
-                Section("Section Details") {
+                Section("\(self.titleName) Details") {
                     if packingList?.isDefault ?? false {
                         HStack {
                             Text("Name")
@@ -49,7 +56,7 @@ struct PackingListEditView: View {
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        TextField("Section Name", text: $listName)
+                        TextField("\(self.titleName) Name", text: $listName)
                     }
                 }
             }
