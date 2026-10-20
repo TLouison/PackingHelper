@@ -17,6 +17,7 @@ import SwiftUI
 struct PackingListContainerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(PurchaseManager.self) private var purchaseManager
 
     let context: PackingListContext
     let users: [User]?
@@ -30,6 +31,10 @@ struct PackingListContainerView: View {
     @State private var selectedType: ListType? = nil
     @State private var showDayOfOnly: Bool = false
     @State private var isReorderingSections: Bool = false
+
+    // AI assistant (trip context only)
+    @State private var showingAIAssistant: Bool = false
+    @State private var showingAIPaywall: Bool = false
 
     // Centralized add-item state
     @State private var newItemName = ""
@@ -161,6 +166,20 @@ struct PackingListContainerView: View {
                 TemplateListInfoView(list: singleList)
                     .presentationDetents([.fraction(0.65), .large])
             }
+        }
+        .sheet(isPresented: $showingAIAssistant) {
+            if let trip = context.trip {
+                AIAssistantSheet(
+                    trip: trip,
+                    users: users,
+                    targetUser: $newItemUser,
+                    targetList: $newItemList
+                )
+                .presentationDetents([.large])
+            }
+        }
+        .sheet(isPresented: $showingAIPaywall) {
+            PlusPaywallView()
         }
     }
 
@@ -441,6 +460,27 @@ struct PackingListContainerView: View {
 
     @ToolbarContentBuilder
     private var tripToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                if purchaseManager.hasUnlockedPlus {
+                    showingAIAssistant = true
+                } else {
+                    showingAIPaywall = true
+                }
+            } label: {
+                Image(systemName: "sparkles")
+                    .overlay(alignment: .topTrailing) {
+                        if !purchaseManager.hasUnlockedPlus {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.white, .blue)
+                                .offset(x: 6, y: -6)
+                        }
+                    }
+            }
+            .accessibilityLabel("AI Packing Assistant")
+        }
+
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 Button {

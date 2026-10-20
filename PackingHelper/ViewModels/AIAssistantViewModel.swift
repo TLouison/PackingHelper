@@ -1,0 +1,161 @@
+//
+//  AIAssistantViewModel.swift
+//  PackingHelper
+//
+//  Drives the ephemeral AI packing chat: builds trip context once per session,
+//  sends the running conversation to the Worker, and inserts tapped suggestions
+//  into the user's lists.
+//
+
+import Foundation
+import SwiftData
+
+@MainActor
+@Observable
+final class AIAssistantViewModel {
+    struct ChatEntry: Identifiable {
+        let id = UUID()
+        let role: Role
+        var text: String
+        var suggestions: [AISuggestedItem]
+        var addedNames: Set<String> = []
+
+        enum Role { case user, assistant }
+    }
+
+    private(set) var entries: [ChatEntry] = []
+    var composerText: String = ""
+    private(set) var isLoading = false
+    private(set) var remaining: Int?
+    private(set) var resetsAt: Date?
+    var errorMessage: String?
+
+    private var tripContext: AITripContext?
+    private var contextReady = false
+
+    // Session dependencies, injected in prepare().
+    private var trip: Trip?
+    private weak var targetUser: User?
+    private var modelContext: ModelContext?
+
+    var composerDisabled: Bool {
+        isLoading || remaining == 0
+    }
+
+    /// Builds the trip context once (async — includes the weather fetch).
+    func prepare(trip: Trip, targetUser: User?, modelContext: ModelContext) async {
+        guard !contextReady else { return }
+        self.trip = trip
+        self.targetUser = targetUser
+        self.modelContext = modelContext
+        self.tripContext = await AITripContextBuilder.build(for: trip, targetUser: targetUser)
+        self.contextReady = true
+    }
+
+    func send() async {
+        let prompt = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty, !composerDisabled, let tripContext else { return }
+
+        entries.append(ChatEntry(role: .user, text: prompt, suggestions: []))
+        composerText = ""
+        errorMessage = nil
+        isLoading = true
+        defer { isLoading = false }
+
+        let wireMessages: [AIChatMessageDTO] = entries.map {
+            AIChatMessageDTO(role: $0.role == .user ? "user" : "assistant", content: $0.text)
+        }
+
+        let request = AIAssistantRequest(
+            rcAppUserId: AITripContextBuilder.rcAppUserId,
+            tripContext: tripContext,
+            messages: wireMessages
+        )
+
+        do {
+            let response = try await AIAssistantService.shared.sendMessage(request)
+            entries.append(ChatEntry(
+                role: .assistant,
+                text: response.message,
+                suggestions: response.items
+            ))
+            remaining = response.remaining
+        } catch let error as AIAssistantError {
+            handle(error)
+        } catch {
+            errorMessage = AIAssistantError.network(error).errorDescription
+        }
+    }
+
+    // MARK: - Adding suggestions
+
+    /// Inserts one suggestion into the appropriate list and marks it added.
+    func add(_ suggestion: AISuggestedItem, from entryID: UUID) {
+        guard let list = destinationList(for: suggestion) else { return }
+        insert(suggestion, into: list)
+        markAdded(suggestion.name, in: entryID)
+    }
+
+    /// Inserts every not-yet-added suggestion in an entry.
+    func addAll(from entryID: UUID) {
+        guard let index = entries.firstIndex(where: { $0.id == entryID }) else { return }
+        for suggestion in entries[index].suggestions
+        where !entries[index].addedNames.contains(suggestion.name) {
+            if let list = destinationList(for: suggestion) {
+                insert(suggestion, into: list)
+                entries[index].addedNames.insert(suggestion.name)
+            }
+        }
+    }
+
+    func isAdded(_ suggestion: AISuggestedItem, in entryID: UUID) -> Bool {
+        entries.first(where: { $0.id == entryID })?.addedNames.contains(suggestion.name) ?? false
+    }
+
+    // MARK: - Private
+
+    private func insert(_ suggestion: AISuggestedItem, into list: PackingList) {
+        guard let modelContext else { return }
+        let item = Item(
+            name: suggestion.name,
+            category: suggestion.category.rawValue.capitalized,
+            count: max(suggestion.count, 1),
+            isPacked: false,
+            sortOrder: SortOrderManager.nextSortOrder(for: list),
+            type: suggestion.kind.listType,
+            isDayOf: false
+        )
+        item.user = targetUser
+        modelContext.insert(item)
+        list.addItem(item)
+    }
+
+    /// Task suggestions go to a task-type list if the trip has one; everything
+    /// else (and the fallback) goes to the selected target list.
+    private func destinationList(for suggestion: AISuggestedItem) -> PackingList? {
+        guard let trip else { return nil }
+        if suggestion.kind == .task, let taskList = trip.getLists(for: .task).first {
+            return taskList
+        }
+        return targetList ?? trip.defaultPackingList ?? trip.lists?.first
+    }
+
+    /// The list currently selected in the packing view; set by the sheet.
+    var targetList: PackingList?
+
+    private func markAdded(_ name: String, in entryID: UUID) {
+        guard let index = entries.firstIndex(where: { $0.id == entryID }) else { return }
+        entries[index].addedNames.insert(name)
+    }
+
+    private func handle(_ error: AIAssistantError) {
+        switch error {
+        case .limitReached(let resetsAt):
+            remaining = 0
+            self.resetsAt = resetsAt
+        default:
+            break
+        }
+        errorMessage = error.errorDescription
+    }
+}

@@ -60,14 +60,15 @@ func plusSubscriptionHeader(header: String = "Subscribe to") -> some View {
 @ViewBuilder
 func plusSubscriptionBenefits() -> some View {
     VStack(spacing: 8) {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 4) {
+            Label("AI-Assisted Packing Suggestions", systemImage: "sparkles")
+                .fontWeight(.semibold)
             Text("∙Packing for Multiple Users")
-            Text("∙AI-Assisted Packing Suggestions*")
             Text("∙Collaborate With Friends and Family*")
         }
         .font(.callout)
-        
-        
+
+
         Text("* Coming soon")
             .font(.caption)
             .fontWeight(.heavy)

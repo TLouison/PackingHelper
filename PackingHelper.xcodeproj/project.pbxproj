@@ -70,6 +70,12 @@
 		519B72592ADA1BF7009401C0 /* PackingList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519B72582ADA1BF7009401C0 /* PackingList.swift */; };
 		519B725B2ADA3535009401C0 /* TripListRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519B725A2ADA3535009401C0 /* TripListRowView.swift */; };
 		519C8AB02BFEEFE10008B1B0 /* WeatherUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519C8AAF2BFEEFE10008B1B0 /* WeatherUtilities.swift */; };
+		51A5B9E72FFAB653007E45B0 /* AIAssistantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5B9E52FFAB653007E45B0 /* AIAssistantViewModel.swift */; };
+		51A5B9E82FFAB653007E45B0 /* AIAssistantService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5B9E22FFAB653007E45B0 /* AIAssistantService.swift */; };
+		51A5B9E92FFAB653007E45B0 /* AITripContextBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5B9E32FFAB653007E45B0 /* AITripContextBuilder.swift */; };
+		51A5B9EE2FFAB666007E45B0 /* AIChatBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5B9EB2FFAB666007E45B0 /* AIChatBubbleView.swift */; };
+		51A5B9EF2FFAB666007E45B0 /* AIAssistantSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5B9EA2FFAB666007E45B0 /* AIAssistantSheet.swift */; };
+		51A5B9F02FFAB666007E45B0 /* AISuggestedItemChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5B9EC2FFAB666007E45B0 /* AISuggestedItemChips.swift */; };
 		51A5BA022FFABB6D007E45B0 /* PackingHelperPlusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5B9FF2FFABB6D007E45B0 /* PackingHelperPlusViews.swift */; };
 		51A5BA032FFABB6D007E45B0 /* PlusPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5BA002FFABB6D007E45B0 /* PlusPaywallView.swift */; };
 		51A5BA042FFABB6D007E45B0 /* PackingHelperPlusCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A5B9FE2FFABB6D007E45B0 /* PackingHelperPlusCTA.swift */; };
@@ -165,6 +171,12 @@
 		519B725D2ADB2D94009401C0 /* Symbols.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Symbols.framework; path = System/Library/Frameworks/Symbols.framework; sourceTree = SDKROOT; };
 		519C8AAE2BFEEB4D0008B1B0 /* PackingHelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PackingHelper.entitlements; sourceTree = "<group>"; };
 		519C8AAF2BFEEFE10008B1B0 /* WeatherUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherUtilities.swift; sourceTree = "<group>"; };
+		51A5B9E22FFAB653007E45B0 /* AIAssistantService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantService.swift; sourceTree = "<group>"; };
+		51A5B9E32FFAB653007E45B0 /* AITripContextBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AITripContextBuilder.swift; sourceTree = "<group>"; };
+		51A5B9E52FFAB653007E45B0 /* AIAssistantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantViewModel.swift; sourceTree = "<group>"; };
+		51A5B9EA2FFAB666007E45B0 /* AIAssistantSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantSheet.swift; sourceTree = "<group>"; };
+		51A5B9EB2FFAB666007E45B0 /* AIChatBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatBubbleView.swift; sourceTree = "<group>"; };
+		51A5B9EC2FFAB666007E45B0 /* AISuggestedItemChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISuggestedItemChips.swift; sourceTree = "<group>"; };
 		51A5B9F32FFAB7D6007E45B0 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		51A5B9FE2FFABB6D007E45B0 /* PackingHelperPlusCTA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackingHelperPlusCTA.swift; sourceTree = "<group>"; };
 		51A5B9FF2FFABB6D007E45B0 /* PackingHelperPlusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackingHelperPlusViews.swift; sourceTree = "<group>"; };
@@ -298,12 +310,15 @@
 			children = (
 				510728212C212D5500EBF362 /* Info.plist */,
 				519C8AAE2BFEEB4D0008B1B0 /* PackingHelper.entitlements */,
+				51A5B9ED2FFAB666007E45B0 /* AI */,
+				51A5B9E42FFAB653007E45B0 /* Services */,
+				51289F292AD4E16D00545115 /* Views */,
+				51A5B9E62FFAB653007E45B0 /* ViewModels */,
 				51289F1F2AD3B6CF00545115 /* Preview Content */,
 				515B85A42AD8D1AF002D614F /* PackingEngine */,
 				515B85982AD76930002D614F /* Utilities */,
 				51289F2F2AD4EA5200545115 /* Models */,
 				5110C6352AE5DE7D002742D0 /* FeatureFlags.swift */,
-				51289F292AD4E16D00545115 /* Views */,
 			);
 			path = PackingHelper;
 			sourceTree = "<group>";
@@ -477,6 +492,33 @@
 				519B725D2ADB2D94009401C0 /* Symbols.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		51A5B9E42FFAB653007E45B0 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				51A5B9E22FFAB653007E45B0 /* AIAssistantService.swift */,
+				51A5B9E32FFAB653007E45B0 /* AITripContextBuilder.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		51A5B9E62FFAB653007E45B0 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				51A5B9E52FFAB653007E45B0 /* AIAssistantViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		51A5B9ED2FFAB666007E45B0 /* AI */ = {
+			isa = PBXGroup;
+			children = (
+				51A5B9EA2FFAB666007E45B0 /* AIAssistantSheet.swift */,
+				51A5B9EB2FFAB666007E45B0 /* AIChatBubbleView.swift */,
+				51A5B9EC2FFAB666007E45B0 /* AISuggestedItemChips.swift */,
+			);
+			path = AI;
 			sourceTree = "<group>";
 		};
 		51A5BA012FFABB6D007E45B0 /* Shop */ = {
@@ -697,6 +739,12 @@
 				5134EC752C0EAF8E00862E19 /* User.swift in Sources */,
 				518AE7962D25F90000F8D8E9 /* UserGridView.swift in Sources */,
 				5107281C2C1FDA1900EBF362 /* UserEditView.swift in Sources */,
+				51A5B9E72FFAB653007E45B0 /* AIAssistantViewModel.swift in Sources */,
+				51A5B9E82FFAB653007E45B0 /* AIAssistantService.swift in Sources */,
+				51A5B9EE2FFAB666007E45B0 /* AIChatBubbleView.swift in Sources */,
+				51A5B9EF2FFAB666007E45B0 /* AIAssistantSheet.swift in Sources */,
+				51A5B9F02FFAB666007E45B0 /* AISuggestedItemChips.swift in Sources */,
+				51A5B9E92FFAB653007E45B0 /* AITripContextBuilder.swift in Sources */,
 				5110C6362AE5DE7D002742D0 /* FeatureFlags.swift in Sources */,
 				5101F9A52F14B69B000DFA0C /* PackingListContainerView.swift in Sources */,
 				518AE7942D25F85D00F8D8E9 /* UserView.swift in Sources */,
