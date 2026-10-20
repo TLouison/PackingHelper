@@ -6,37 +6,55 @@ struct TripEditView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @Query private var users: [User]
-
     // Trip model (can be nil for new trip creation)
     var trip: Trip?
     @Binding var isDeleted: Bool
-    
+    /// Called with the newly inserted trip, before the sheet dismisses. Not called when editing.
+    var onCreate: ((Trip) -> Void)?
+
     // State properties for editing
     @State private var tripName: String = ""
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date().addingTimeInterval(86400 * 5) // 5 days later
     @State private var tripType: TripType = .plane
     @State private var tripAccomodation: TripAccomodation = .hotel
-    
-    // Location state
-    @State private var originLocation: TripLocation?
     @State private var destinationLocation: TripLocation?
-    @State private var showingOriginSearch = false
-    @State private var showingDestinationSearch = false
-    
+
     // UI State
-    @State private var selectedImage: UIImage?
-    @State private var showImagePicker = false
+    @State private var showingDestinationSearch = false
     @State private var showDeleteAlert = false
 
+    // Template step (new trips only): lists are chosen before the trip exists, applied on create
+    @Query(
+        filter: #Predicate<PackingList> { $0.template == true },
+        sort: [SortDescriptor(\.name)]
+    )
+    private var templateLists: [PackingList]
+    @State private var selectedTemplates: [PackingList] = []
+    @State private var showingTemplateStep = false
+
     @AppStorage("autoCreateDefaultLists") private var autoCreateDefaultLists = true
-    
+
+    private var isCreating: Bool { trip == nil }
+    private var canSave: Bool { destinationLocation != nil }
+    private var hasTemplateStep: Bool { isCreating && !templateLists.isEmpty }
+
+    /// Name falls back to the destination when left blank.
+    private var resolvedName: String {
+        let trimmed = tripName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? (destinationLocation?.name ?? "Trip") : trimmed
+    }
+
+    private var nights: Int {
+        Calendar.current.numberOfDaysBetween(startDate, and: endDate)
+    }
+
     // MARK: - Initialization
-    init(trip: Trip?, isDeleted: Binding<Bool>) {
+    init(trip: Trip?, isDeleted: Binding<Bool>, onCreate: ((Trip) -> Void)? = nil) {
         self.trip = trip
         self._isDeleted = isDeleted
-        
+        self.onCreate = onCreate
+
         // Initialize state properties from trip if it exists
         if let trip = trip {
             _tripName = State(initialValue: trip.name)
@@ -44,56 +62,43 @@ struct TripEditView: View {
             _endDate = State(initialValue: trip.endDate)
             _tripType = State(initialValue: trip.type)
             _tripAccomodation = State(initialValue: trip.accomodation)
-            _originLocation = State(initialValue: trip.origin)
             _destinationLocation = State(initialValue: trip.destination)
         }
     }
-    
+
     // MARK: - Body
     var body: some View {
         NavigationStack {
-            // Scrollable content
             ScrollView {
-                VStack(spacing: 20) {
-                    // Header with image
-                    headerView
-                    
-                    // Trip info card
-                    tripInfoSection
-                    
-                    // Location section
-                    locationSection
-                    
-                    // Accommodation section
+                VStack(spacing: 28) {
+                    destinationSection
+                    nameSection
+                    datesSection
+                    transportSection
                     accommodationSection
-                    
-                    // Save and Delete buttons
-                    buttonSection
+
+                    if !isCreating {
+                        deleteButton
+                    }
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 30)
+                .padding()
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Color(.systemGroupedBackground))
-            .sheet(isPresented: $showImagePicker) {
-                // Image picker would go here
-                Text("Image Picker Placeholder")
+            .safeAreaInset(edge: .bottom) {
+                saveBar
             }
-            .sheet(isPresented: $showingOriginSearch) {
-                LocationSearchView(location: $originLocation)
+            .navigationDestination(isPresented: $showingTemplateStep) {
+                templateStep
             }
             .sheet(isPresented: $showingDestinationSearch) {
-                LocationSearchView(location: $destinationLocation)
+                LocationSearchView(location: $destinationLocation, title: "Where to?")
             }
+            .navigationTitle(isCreating ? "New Trip" : "Edit Trip")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(trip == nil ? "Create" : "Save") {
-                        saveTrip()
-                    }
-                    .disabled(originLocation == nil || destinationLocation == nil || tripName.isEmpty)
                 }
             }
             .alert("Delete Trip", isPresented: $showDeleteAlert) {
@@ -104,269 +109,252 @@ struct TripEditView: View {
             } message: {
                 Text("Are you sure you want to delete this trip? This action cannot be undone.")
             }
-            .onAppear {
-                // Auto-populate origin from user's default location when creating new trip
-                if trip == nil && originLocation == nil {
-                    if let defaultLoc = users.first?.defaultLocation {
-                        originLocation = TripLocation(
-                            name: defaultLoc.name,
-                            latitude: defaultLoc.latitude,
-                            longitude: defaultLoc.longitude
-                        )
-                    }
-                }
-            }
         }
     }
-    
-    // MARK: - Header View
-    var headerView: some View {
-        // Overlay with trip name
-        VStack(alignment: .leading) {
-            TextField("Trip Name", text: $tripName)
-                .font(.largeTitle.bold())
-                .foregroundStyle(.primary)
-                .padding(.bottom, 4)
 
-            if let destination = destinationLocation {
-                HStack {
-                    Image(systemName: "mappin.and.ellipse")
-                        .foregroundStyle(.secondary)
-
-                    Text(destination.name)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(.horizontal)
-        .padding(.top)
-    }
-    
-    // MARK: - Trip Info Section
-    var tripInfoSection: some View {
-        VStack(spacing: 15) {
-            Text("Trip Details")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 10)
-            
-            // Trip type selector
-            tripTypeSelector
-            
-            // Date selection cards
-            dateSelectionCards
-        }
-        .padding(20)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 20))
-    }
-    
-    // MARK: - Trip Type Selector
-    var tripTypeSelector: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 10) {
-                ForEach(TripType.allCases, id: \.self) { type in
-                    Button(action: {
-                        tripType = type
-                    }) {
-                        HStack {
-                            type.startIcon
-                            Text(type.name)
-                        }
-                        .padding(.horizontal, 15)
-                        .padding(.vertical, 8)
-                        .background(tripType == type ? Color.accentColor : Color(.tertiarySystemFill))
-                        .foregroundStyle(tripType == type ? .white : .primary)
-                        .clipShape(.rect(cornerRadius: 20))
-                    }
-                }
-            }
-        }
-        .scrollIndicators(.hidden)
-    }
-
-    // MARK: - Date Selection Cards
-    var dateSelectionCards: some View {
-        HStack(spacing: 15) {
-            // Start date card
-            VStack(alignment: .leading) {
-                Text("Start Date")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                DatePicker("", selection: $startDate, displayedComponents: .date)
-                    .labelsHidden()
-            }
-            .padding()
-            .background(Color(.tertiarySystemFill))
-            .clipShape(.rect(cornerRadius: 15))
-            .frame(maxWidth: .infinity)
-
-            // End date card
-            VStack(alignment: .leading) {
-                Text("End Date")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                DatePicker("", selection: $endDate, displayedComponents: .date)
-                    .labelsHidden()
-            }
-            .padding()
-            .background(Color(.tertiarySystemFill))
-            .clipShape(.rect(cornerRadius: 15))
-            .frame(maxWidth: .infinity)
-        }
-        .onChange(of: startDate) { _, newStartDate in
-            if newStartDate >= endDate {
-                if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: newStartDate) {
-                    endDate = nextDay
-                }
-            }
-        }
-    }
-    
-    // MARK: - Location Section
-    var locationSection: some View {
-        VStack(spacing: 15) {
-            Text("Locations")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 10)
-            
-            // Origin location card
-            Button(action: {
-                showingOriginSearch = true
-            }) {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Origin")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        
-                        if let origin = originLocation {
-                            tripType.startLabel(text: origin.name)
-                                .foregroundStyle(.primary)
-                        } else {
-                            Text("Select Origin")
-                                .foregroundStyle(.primary)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.secondary)
-                }
-                .padding()
-                .background(Color(.tertiarySystemFill))
-                .clipShape(.rect(cornerRadius: 15))
-            }
-            
-            // Destination location card
-            Button(action: {
+    // MARK: - Destination Section
+    var destinationSection: some View {
+        formSection("Where to?") {
+            Button {
                 showingDestinationSearch = true
-            }) {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Destination")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        
-                        if let destination = destinationLocation {
-                            tripType.endLabel(text: destination.name)
-                                .foregroundStyle(.primary)
-                        } else {
-                            Text("Select Destination")
-                                .foregroundStyle(.primary)
-                        }
-                    }
-                    
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: destinationLocation == nil ? "magnifyingglass" : "mappin.and.ellipse")
+                        .foregroundStyle(destinationLocation == nil ? Color.secondary : Color.accentColor)
+
+                    Text(destinationLocation?.name ?? "Search for a city or place")
+                        .font(.title3.weight(destinationLocation == nil ? .regular : .semibold))
+                        .foregroundStyle(destinationLocation == nil ? .secondary : .primary)
+                        .lineLimit(1)
+
                     Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.secondary)
+
+                    if destinationLocation != nil {
+                        Text("Change")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.accentColor)
+                    }
                 }
                 .padding()
-                .background(Color(.tertiarySystemFill))
+                .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(.rect(cornerRadius: 15))
             }
+            .buttonStyle(.plain)
         }
-        .padding(20)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 20))
     }
-    
+
+    // MARK: - Dates Section
+    var datesSection: some View {
+        formSection("When") {
+            VStack(spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Depart")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        DatePicker("Depart", selection: $startDate, displayedComponents: .date)
+                            .labelsHidden()
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Return")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        DatePicker("Return", selection: $endDate, in: startDate..., displayedComponents: .date)
+                            .labelsHidden()
+                    }
+                }
+
+                Text(nights == 0 ? "Day trip" : nights == 1 ? "1 night" : "\(nights) nights")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: nights)
+            }
+            .padding()
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 15))
+        }
+        .onChange(of: startDate) { oldStart, newStart in
+            // Keep the trip length when departure moves past the return date
+            if endDate < newStart {
+                endDate = newStart.addingTimeInterval(max(endDate.timeIntervalSince(oldStart), 0))
+            }
+        }
+    }
+
+    // MARK: - Transport Section
+    var transportSection: some View {
+        formSection("Getting there") {
+            FlowLayout(spacing: 10) {
+                ForEach(TripType.allCases, id: \.self) { type in
+                    chip(type.name, icon: type.startIcon, isSelected: tripType == type) {
+                        tripType = type
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Accommodation Section
     var accommodationSection: some View {
-        VStack(spacing: 15) {
-            Text("Accommodation")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 10)
-            
-            // Accommodation type selector
-            ScrollView(.horizontal) {
-                HStack(spacing: 10) {
-                    ForEach(TripAccomodation.allCases, id: \.self) { accom in
-                        Button(action: {
-                            tripAccomodation = accom
-                        }) {
-                            HStack {
-                                Image(systemName: accommodationIcon(for: accom))
-                                Text(accom.name)
+        formSection("Staying at") {
+            FlowLayout(spacing: 10) {
+                ForEach(TripAccomodation.allCases, id: \.self) { accom in
+                    chip(accom.name, icon: Image(systemName: accommodationIcon(for: accom)), isSelected: tripAccomodation == accom) {
+                        tripAccomodation = accom
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Name Section
+    var nameSection: some View {
+        formSection("Name", footer: "Optional. Uses the destination if left blank.") {
+            TextField(destinationLocation?.name ?? "Trip name", text: $tripName)
+                .submitLabel(.done)
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(.rect(cornerRadius: 15))
+        }
+    }
+
+    // MARK: - Buttons
+    var saveBar: some View {
+        VStack(spacing: 8) {
+            if !canSave {
+                Text("Choose a destination to continue")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                if hasTemplateStep {
+                    showingTemplateStep = true
+                } else {
+                    saveTrip()
+                }
+            } label: {
+                Text(hasTemplateStep ? "Next" : isCreating ? "Create Trip" : "Save Changes")
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(!canSave)
+        }
+        .padding()
+        .background(.bar)
+    }
+
+    // MARK: - Template Step
+    var templateStep: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Add lists you've used before to get a head start. You can always add more later.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                LazyVStack(spacing: 8) {
+                    ForEach(templateLists) { list in
+                        SelectablePackingListCard(
+                            list: list,
+                            isSelected: selectedTemplates.contains(list)
+                        ) {
+                            withAnimation(.snappy) {
+                                if let index = selectedTemplates.firstIndex(of: list) {
+                                    selectedTemplates.remove(at: index)
+                                } else {
+                                    selectedTemplates.append(list)
+                                }
                             }
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 8)
-                            .background(tripAccomodation == accom ? Color.accentColor : Color(.tertiarySystemFill))
-                            .foregroundStyle(tripAccomodation == accom ? .white : .primary)
-                            .clipShape(.rect(cornerRadius: 20))
                         }
                     }
                 }
             }
-            .scrollIndicators(.hidden)
+            .padding()
         }
-        .padding(20)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 20))
-    }
-    
-    // MARK: - Button Section
-    var buttonSection: some View {
-        VStack(spacing: 15) {
-            // Save button
-            Button(action: {
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Start From Templates")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            Button {
                 saveTrip()
-            }) {
-                Text(trip == nil ? "Create Trip" : "Save Changes")
+            } label: {
+                Text(selectedTemplates.isEmpty
+                     ? "Create Trip"
+                     : "Create Trip with \(selectedTemplates.count) List\(selectedTemplates.count == 1 ? "" : "s")")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(originLocation == nil || destinationLocation == nil || tripName.isEmpty ?
-                               Color(.systemGray) : Color.accentColor)
-                    .foregroundStyle(.white)
-                    .clipShape(.rect(cornerRadius: 15))
+                    .contentTransition(.numericText())
             }
-            .disabled(originLocation == nil || destinationLocation == nil || tripName.isEmpty)
-            
-            // Delete button (only show for existing trips)
-            if trip != nil {
-                Button(action: {
-                    showDeleteAlert = true
-                }) {
-                    Text("Delete Trip")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(.systemRed).opacity(0.2))
-                        .foregroundStyle(Color(.systemRed))
-                        .clipShape(.rect(cornerRadius: 15))
-                }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding()
+            .background(.bar)
+        }
+    }
+
+    var deleteButton: some View {
+        Button(role: .destructive) {
+            showDeleteAlert = true
+        } label: {
+            Text("Delete Trip")
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(.systemRed).opacity(0.2))
+                .foregroundStyle(Color(.systemRed))
+                .clipShape(.rect(cornerRadius: 15))
+        }
+    }
+
+    // MARK: - Helper Views
+    private func formSection<Content: View>(
+        _ title: String,
+        footer: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.headline)
+
+            content()
+
+            if let footer {
+                Text(footer)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
-    
+
+    private func chip(_ title: String, icon: Image, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                icon
+                Text(title)
+            }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color.accentColor : Color(.secondarySystemGroupedBackground))
+            .foregroundStyle(isSelected ? .white : .primary)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
     // MARK: - Helper Methods
     func accommodationIcon(for accom: TripAccomodation) -> String {
         switch accom {
@@ -380,30 +368,31 @@ struct TripEditView: View {
             return "person.2"
         }
     }
-    
+
     // MARK: - Data Operations
     func saveTrip() {
-        guard let origin = originLocation, let destination = destinationLocation else {
+        guard let destination = destinationLocation else {
             return
         }
-        
+
+        var createdTrip: Trip?
+
         if let existingTrip = trip {
-            // Update existing trip
-            existingTrip.name = tripName
+            // Update existing trip (origin is no longer edited here; leave it untouched)
+            existingTrip.name = resolvedName
             existingTrip.startDate = startDate
             existingTrip.endDate = endDate
             existingTrip.type = tripType
-            existingTrip.origin = origin
             existingTrip.destination = destination
             existingTrip.accomodation = tripAccomodation
         } else {
             // Create new trip
             let newTrip = Trip(
-                name: tripName,
+                name: resolvedName,
                 startDate: startDate,
                 endDate: endDate,
                 type: tripType,
-                origin: origin,
+                origin: nil,
                 destination: destination,
                 accomodation: tripAccomodation
             )
@@ -413,13 +402,24 @@ struct TripEditView: View {
             if autoCreateDefaultLists {
                 PackingList.createDefaultList(for: newTrip, in: modelContext)
             }
+
+            // nil user = each list goes to the packer who owns the template
+            newTrip.applyDefaultLists(to: nil, lists: selectedTemplates, in: modelContext)
+            createdTrip = newTrip
         }
 
-        // Save changes and dismiss
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            AppLogger.trip.error("Failed to save trip: \(error.localizedDescription)")
+        }
+
+        if let createdTrip {
+            onCreate?(createdTrip)
+        }
         dismiss()
     }
-    
+
     func deleteTrip() {
         if let tripToDelete = trip {
             modelContext.delete(tripToDelete)

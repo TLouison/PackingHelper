@@ -22,6 +22,9 @@ struct TripListView: View {
     @State private var isCompletedTripDropdownOpen: Bool = false
     
     @State private var visibleTripsSymbol: Symbol = .upcoming
+
+    // Opened once the create sheet finishes dismissing
+    @State private var newlyCreatedTrip: Trip?
     
     private static var now: Date { Date.now }
     @Query(FetchDescriptor(
@@ -122,8 +125,10 @@ struct TripListView: View {
             .navigationDestination(for: Trip.self) { trip in
                 TripDetailView(trip: trip)
             }
-            .sheet(isPresented: $isShowingAddTripSheet) {
-                TripEditView(trip: nil, isDeleted: .constant(false))
+            .sheet(isPresented: $isShowingAddTripSheet, onDismiss: openNewlyCreatedTrip) {
+                TripEditView(trip: nil, isDeleted: .constant(false)) { trip in
+                    newlyCreatedTrip = trip
+                }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarLeading) {
@@ -164,6 +169,12 @@ struct TripListView: View {
         .environment(viewModel)
     }
     
+    func openNewlyCreatedTrip() {
+        guard let trip = newlyCreatedTrip else { return }
+        newlyCreatedTrip = nil
+        viewModel.path.append(trip)
+    }
+
     func toggleVisibleTrips() {
         isShowingCompletedTrips.toggle()
         // Toggle symbol to other symbol

@@ -22,7 +22,7 @@ struct AISuggestedItemChips: View {
     var body: some View {
         if !suggestions.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                AIFlowLayout(spacing: 8) {
+                FlowLayout(spacing: 8) {
                     ForEach(suggestions) { suggestion in
                         chip(for: suggestion)
                     }
@@ -82,7 +82,7 @@ struct AISuggestedItemChips: View {
 // MARK: - Flow layout
 
 /// Minimal wrapping layout for variable-width chips.
-struct AIFlowLayout: Layout {
+struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
