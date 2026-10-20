@@ -11,138 +11,209 @@ import MapKit
 
 struct LocationSearchView: View {
     @Binding var location: TripLocation?
+    var title: String = "Search Location"
     @Environment(\.dismiss) var dismiss
-    
-    @State private var searchText = ""
-    @State private var searchResults: [Place] = []
-    @State private var isSearching = false
-    
+
+    @State private var completer = LocationCompleter()
+    @State private var resolvingID: LocationCompleter.Suggestion.ID?
+    @State private var resolveFailed = false
+    @FocusState private var isSearchFocused: Bool
+
     var body: some View {
-        NavigationView {
-            VStack {
-                // Search Bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.gray)
-                    
-                    TextField("Search for location...", text: $searchText)
-                        .textFieldStyle(PlainTextFieldStyle())
-                    
-                    if isSearching {
-                        ProgressView()
-                            .scaleEffect(0.8)
+        NavigationStack {
+            List {
+                ForEach(completer.suggestions) { suggestion in
+                    Button {
+                        Task { await select(suggestion) }
+                    } label: {
+                        SuggestionRow(
+                            suggestion: suggestion,
+                            isResolving: resolvingID == suggestion.id
+                        )
                     }
-                    
-                    if !searchText.isEmpty {
-                        Button(action: {
-                            searchText = ""
-                            searchResults = []
-                        }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.gray)
-                        }
-                    }
+                    .disabled(resolvingID != nil)
                 }
-                .padding()
-                .background(Color(.systemGray6))
-                .clipShape(.rect(cornerRadius: 10))
-                .padding(.horizontal)
-                
-                // Results List
-                List(searchResults) { place in
-                    Button(action: {
-                        selectPlace(place)
-                    }) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(place.name)
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            
-                            Text(place.address)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-                .listStyle(PlainListStyle())
             }
-            .navigationTitle("Search Location")
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    dismiss()
-                }
+            .listStyle(.insetGrouped)
+            .overlay {
+                emptyState
+            }
+            .searchable(
+                text: $completer.query,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "City, landmark, or address"
             )
-        }
-        .task(id: searchText) {
-            await performSearch()
+            .searchFocused($isSearchFocused)
+            // Keep the nav bar (and its Cancel button) visible while the search is active,
+            // so the sheet can be dismissed in one tap.
+            .searchPresentationToolbarBehavior(.avoidHidingContent)
+            .autocorrectionDisabled()
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            .alert("Couldn't load that location", isPresented: $resolveFailed) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Please try again or pick a different result.")
+            }
+            .onAppear {
+                isSearchFocused = true
+            }
         }
     }
-    
-    private func selectPlace(_ place: Place) {
-        guard let coordinate = place.mapItem.placemark.location?.coordinate else { return }
-        
+
+    @ViewBuilder
+    private var emptyState: some View {
+        let trimmed = completer.query.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            ContentUnavailableView(
+                "Find a Place",
+                systemImage: "map",
+                description: Text("Search for a city, landmark, or address.")
+            )
+        } else if completer.suggestions.isEmpty && !completer.isSearching {
+            ContentUnavailableView.search(text: trimmed)
+        }
+    }
+
+    private func select(_ suggestion: LocationCompleter.Suggestion) async {
+        resolvingID = suggestion.id
+        defer { resolvingID = nil }
+
+        let request = MKLocalSearch.Request(completion: suggestion.completion)
+        guard let mapItem = try? await MKLocalSearch(request: request).start().mapItems.first else {
+            resolveFailed = true
+            return
+        }
+
+        let coordinate = mapItem.location.coordinate
         location = TripLocation(
-            name: place.name,
+            name: mapItem.name ?? suggestion.completion.title,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude
         )
-        
+
+        isSearchFocused = false
         dismiss()
-    }
-    
-    private func performSearch() async {
-        guard !searchText.isEmpty else {
-            searchResults = []
-            return
-        }
-        
-        isSearching = true
-        defer { isSearching = false }
-        
-        do {
-            // Debounce
-            try await Task.sleep(nanoseconds: 500_000_000)
-            
-            let request = MKLocalSearch.Request()
-            request.naturalLanguageQuery = searchText
-            request.resultTypes = [.address, .pointOfInterest]
-            
-            let search = MKLocalSearch(request: request)
-            let response = try await search.start()
-            
-            searchResults = response.mapItems.map { Place(mapItem: $0) }
-        } catch {
-            if !Task.isCancelled {
-                searchResults = []
-            }
-        }
     }
 }
 
-// Place model remains the same
-struct Place: Identifiable {
-    let id = UUID()
-    let mapItem: MKMapItem
-    
-    var name: String {
-        mapItem.name ?? "Unknown"
+// MARK: - Row
+
+private struct SuggestionRow: View {
+    let suggestion: LocationCompleter.Suggestion
+    let isResolving: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: suggestion.isPlace ? "mappin" : "globe.americas.fill")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(suggestion.isPlace ? Color.red : Color.blue, in: .circle)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(suggestion.highlightedTitle)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                if !suggestion.completion.subtitle.isEmpty {
+                    Text(suggestion.completion.subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if isResolving {
+                ProgressView()
+            }
+        }
+        .contentShape(.rect)
     }
-    
-    var address: String {
-        let placemark = mapItem.placemark
-        var addressComponents: [String] = []
-        
-        if let city = placemark.locality {
-            addressComponents.append(city)
+}
+
+// MARK: - Completer
+
+/// Wraps MKLocalSearchCompleter, which returns Maps-style autocomplete suggestions
+/// (e.g. "Paris, France", "Paris, TX") rather than the single best match that
+/// MKLocalSearch resolves a natural-language query to.
+@MainActor
+@Observable
+final class LocationCompleter: NSObject, MKLocalSearchCompleterDelegate {
+    struct Suggestion: Identifiable {
+        let completion: MKLocalSearchCompletion
+
+        var id: String { completion.title + "|" + completion.subtitle }
+
+        /// Heuristic: completions don't expose their type, but city/region results have
+        /// a subtitle like "France" or "TX, United States", while specific places carry
+        /// a street address or postal code. Places get a pin; cities get a globe.
+        var isPlace: Bool {
+            completion.subtitle.contains(where: \.isNumber)
         }
-        if let state = placemark.administrativeArea {
-            addressComponents.append(state)
+
+        var highlightedTitle: AttributedString {
+            var text = AttributedString(completion.title)
+            for value in completion.titleHighlightRanges {
+                if let range = Range(value.rangeValue, in: text) {
+                    text[range].inlinePresentationIntent = .stronglyEmphasized
+                }
+            }
+            return text
         }
-        if let country = placemark.country {
-            addressComponents.append(country)
+    }
+
+    var query: String = "" {
+        didSet { updateQuery() }
+    }
+    private(set) var suggestions: [Suggestion] = []
+    private(set) var isSearching = false
+
+    @ObservationIgnored private let completer = MKLocalSearchCompleter()
+
+    override init() {
+        super.init()
+        completer.delegate = self
+        completer.resultTypes = [.address, .pointOfInterest]
+    }
+
+    private func updateQuery() {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            completer.cancel()
+            suggestions = []
+            isSearching = false
+        } else {
+            isSearching = true
+            completer.queryFragment = trimmed
         }
-        
-        return addressComponents.joined(separator: ", ")
+    }
+
+    nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        let results = completer.results
+        MainActor.assumeIsolated {
+            // De-dupe: the completer occasionally returns identical title/subtitle pairs.
+            var seen = Set<String>()
+            suggestions = results
+                .map(Suggestion.init)
+                .filter { seen.insert($0.id).inserted }
+            isSearching = false
+        }
+    }
+
+    nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        MainActor.assumeIsolated {
+            suggestions = []
+            isSearching = false
+        }
     }
 }
