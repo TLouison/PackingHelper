@@ -13,7 +13,6 @@
 		5101F9992F14950F000DFA0C /* PackingListViewMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5101F9942F14950F000DFA0C /* PackingListViewMode.swift */; };
 		5101F99B2F149527000DFA0C /* SectionedPackingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5101F99A2F149527000DFA0C /* SectionedPackingListView.swift */; };
 		5101F9A52F14B69B000DFA0C /* PackingListContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5101F9A42F14B69B000DFA0C /* PackingListContainerView.swift */; };
-		5101F9A72F15DF45000DFA0C /* CLAUDE.md in Resources */ = {isa = PBXBuildFile; fileRef = 5101F9A62F15DF45000DFA0C /* CLAUDE.md */; };
 		5101F9AA2F15EBF7000DFA0C /* DragDropUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5101F9A82F15EBF7000DFA0C /* DragDropUtilities.swift */; };
 		5101F9AB2F15EBF7000DFA0C /* SortOrderManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5101F9A92F15EBF7000DFA0C /* SortOrderManager.swift */; };
 		5101F9AF2F15F11B000DFA0C /* ReorderableItemsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5101F9AE2F15F11B000DFA0C /* ReorderableItemsSection.swift */; };
@@ -52,7 +51,6 @@
 		51623D802D4C5A8F003E2BF5 /* SortOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51623D7F2D4C5A8F003E2BF5 /* SortOrder.swift */; };
 		516337942E799FBE0043388F /* PackingHelperPlus.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 516337932E799FBE0043388F /* PackingHelperPlus.storekit */; };
 		51748B532ADCF368009E919B /* PackingEngineCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51748B522ADCF368009E919B /* PackingEngineCore.swift */; };
-		51748B582ADCF46E009E919B /* PackingRecommendationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51748B572ADCF46E009E919B /* PackingRecommendationView.swift */; };
 		51748B602ADF8367009E919B /* TripListScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51748B5F2ADF8367009E919B /* TripListScrollView.swift */; };
 		51748B652AE0D514009E919B /* TripDetailHeroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51748B642AE0D514009E919B /* TripDetailHeroView.swift */; };
 		51748B672AE0DA53009E919B /* ViewModifierUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51748B662AE0DA53009E919B /* ViewModifierUtilities.swift */; };
@@ -110,7 +108,6 @@
 		5101F9952F14950F000DFA0C /* SectionCollapseStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionCollapseStateManager.swift; sourceTree = "<group>"; };
 		5101F99A2F149527000DFA0C /* SectionedPackingListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionedPackingListView.swift; sourceTree = "<group>"; };
 		5101F9A42F14B69B000DFA0C /* PackingListContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackingListContainerView.swift; sourceTree = "<group>"; };
-		5101F9A62F15DF45000DFA0C /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
 		5101F9A82F15EBF7000DFA0C /* DragDropUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropUtilities.swift; sourceTree = "<group>"; };
 		5101F9A92F15EBF7000DFA0C /* SortOrderManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortOrderManager.swift; sourceTree = "<group>"; };
 		5101F9AE2F15F11B000DFA0C /* ReorderableItemsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReorderableItemsSection.swift; sourceTree = "<group>"; };
@@ -151,7 +148,6 @@
 		51623D7F2D4C5A8F003E2BF5 /* SortOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortOrder.swift; sourceTree = "<group>"; };
 		516337932E799FBE0043388F /* PackingHelperPlus.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = PackingHelperPlus.storekit; sourceTree = "<group>"; };
 		51748B522ADCF368009E919B /* PackingEngineCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackingEngineCore.swift; sourceTree = "<group>"; };
-		51748B572ADCF46E009E919B /* PackingRecommendationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackingRecommendationView.swift; sourceTree = "<group>"; };
 		51748B5F2ADF8367009E919B /* TripListScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripListScrollView.swift; sourceTree = "<group>"; };
 		51748B642AE0D514009E919B /* TripDetailHeroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripDetailHeroView.swift; sourceTree = "<group>"; };
 		51748B662AE0DA53009E919B /* ViewModifierUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModifierUtilities.swift; sourceTree = "<group>"; };
@@ -285,7 +281,6 @@
 		51289F0D2AD3B6CD00545115 = {
 			isa = PBXGroup;
 			children = (
-				5101F9A62F15DF45000DFA0C /* CLAUDE.md */,
 				51A5B9F32FFAB7D6007E45B0 /* Config.xcconfig */,
 				516337932E799FBE0043388F /* PackingHelperPlus.storekit */,
 				519A53032B4FACC200183CB1 /* ProductSuggestionModel.mlmodel */,
@@ -382,7 +377,6 @@
 			children = (
 				51C8BB702C25220C005D2B71 /* PackingListDetailEdit */,
 				5110C6422AFD7FA9002742D0 /* PackingListEdit */,
-				51748B572ADCF46E009E919B /* PackingRecommendationView.swift */,
 			);
 			path = PackingList;
 			sourceTree = "<group>";
@@ -678,7 +672,6 @@
 			files = (
 				51289F212AD3B6CF00545115 /* Preview Assets.xcassets in Resources */,
 				51289F1E2AD3B6CF00545115 /* Assets.xcassets in Resources */,
-				5101F9A72F15DF45000DFA0C /* CLAUDE.md in Resources */,
 				516337942E799FBE0043388F /* PackingHelperPlus.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -693,7 +686,6 @@
 				51C8BBA32C2BA1DB005D2B71 /* DefaultPackingViewListTypeSectionView.swift in Sources */,
 				5192C86B2EEFA7540034D2B4 /* PackingListEditSection.swift in Sources */,
 				51289F312AD4EA5A00545115 /* Trip.swift in Sources */,
-				51748B582ADCF46E009E919B /* PackingRecommendationView.swift in Sources */,
 				519A481A2F625D0E00CB8475 /* TemplateAnimationView.swift in Sources */,
 				51AC5FC02C4749BF00DF83F6 /* PurchaseManager.swift in Sources */,
 				5132E84F2AE23AE7002575AC /* DefaultPackingListView.swift in Sources */,

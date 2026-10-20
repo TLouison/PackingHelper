@@ -25,16 +25,6 @@ struct PackingRecommendationResult {
 }
 
 class PackingEngine {
-    static var possibleItems = ["Underwear", "Shirt", "Pants", "Socks", "Phone Charger", "Deodorant", "Toothbrush", "Toothpaste"]
-    
-    static func suggest() -> PackingRecommendationResult {
-        return PackingRecommendationResult(status: .result, category: .Clothing, item: possibleItems.randomElement() ?? "Socks", count: Int.random(in: 1..<10), context: "Good idea!")
-    }
-    
-//    static func suggestQuantity(itemName: String) -> Int {
-//        return PackingRecommendationResult(status: .result, category:)
-//    }
-    
     static func interpretItem(itemName: String) -> PackingRecommendationCategory {
         guard FeatureFlags.shared.showingPackingEngine else { return .other }
 

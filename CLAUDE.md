@@ -10,8 +10,8 @@ PackingHelper is an unreleased iOS travel preparation app built with SwiftUI and
 
 ## Commands
 
-Do not attempt to run any commands. The user will handle all necessary command runs, just inform them
-what they need to do and when.
+Do not run commands that build the app, launch or control the iOS Simulator, or run tests (e.g. `xcodebuild`, `xcrun simctl`, `swift test`). The user will handle those; just tell them what to run and when.
+Other commands (e.g. `git`, file inspection, search) are fine to run.
 
 ## Architecture
 
