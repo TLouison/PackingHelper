@@ -147,7 +147,7 @@ struct SettingsView: View {
                 DeveloperMenuView()
             }
             .sheet(isPresented: $displayPaywall) {
-                PaywallView()
+                PlusPaywallView()
             }
             .navigationTitle("Settings")
             .onAppear {

@@ -52,7 +52,7 @@ struct SubscriptionAwareButton<Label: View>: View {
         }
         .disabled(!canPerformAction)
         .sheet(isPresented: $isShowingSubscriptionStoreSheet) {
-            PackingHelperPlusStoreView()
+            PlusPaywallView()
         }
     }
 }

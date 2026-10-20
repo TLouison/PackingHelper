@@ -63,7 +63,7 @@ struct UserGridView: View {
                 }
             }
             .sheet(isPresented: $isShowingSubscriptionStoreSheet) {
-                PackingHelperPlusStoreView()
+                PlusPaywallView()
             }
         }
     }

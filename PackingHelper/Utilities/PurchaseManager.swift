@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import StoreKit
 import RevenueCat
 
 let REVENUECAT_PUBLIC_API_KEY: String = {
@@ -18,83 +17,40 @@ let REVENUECAT_PUBLIC_API_KEY: String = {
     return key
 }()
 
+/// Tracks the user's "PackingHelperPlus" entitlement via RevenueCat, which
+/// completes purchases (Test Store in dev, App Store in prod). The local gate
+/// mirrors RC's CustomerInfo — no direct StoreKit involvement.
 @MainActor
 @Observable
 class PurchaseManager {
-    let subscriptionGroupId = "21511922"
-    private let productIds: [String] = [
-        "FY2X7BQ9", // Annual Subscription
-        "4HT3JM8D" // Monthly Subscription
-    ]
+    static let entitlementID = "PackingHelperPlus"
 
-    private var products: [Product] = []
-    private(set) var purchasedProductIDs = Set<String>()
-    
-    private var productsLoaded = false
-    
-    private var updates: Task<Void, Never>? = nil
-    
-    init() {
-        updates = observeTransactionUpdates()
-    }
+    private(set) var isPlusActive = false
 
-    func loadProducts() async throws {
-        guard !self.productsLoaded else { return }
-        self.products = try await Product.products(for: productIds)
-        self.productsLoaded = true
-    }
-    
-    func purchase(_ product: Product) async throws {
-        let result = try await product.purchase()
+    private var observer: Task<Void, Never>?
 
-        switch result {
-        case let .success(.verified(transaction)):
-            // Successful purhcase
-            await transaction.finish()
-            await self.updatePurchasedProducts()
-        case let .success(.unverified(_, error)):
-            // Successful purchase but transaction/receipt can't be verified
-            // Could be a jailbroken phone
-            break
-        case .pending:
-            // Transaction waiting on SCA (Strong Customer Authentication) or
-            // approval from Ask to Buy
-            break
-        case .userCancelled:
-            // ^^^
-            break
-        @unknown default:
-            break
+    /// Begin observing RevenueCat entitlements. Call AFTER `Purchases.configure`
+    /// (from the app's `.task`), never in `init` — the property is created
+    /// before configuration runs.
+    func start() async {
+        if let info = try? await Purchases.shared.customerInfo() {
+            apply(info)
         }
-    }
-    
-    func updatePurchasedProducts() async {
-       for await result in Transaction.currentEntitlements {
-           guard case .verified(let transaction) = result else {
-               continue
-           }
-
-           if transaction.revocationDate == nil {
-               self.purchasedProductIDs.insert(transaction.productID)
-           } else {
-               self.purchasedProductIDs.remove(transaction.productID)
-           }
-       }
-    }
-    
-    private func observeTransactionUpdates() -> Task<Void, Never> {
-        Task(priority: .background) { [unowned self] in
-            for await verificationResult in Transaction.updates {
-                // Using verificationResult directly would be better
-                // but this way works for this tutorial
-                await self.updatePurchasedProducts()
+        observer?.cancel()
+        observer = Task { [weak self] in
+            for await info in Purchases.shared.customerInfoStream {
+                self?.apply(info)
             }
         }
+    }
+
+    private func apply(_ info: CustomerInfo) {
+        isPlusActive = info.entitlements[Self.entitlementID]?.isActive == true
     }
 }
 
 extension PurchaseManager {
     var hasUnlockedPlus: Bool {
-        return !self.purchasedProductIDs.isEmpty
+        isPlusActive
     }
 }

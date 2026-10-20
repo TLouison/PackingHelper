@@ -19,9 +19,9 @@ struct PackingHelperApp: App {
     @AppStorage("hasMigratedPackingModelV2") private var hasMigratedPackingModelV2 = false
 
     @Environment(\.scenePhase) var scenePhase
-    
-//    private var purchaseManager = PurchaseManager()
-    
+
+    private var purchaseManager = PurchaseManager()
+
     let modelContainer: ModelContainer
     
     init() {
@@ -31,11 +31,13 @@ struct PackingHelperApp: App {
             fatalError("Could not initialize ModelContainer")
         }
 
-        // Only configure RevenueCat if subscription UI is enabled
-        if FeatureFlags.shared.showingSubscription {
-            Purchases.logLevel = .debug
-            Purchases.configure(withAPIKey: REVENUECAT_PUBLIC_API_KEY)
-        }
+        // Configure RevenueCat to manage purchases (Test Store in dev, App Store
+        // in prod). RC records the "PackingHelperPlus" entitlement so the AI
+        // Worker can verify it via its REST API; PurchaseManager mirrors it.
+        #if DEBUG
+        Purchases.logLevel = .debug
+        #endif
+        Purchases.configure(withAPIKey: REVENUECAT_PUBLIC_API_KEY)
 
         // Perform data migration if needed
         if !hasMigratedDayOfLists {
@@ -195,10 +197,10 @@ struct PackingHelperApp: App {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(isDarkMode ? .dark : .light)
-//                .environment(purchaseManager)
-//                .task {
-//                    await purchaseManager.updatePurchasedProducts()
-//                }
+                .environment(purchaseManager)
+                .task {
+                    await purchaseManager.start()
+                }
         }
         .modelContainer(modelContainer)
     }

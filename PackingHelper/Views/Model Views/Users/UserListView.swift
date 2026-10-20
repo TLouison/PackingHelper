@@ -61,7 +61,7 @@ struct UserListView: View {
                     .presentationDetents([.height(400)])
             }
             .sheet(isPresented: $isShowingSubscriptionStoreSheet) {
-                PackingHelperPlusStoreView()
+                PlusPaywallView()
             }
         }
     }

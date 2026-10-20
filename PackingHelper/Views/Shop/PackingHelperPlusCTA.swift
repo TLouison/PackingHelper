@@ -175,7 +175,7 @@ struct PackingHelperPlusCTA: View {
             .transition(.move(edge: .top))
             .padding()
             .sheet(isPresented: $showingStoreSheet) {
-                PackingHelperPlusStoreView()
+                PlusPaywallView()
             }
     }
 }
