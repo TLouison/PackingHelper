@@ -32,12 +32,20 @@ struct PackingListSection: View {
     let onAddItemToList: (PackingList) -> Void
     var isReorderMode: Bool = false
 
-    // Placeholder display
+    /// Keeps just-packed items in place briefly before they move to the packed section
+    let pendingPacks: PendingPackTracker
+
+    // Inline new item row
     var isAddingNewItem: Bool = false
     var targetList: PackingList? = nil
+    @Binding var newItemName: String
+    @Binding var newItemFieldFocused: Bool
+    var newItemCount: Int = 1
+    let onSubmitNewItem: () -> Void
+    let onTapEmptyArea: (PackingList) -> Void
 
     private var unpackedItems: [Item] {
-        var items = packingList.incompleteItems
+        var items = pendingPacks.visibleUnpacked(packingList.items ?? [])
         if let user = selectedUser {
             items = items.filter { $0.user?.persistentModelID == user.persistentModelID }
         }
@@ -72,13 +80,7 @@ struct PackingListSection: View {
 
             if !isReorderMode && isExpanded {
                 // Unpacked items
-                if unpackedItems.isEmpty && !isTargetList {
-                    Text("No items")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                } else {
+                if !unpackedItems.isEmpty {
                     ReorderableItemsSection(
                         items: unpackedItems,
                         isTemplating: false,
@@ -95,10 +97,26 @@ struct PackingListSection: View {
                     .padding(.horizontal, 8)
                 }
 
-                // Insertion placeholder
+                // Inline new item row, or a blank area that starts one when tapped
                 if isTargetList {
-                    InsertionPlaceholder()
-                        .id("insertionPlaceholder-\(packingList.persistentModelID.hashValue)")
+                    NewItemRow(
+                        itemName: $newItemName,
+                        isFocused: $newItemFieldFocused,
+                        itemCount: newItemCount,
+                        onSubmitReturn: onSubmitNewItem,
+                        onDeleteEmpty: {
+                            // Backspace on the empty new row moves editing up to the last item
+                            if let lastItem = unpackedItems.last {
+                                editingItemId = lastItem.persistentModelID
+                            }
+                        }
+                    )
+                    .padding(.horizontal, 8)
+                    .id(NewItemRow.scrollID(for: packingList))
+                } else {
+                    AddItemTapZone(showsEmptyHint: unpackedItems.isEmpty) {
+                        onTapEmptyArea(packingList)
+                    }
                 }
             }
         }

@@ -52,6 +52,7 @@ struct PackingListContainerView: View {
 
     // Single list mode item editing (trip context manages this inside SectionedPackingListView)
     @State private var singleListEditingItemId: PersistentIdentifier? = nil
+    @State private var singleListPendingPacks = PendingPackTracker()
 
     // MARK: - Initializers
 
@@ -113,7 +114,7 @@ struct PackingListContainerView: View {
         }
         .safeAreaInset(edge: .bottom) {
             if isAddingNewItem && !isReorderingSections {
-                floatingInputBar
+                newItemAccessoryBar
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -192,11 +193,12 @@ struct PackingListContainerView: View {
             dismiss()
         }
         .onChange(of: newItemFieldFocused) { _, isFocused in
-            if !isFocused && isAddingNewItem {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                    newItemName = ""
-                    newItemCount = 1
-                    isAddingNewItem = false
+            guard !isFocused && isAddingNewItem else { return }
+            // Focus drops briefly when the inline row moves to another section,
+            // so only finish if it is still unfocused after the row has re-rendered
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                if !newItemFieldFocused && isAddingNewItem {
+                    finishAddingNewItem()
                 }
             }
         }
@@ -209,37 +211,14 @@ struct PackingListContainerView: View {
         }
     }
 
-    // MARK: - Floating Input Bar
+    // MARK: - New Item Accessory Bar
 
-    private var listPickerChips: some View {
+    /// Sits directly above the keyboard while the inline new item row is focused
+    private var newItemAccessoryBar: some View {
         HStack(spacing: 8) {
-            Menu {
-                ForEach(lists, id: \.id) { list in
-                    Button {
-                        newItemList = list
-                    } label: {
-                        if list.id == newItemList?.id {
-                            Label(list.name, systemImage: "checkmark")
-                        } else {
-                            Text(list.name)
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "list.bullet")
-                        .font(.caption)
-                    Text(newItemList?.name ?? "Select List")
-                        .fontWeight(.medium)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .opaqueGlassCapsule()
+            if context.isTrip {
+                listPickerMenu
             }
-            .disabled(lists.count <= 1)
 
             if hasMultiplePackers {
                 UserPickerView(
@@ -250,37 +229,50 @@ struct PackingListContainerView: View {
             }
 
             Spacer()
+
+            ItemCountStepper(count: $newItemCount)
+                .padding(.horizontal, 4)
+                .opaqueGlassCapsule()
         }
         .padding(.horizontal)
+        .padding(.bottom, 8)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
-    private var floatingInputBar: some View {
-        VStack(spacing: 8) {
-            if context.isTrip {
-                listPickerChips
+    private var listPickerMenu: some View {
+        Menu {
+            ForEach(lists, id: \.id) { list in
+                Button {
+                    newItemList = list
+                } label: {
+                    if list.id == newItemList?.id {
+                        Label(list.name, systemImage: "checkmark")
+                    } else {
+                        Text(list.name)
+                    }
+                }
             }
-
-            NewItemRow(
-                itemName: $newItemName,
-                itemCount: $newItemCount,
-                isFocused: $newItemFieldFocused,
-                onSubmitReturn: addNewItemAndContinue
-            )
-            .opaqueRoundedBox()
-            .shaded()
-            .padding(.horizontal, 8)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "list.bullet")
+                    .font(.caption)
+                Text(newItemList?.name ?? "Select List")
+                    .fontWeight(.medium)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .opaqueGlassCapsule()
         }
-        .padding(.bottom, 8)
-        .transition(.asymmetric(
-            insertion: .scale(scale: 0.3, anchor: .bottomTrailing).combined(with: .opacity),
-            removal: .scale(scale: 0.3, anchor: .bottomTrailing).combined(with: .opacity)
-        ))
+        .disabled(lists.count <= 1)
     }
 
     // MARK: - FAB Button
 
     private var fabButton: some View {
-        Button(action: startAddingNewItem) {
+        Button { startAddingNewItem(in: nil) } label: {
             Image(systemName: "plus.circle.fill")
                 .resizable()
                 .foregroundStyle(.blue)
@@ -333,7 +325,13 @@ struct PackingListContainerView: View {
                     selectedType: $selectedType,
                     showDayOfOnly: $showDayOfOnly,
                     isReorderingSections: $isReorderingSections,
-                    scrollToPlaceholder: $scrollToPlaceholder
+                    scrollToPlaceholder: $scrollToPlaceholder,
+                    newItemName: $newItemName,
+                    newItemFieldFocused: $newItemFieldFocused,
+                    newItemCount: newItemCount,
+                    onSubmitNewItem: addNewItemAndContinue,
+                    onStartAddingItem: startAddingNewItem(in:),
+                    onTapEmptyArea: handleTapOnEmptyArea(in:)
                 )
             } else if let singleList = context.singleList {
                 singleListView(list: singleList)
@@ -344,22 +342,16 @@ struct PackingListContainerView: View {
                 PackingSummaryBar(packingLists: lists)
             }
         }
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                if isAddingNewItem {
-                    UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder),
-                        to: nil, from: nil, for: nil
-                    )
-                }
-            }
-        )
     }
 
     @ViewBuilder
     private func singleListView(list: PackingList) -> some View {
         let allItems = Item.sorted(list.items ?? [], sortOrder: .byCustomOrder)
-        let unpackedItems = Item.sorted(list.incompleteItems, sortOrder: .byCustomOrder)
+        let unpackedItems = Item.sorted(
+            singleListPendingPacks.visibleUnpacked(list.items ?? []),
+            sortOrder: .byCustomOrder
+        )
+        let rowItems = isTemplating ? allItems : unpackedItems
 
         ScrollViewReader { proxy in
             ScrollView {
@@ -370,9 +362,7 @@ struct PackingListContainerView: View {
                             isTemplating: true,
                             editingItemId: $singleListEditingItemId,
                             onTogglePacked: { _ in },
-                            onUpdateItem: { item, name, count in
-                                withAnimation { item.name = name; item.count = count; singleListEditingItemId = nil }
-                            },
+                            onUpdateItem: updateSingleListItem,
                             onDeleteItem: { item in
                                 withAnimation(.packingSpring) { modelContext.delete(item) }
                             },
@@ -388,11 +378,9 @@ struct PackingListContainerView: View {
                             isTemplating: false,
                             editingItemId: $singleListEditingItemId,
                             onTogglePacked: { item in
-                                withAnimation(.packingSpring) { item.isPacked.toggle() }
+                                singleListPendingPacks.toggle(item)
                             },
-                            onUpdateItem: { item, name, count in
-                                withAnimation { item.name = name; item.count = count; singleListEditingItemId = nil }
-                            },
+                            onUpdateItem: updateSingleListItem,
                             onDeleteItem: { item in
                                 withAnimation(.packingSpring) { modelContext.delete(item) }
                             },
@@ -405,8 +393,20 @@ struct PackingListContainerView: View {
                     }
 
                     if isAddingNewItem {
-                        InsertionPlaceholder()
-                            .id("insertionPlaceholder")
+                        NewItemRow(
+                            itemName: $newItemName,
+                            isFocused: $newItemFieldFocused,
+                            itemCount: newItemCount,
+                            showsCheckbox: !isTemplating,
+                            onSubmitReturn: addNewItemAndContinue,
+                            onDeleteEmpty: {
+                                // Backspace on the empty new row moves editing up to the last item
+                                if let lastItem = rowItems.last {
+                                    singleListEditingItemId = lastItem.persistentModelID
+                                }
+                            }
+                        )
+                        .id(NewItemRow.scrollID(for: list))
                     }
 
                     if allItems.isEmpty && !isAddingNewItem {
@@ -415,21 +415,39 @@ struct PackingListContainerView: View {
                     }
 
                     if !isTemplating {
-                        let packedItems = Item.sorted(list.completeItems, sortOrder: .byCustomOrder)
+                        let packedItems = Item.sorted(
+                            singleListPendingPacks.settledPacked(list.items ?? []),
+                            sortOrder: .byCustomOrder
+                        )
                         if !packedItems.isEmpty {
                             PackedItemsSection(
                                 items: packedItems,
-                                onTogglePacked: { item in withAnimation(.packingSpring) { item.isPacked.toggle() } },
+                                onTogglePacked: { item in singleListPendingPacks.toggle(item) },
                                 onDeleteItem: { item in withAnimation(.packingSpring) { modelContext.delete(item) } }
                             )
                         }
                     }
+
+                    // Blank space below the list: tap to add, or to finish adding
+                    AddItemTapZone(minHeight: 120) {
+                        handleTapOnEmptyArea(in: nil)
+                    }
                 }
                 .padding()
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: isAddingNewItem) { _, isAdding in
                 if isAdding {
-                    withAnimation { proxy.scrollTo("insertionPlaceholder", anchor: .bottom) }
+                    withAnimation { proxy.scrollTo(NewItemRow.scrollID(for: list), anchor: .bottom) }
+                }
+            }
+            .onChange(of: scrollToPlaceholder) { _, shouldScroll in
+                guard shouldScroll else { return }
+                scrollToPlaceholder = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        proxy.scrollTo(NewItemRow.scrollID(for: list), anchor: .bottom)
+                    }
                 }
             }
         }
@@ -449,12 +467,11 @@ struct PackingListContainerView: View {
     @ToolbarContentBuilder
     private var addingItemToolbar: some ToolbarContent {
         ToolbarItem(placement: .confirmationAction) {
-            Button { addNewItemAndClose() } label: {
+            Button { finishAddingNewItem() } label: {
                 Image(systemName: "checkmark")
                     .fontWeight(.semibold)
             }
-            .opacity(newItemName.isEmpty ? 0.3 : 1.0)
-            .disabled(newItemName.isEmpty)
+            .accessibilityLabel("Done")
         }
     }
 
@@ -543,20 +560,57 @@ struct PackingListContainerView: View {
 
     // MARK: - Add Item Actions
 
-    private func startAddingNewItem() {
+    /// Shows the inline new item row in `list` (or the current target list) and focuses it
+    private func startAddingNewItem(in list: PackingList?) {
+        if let list, list.persistentModelID != newItemList?.persistentModelID {
+            // Save anything typed for the previous list before the row moves
+            insertNewItem()
+            newItemList = list
+        }
         newItemFieldFocused = true
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
             isAddingNewItem = true
         }
     }
 
+    /// Reminders-style: tapping blank space finishes the current entry, or starts a new one
+    private func handleTapOnEmptyArea(in list: PackingList?) {
+        if isAddingNewItem {
+            finishAddingNewItem()
+        } else {
+            startAddingNewItem(in: list)
+        }
+    }
+
+    /// Return key: save and keep the row open for the next item; Return on an empty row closes it
     private func addNewItemAndContinue() {
+        guard !newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            finishAddingNewItem()
+            return
+        }
+        insertNewItem()
+        scrollToPlaceholder = true
+    }
+
+    /// Saves any typed text, then dismisses the keyboard before animating the row away
+    private func finishAddingNewItem() {
+        insertNewItem()
+        newItemFieldFocused = false
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+            newItemName = ""
+            newItemCount = 1
+            isAddingNewItem = false
+        }
+    }
+
+    private func insertNewItem() {
         guard let list = context.isTrip ? newItemList : context.singleList else { return }
-        guard !newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let name = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
 
         withAnimation(.packingSpring) {
             let newItem = Item(
-                name: newItemName,
+                name: name,
                 category: "",
                 count: newItemCount,
                 isPacked: false,
@@ -571,36 +625,16 @@ struct PackingListContainerView: View {
             newItemName = ""
             newItemCount = 1
         }
-
-        scrollToPlaceholder = true
     }
 
-    private func addNewItemAndClose() {
-        let list = context.isTrip ? newItemList : context.singleList
-        if !newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let list = list
-        {
-            withAnimation(.packingSpring) {
-                let newItem = Item(
-                    name: newItemName,
-                    category: "",
-                    count: newItemCount,
-                    isPacked: false,
-                    sortOrder: SortOrderManager.nextSortOrder(for: list),
-                    type: .packing,
-                    isDayOf: false
-                )
-                newItem.user = context.isTrip ? newItemUser : nil
-                modelContext.insert(newItem)
-                list.addItem(newItem)
+    private func updateSingleListItem(_ item: Item, name: String, count: Int) {
+        withAnimation {
+            item.name = name
+            item.count = count
+            // Only clear if another row hasn't already taken over editing
+            if singleListEditingItemId == item.persistentModelID {
+                singleListEditingItemId = nil
             }
-        }
-
-        newItemFieldFocused = false
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-            newItemName = ""
-            newItemCount = 1
-            isAddingNewItem = false
         }
     }
 

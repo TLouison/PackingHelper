@@ -32,7 +32,18 @@ struct SectionedPackingListView: View {
     @Binding var isReorderingSections: Bool
     @Binding var scrollToPlaceholder: Bool
 
+    // Inline new item row (state owned by container)
+    @Binding var newItemName: String
+    @Binding var newItemFieldFocused: Bool
+    let newItemCount: Int
+    let onSubmitNewItem: () -> Void
+    /// Start adding in a list (nil = current target list)
+    let onStartAddingItem: (PackingList?) -> Void
+    /// Tap on blank space: ends adding if active, otherwise starts adding in that list
+    let onTapEmptyArea: (PackingList?) -> Void
+
     // Local state
+    @State private var pendingPacks = PendingPackTracker()
     @State private var collapsedSections: Set<String> = []
     @State private var expandedSectionsBeforeReorder: Set<String> = []
     @State private var editingItemId: PersistentIdentifier?
@@ -53,7 +64,7 @@ struct SectionedPackingListView: View {
     var allPackedItems: [Item] {
         var packedItems: [Item] = []
         for list in lists {
-            var listPacked = list.completeItems
+            var listPacked = pendingPacks.settledPacked(list.items ?? [])
             if let user = selectedUser {
                 listPacked = listPacked.filter { $0.user?.persistentModelID == user.persistentModelID }
             }
@@ -118,12 +129,17 @@ struct SectionedPackingListView: View {
                             onItemReorder: handleItemReorder,
                             onCrossListDrop: handleCrossListMove,
                             onAddItemToList: { targetList in
-                                newItemList = targetList
-                                withAnimation { isAddingNewItem = true }
+                                onStartAddingItem(targetList)
                             },
                             isReorderMode: isReorderingSections,
+                            pendingPacks: pendingPacks,
                             isAddingNewItem: isAddingNewItem,
-                            targetList: newItemList
+                            targetList: newItemList,
+                            newItemName: $newItemName,
+                            newItemFieldFocused: $newItemFieldFocused,
+                            newItemCount: newItemCount,
+                            onSubmitNewItem: onSubmitNewItem,
+                            onTapEmptyArea: { list in onTapEmptyArea(list) }
                         )
                         .draggable(PackingListTransferData(list: list)) {
                             // Section drag preview
@@ -186,10 +202,18 @@ struct SectionedPackingListView: View {
                     EmptyStateView()
                         .padding(.top, 60)
                 }
+
+                // Blank space below everything: tap to add to the current list, or to finish adding
+                if !isReorderingSections {
+                    AddItemTapZone(minHeight: 120) {
+                        onTapEmptyArea(nil)
+                    }
+                }
             }
             .padding(.vertical)
             .padding(.horizontal, 8)
         }
+        .scrollDismissesKeyboard(.interactively)
         .onAppear {
             loadCollapseState()
         }
@@ -205,7 +229,7 @@ struct SectionedPackingListView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         withAnimation {
                             proxy.scrollTo(
-                                "insertionPlaceholder-\(targetList.persistentModelID.hashValue)",
+                                NewItemRow.scrollID(for: targetList),
                                 anchor: .bottom
                             )
                         }
@@ -215,9 +239,14 @@ struct SectionedPackingListView: View {
         }
         .onChange(of: isAddingNewItem) { _, isAdding in
             if isAdding, let targetList = newItemList {
+                // The inline row only renders in an expanded section
+                let id = String(targetList.persistentModelID.hashValue)
+                if collapsedSections.contains(id) {
+                    withAnimation { collapsedSections.remove(id) }
+                }
                 withAnimation {
                     proxy.scrollTo(
-                        "insertionPlaceholder-\(targetList.persistentModelID.hashValue)",
+                        NewItemRow.scrollID(for: targetList),
                         anchor: .bottom
                     )
                 }
@@ -236,7 +265,7 @@ struct SectionedPackingListView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                         proxy.scrollTo(
-                            "insertionPlaceholder-\(targetList.persistentModelID.hashValue)",
+                            NewItemRow.scrollID(for: targetList),
                             anchor: .bottom
                         )
                     }
@@ -281,16 +310,17 @@ struct SectionedPackingListView: View {
     }
 
     private func togglePacked(_ item: Item) {
-        withAnimation(.packingSpring) {
-            item.isPacked.toggle()
-        }
+        pendingPacks.toggle(item)
     }
 
     private func updateItem(_ item: Item, name: String, count: Int) {
         withAnimation {
             item.name = name
             item.count = count
-            editingItemId = nil
+            // Only clear if another row hasn't already taken over editing
+            if editingItemId == item.persistentModelID {
+                editingItemId = nil
+            }
         }
     }
 

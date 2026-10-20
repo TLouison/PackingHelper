@@ -105,10 +105,12 @@ ContentView (TabView)
   - Supports .unified, .detail, .templating modes
 - `SectionedPackingListView`: Shows items grouped by PackingList with collapsible sections
   - Persists collapse state via `SectionCollapseStateManager`
-- Both views share `ItemRowViews.swift` components:
-  - `NewItemRow`: Add new item UI
-  - `EditableItemRow`: Edit existing item UI
-  - `UnifiedItemRow`: Display item with swipe-to-delete
+- Both views share `ItemRowViews.swift` components (Reminders-style editing):
+  - `NewItemRow`: Inline add row rendered inside the target section; Return saves and keeps the row open, Return on empty or blur closes it (typed text is saved). Count/packer/section live in the container's accessory bar above the keyboard
+  - `EditableItemRow`: Inline edit; commits on Return, blur, or disappear; backspace on empty name deletes the item
+  - `UnifiedItemRow`: Display item with swipe-to-reveal delete and full-swipe delete
+  - `AddItemTapZone`: Blank area at the end of a section/list; tap starts adding there (or finishes adding)
+- `PendingPackTracker` (in UnifiedPackingListView.swift): checked items stay in place ~1.5s (tap again to undo) before moving to Packed
 
 ### Special Components
 

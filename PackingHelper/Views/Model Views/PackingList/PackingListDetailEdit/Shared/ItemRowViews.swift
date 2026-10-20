@@ -8,84 +8,139 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - New Item Row
+
+/// Inline Reminders-style row for adding an item directly inside a section.
+/// Count and packer are edited from the accessory bar above the keyboard.
 struct NewItemRow: View {
     @Binding var itemName: String
-    @Binding var itemCount: Int
     @Binding var isFocused: Bool
+    var itemCount: Int = 1
+    var showsCheckbox: Bool = true
 
     let onSubmitReturn: () -> Void
+    var onDeleteEmpty: (() -> Void)? = nil
+
+    /// ScrollViewReader id for the new item row rendered inside a given list
+    static func scrollID(for list: PackingList) -> String {
+        "newItemRow-\(list.persistentModelID.hashValue)"
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if showsCheckbox {
+                Image(systemName: "circle")
+                    .font(.title2)
+                    .foregroundStyle(.gray.opacity(0.5))
+            }
+
+            PersistentTextField(
+                text: $itemName,
+                isFocused: $isFocused,
+                placeholder: "New Item",
+                onSubmit: onSubmitReturn,
+                onDeleteBackwardWhenEmpty: onDeleteEmpty
+            )
+
+            if itemCount > 1 {
+                ItemCountBadge(count: itemCount)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Count Controls
+
+struct ItemCountStepper: View {
+    @Binding var count: Int
 
     @State private var countingDown = false
 
     var body: some View {
-        HStack(alignment: .center) {
-            PersistentTextField(
-                text: $itemName,
-                isFocused: $isFocused,
-                placeholder: "Item name",
-                onSubmit: onSubmitReturn
-            )
-
-            Spacer()
-
-            HStack(spacing: 0) {
-                Button {
-                    if itemCount > 1 {
-                        countingDown = true
-                        withAnimation(.snappy) { itemCount -= 1 }
-                    }
-                } label: {
-                    Image(systemName: "minus")
-                        .frame(width: 32, height: 32)
+        HStack(spacing: 0) {
+            Button {
+                if count > 1 {
+                    countingDown = true
+                    withAnimation(.snappy) { count -= 1 }
                 }
-                .accessibilityLabel("Decrease count")
-                Text("\(itemCount)")
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .frame(minWidth: 24, alignment: .center)
-                    .contentTransition(.numericText(countsDown: countingDown))
-                Button {
-                    if itemCount < 99 {
-                        countingDown = false
-                        withAnimation(.snappy) { itemCount += 1 }
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .frame(width: 32, height: 32)
-                }
-                .accessibilityLabel("Increase count")
+            } label: {
+                Image(systemName: "minus")
+                    .frame(width: 32, height: 32)
             }
-            .buttonStyle(.borderless)
+            .disabled(count <= 1)
+            .accessibilityLabel("Decrease count")
+            Text("\(count)")
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(minWidth: 24, alignment: .center)
+                .contentTransition(.numericText(countsDown: countingDown))
+            Button {
+                if count < 99 {
+                    countingDown = false
+                    withAnimation(.snappy) { count += 1 }
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .frame(width: 32, height: 32)
+            }
+            .disabled(count >= 99)
+            .accessibilityLabel("Increase count")
         }
+        .buttonStyle(.borderless)
     }
 }
 
+struct ItemCountBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text("\(count)")
+            .font(.caption)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(Color.blue)
+            .clipShape(.rect(cornerRadius: 10))
+    }
+}
+
+// MARK: - Editable Item Row
+
+/// Inline edit row. Commits on Return or when focus leaves the row; an empty name reverts.
+/// Backspace on an empty name deletes the item.
 struct EditableItemRow: View {
     let item: Item
     let isTemplating: Bool
     let onCommit: (String, Int) -> Void
     let onCancel: () -> Void
+    var onDeleteEmpty: (() -> Void)? = nil
 
     @State private var editName: String
     @State private var editCount: Int
-    @FocusState private var isFocused: Bool
+    @State private var isFocused = false
+    @State private var didFinish = false
 
     init(
         item: Item,
         isTemplating: Bool,
         onCommit: @escaping (String, Int) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping () -> Void,
+        onDeleteEmpty: (() -> Void)? = nil
     ) {
         self.item = item
         self.isTemplating = isTemplating
         self.onCommit = onCommit
         self.onCancel = onCancel
+        self.onDeleteEmpty = onDeleteEmpty
         self._editName = State(initialValue: item.name)
         self._editCount = State(initialValue: item.count)
     }
 
     var body: some View {
-        HStack(alignment: .center) {
+        HStack(spacing: 12) {
             if !isTemplating {
                 Image(
                     systemName: item.isPacked
@@ -93,43 +148,56 @@ struct EditableItemRow: View {
                 )
                 .font(.title2)
                 .foregroundStyle(item.isPacked ? .blue : .gray.opacity(0.5))
-                .padding(.trailing, 12)
             }
 
-            TextField("Item name", text: $editName)
-                .focused($isFocused)
-                .onSubmit {
-                    onCommit(editName, editCount)
-                }
-            
-            Spacer()
+            PersistentTextField(
+                text: $editName,
+                isFocused: $isFocused,
+                placeholder: "Item name",
+                onSubmit: finish,
+                onDeleteBackwardWhenEmpty: onDeleteEmpty == nil ? nil : deleteEmpty
+            )
 
-            Stepper(value: $editCount, in: 1...99) {
-                Text("\(editCount)")
-                    .foregroundStyle(.secondary)
-                    .frame(minWidth: 30)
-            }
-
-            Button(action: {
-                onCommit(editName, editCount)
-            }) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.blue)
-                    .font(.title3)
-            }
-            .accessibilityLabel("Confirm")
-            .padding(.leading, 12)
+            ItemCountStepper(count: $editCount)
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 4)
         .padding(.horizontal, 16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 10))
-        .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.secondarySystemGroupedBackground))
+                .padding(.vertical, -3)
+        }
         .onAppear {
             isFocused = true
         }
+        .onChange(of: isFocused) { _, focused in
+            if !focused { finish() }
+        }
+        .onDisappear {
+            // Row can be torn down without losing focus first (e.g. tapping another row)
+            finish()
+        }
+    }
+
+    private func deleteEmpty() {
+        guard !didFinish else { return }
+        didFinish = true
+        onDeleteEmpty?()
+    }
+
+    private func finish() {
+        guard !didFinish else { return }
+        didFinish = true
+        if editName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            onCancel()
+        } else {
+            onCommit(editName, editCount)
+        }
     }
 }
+
+// MARK: - Item Row
 
 struct UnifiedItemRow: View {
     let item: Item
@@ -139,93 +207,105 @@ struct UnifiedItemRow: View {
     let onDelete: () -> Void
 
     @State private var offset: CGFloat = 0
-    private let maxOffset: CGFloat = -52  // Room for floating button + spacing
-    private let snapThreshold: CGFloat = -30
+    @State private var restingOffset: CGFloat = 0
+    @State private var rowWidth: CGFloat = 0
+    @State private var isDeleting = false
 
-    // Show swipe-to-delete for template items (always) or unpacked items (non-template)
-    private var showSwipeDelete: Bool {
-        isTemplating || !item.isPacked
+    /// Resting position when the delete action is revealed
+    private let revealOffset: CGFloat = -72
+
+    /// Swiping past this point deletes on release (Reminders-style full swipe)
+    private var fullSwipeThreshold: CGFloat {
+        -max(rowWidth * 0.55, 140)
     }
 
-    // Animate button scale from 0.5 to 1.0 as user swipes
-    private var deleteButtonScale: CGFloat {
-        guard showSwipeDelete else { return 0 }
-        let progress = min(1, -offset / (-maxOffset))
-        return 0.5 + (0.5 * progress)
-    }
-
-    // Fade button in from 0 to 1 as user swipes
-    private var deleteButtonOpacity: CGFloat {
-        guard showSwipeDelete else { return 0 }
-        let progress = min(1, -offset / (-maxOffset))
-        return progress
-    }
-
-    // Swipe progress from 0 to 1
-    private var swipeProgress: CGFloat {
-        guard showSwipeDelete else { return 0 }
-        return min(1, -offset / (-maxOffset))
+    private var isPastFullSwipe: Bool {
+        offset < fullSwipeThreshold
     }
 
     var body: some View {
-        rowContent
-            .padding(.vertical, 4)
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(.secondarySystemBackground).opacity(Double(swipeProgress * swipeProgress)))
-                    .padding(.vertical, -3)
-            }
-            .offset(x: showSwipeDelete ? offset : 0)
-            .gesture(
-                showSwipeDelete
-                    ? DragGesture(minimumDistance: 20)
-                        .onChanged { value in
-                            if value.translation.width < 0 {
-                                offset = value.translation.width
-                            } else if offset < 0 {
-                                offset = min(0, offset + value.translation.width)
-                            }
-                        }
-                        .onEnded { _ in
-                            withAnimation(.packingSpring) {
-                                offset = offset < snapThreshold ? maxOffset : 0
-                            }
-                        } : nil
-            )
-            .overlay(alignment: .trailing) {
-                if showSwipeDelete && offset < 0 {
-                    Button(action: {
-                        withAnimation(.packingSpring) {
-                            offset = 0
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            onDelete()
-                        }
-                    }) {
-                        Image(systemName: "trash.fill")
-                            .font(.body)
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Color.red)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-                    }
-                    .offset(x: 8)
-                    .scaleEffect(deleteButtonScale)
-                    .opacity(deleteButtonOpacity)
-                }
-            }
+        ZStack(alignment: .trailing) {
+            deleteAction
+
+            rowContent
+                .padding(.vertical, 4)
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .offset(x: offset)
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
+        .gesture(swipeGesture)
+        .sensoryFeedback(.impact(weight: .medium), trigger: isPastFullSwipe) { _, isPast in isPast }
+        .accessibilityAction(named: "Delete", onDelete)
         .onChange(of: item.isPacked) { _, _ in
             // Reset offset when item is packed/unpacked
-            withAnimation(.packingSpring) {
-                offset = 0
-            }
+            closeSwipe()
         }
         .onChange(of: item.id) { _, _ in
             // Reset offset when item changes (e.g., after adding)
             offset = 0
+            restingOffset = 0
+            isDeleting = false
+        }
+    }
+
+    private var deleteAction: some View {
+        Button(action: performDelete) {
+            Image(systemName: "trash.fill")
+                .font(.body)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: isPastFullSwipe ? .leading : .center
+                )
+                .animation(.packingSpring, value: isPastFullSwipe)
+        }
+        .buttonStyle(.plain)
+        .frame(width: max(0, -offset))
+        .background(Color.red, in: .rect(cornerRadius: 10))
+        .opacity(offset < 0 ? 1 : 0)
+        .accessibilityHidden(true)
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onChanged { value in
+                guard !isDeleting,
+                      abs(value.translation.width) > abs(value.translation.height)
+                else { return }
+                offset = min(0, restingOffset + value.translation.width)
+            }
+            .onEnded { _ in
+                guard !isDeleting else { return }
+                if isPastFullSwipe {
+                    performDelete()
+                } else {
+                    withAnimation(.packingSpring) {
+                        offset = offset < revealOffset / 2 ? revealOffset : 0
+                    }
+                    restingOffset = offset
+                }
+            }
+    }
+
+    private func closeSwipe() {
+        withAnimation(.packingSpring) {
+            offset = 0
+        }
+        restingOffset = 0
+    }
+
+    private func performDelete() {
+        guard !isDeleting else { return }
+        isDeleting = true
+        withAnimation(.easeOut(duration: 0.2)) {
+            offset = -max(rowWidth, 320)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            onDelete()
         }
     }
 
@@ -239,12 +319,19 @@ struct UnifiedItemRow: View {
                     )
                     .font(.title2)
                     .foregroundStyle(item.isPacked ? .blue : .gray.opacity(0.5))
+                    .contentTransition(.symbolEffect(.replace))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(item.isPacked ? "Mark as unpacked" : "Mark as packed")
             }
 
-            Button(action: onEdit) {
+            Button {
+                if offset != 0 {
+                    closeSwipe()
+                } else {
+                    onEdit()
+                }
+            } label: {
                 Text(item.name)
                     .font(.body)
                     .strikethrough(item.isPacked)
@@ -254,15 +341,38 @@ struct UnifiedItemRow: View {
             .buttonStyle(.plain)
 
             if item.count > 1 {
-                Text("\(item.count)")
-                    .font(.caption)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.blue)
-                    .clipShape(.rect(cornerRadius: 10))
+                ItemCountBadge(count: item.count)
             }
         }
+    }
+}
+
+// MARK: - Add Item Tap Zone
+
+/// Blank area at the end of a section; tapping it starts adding an item there (Reminders-style)
+struct AddItemTapZone: View {
+    var showsEmptyHint: Bool = false
+    var minHeight: CGFloat = 28
+    let action: () -> Void
+
+    var body: some View {
+        Group {
+            if showsEmptyHint {
+                Text("No items")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
+        .accessibilityElement()
+        .accessibilityLabel(showsEmptyHint ? "No items. Add item" : "Add item")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -317,37 +427,6 @@ struct PackedItemsSection: View {
                         .opacity(0.6)
                     }
                 }
-            }
-        }
-    }
-}
-
-// MARK: - Insertion Placeholder
-
-struct InsertionPlaceholder: View {
-    @State private var opacity: Double = 0.3
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Color.accentColor)
-                .frame(width: 6, height: 6)
-            Rectangle()
-                .fill(Color.accentColor)
-                .frame(height: 2)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.accentColor.opacity(0.1))
-        )
-        .opacity(opacity)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 2)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                opacity = 1.0
             }
         }
     }

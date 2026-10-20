@@ -37,7 +37,16 @@ struct ReorderableItemsSection: View {
                         onCommit: { name, count in
                             onUpdateItem(item, name, count)
                         },
-                        onCancel: { editingItemId = nil }
+                        onCancel: {
+                            // Only clear if another row hasn't already taken over editing
+                            if editingItemId == item.persistentModelID { editingItemId = nil }
+                        },
+                        onDeleteEmpty: {
+                            // Reminders-style: backspace on empty deletes and moves editing up a row
+                            let previousItem = index > 0 ? items[index - 1] : nil
+                            onDeleteItem(item)
+                            editingItemId = previousItem?.persistentModelID
+                        }
                     )
                 } else {
                     UnifiedItemRow(

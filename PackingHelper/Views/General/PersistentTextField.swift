@@ -13,9 +13,11 @@ struct PersistentTextField: UIViewRepresentable {
     @Binding var isFocused: Bool
     var placeholder: String
     var onSubmit: () -> Void
+    /// Called when backspace is pressed while the field is already empty
+    var onDeleteBackwardWhenEmpty: (() -> Void)? = nil
 
-    func makeUIView(context: Context) -> UITextField {
-        let tf = UITextField()
+    func makeUIView(context: Context) -> BackspaceAwareTextField {
+        let tf = BackspaceAwareTextField()
         tf.placeholder = placeholder
         tf.returnKeyType = .done
         tf.delegate = context.coordinator
@@ -28,10 +30,13 @@ struct PersistentTextField: UIViewRepresentable {
         tf.adjustsFontForContentSizeCategory = true
         tf.setContentHuggingPriority(.required, for: .vertical)
         tf.setContentCompressionResistancePriority(.required, for: .vertical)
+        tf.onDeleteBackwardWhenEmpty = onDeleteBackwardWhenEmpty
         return tf
     }
 
-    func updateUIView(_ tf: UITextField, context: Context) {
+    func updateUIView(_ tf: BackspaceAwareTextField, context: Context) {
+        context.coordinator.parent = self
+        tf.onDeleteBackwardWhenEmpty = onDeleteBackwardWhenEmpty
         if tf.text != text {
             tf.text = text
         }
@@ -64,6 +69,19 @@ struct PersistentTextField: UIViewRepresentable {
 
         func textFieldDidEndEditing(_ textField: UITextField) {
             DispatchQueue.main.async { self.parent.isFocused = false }
+        }
+    }
+}
+
+/// UITextField that reports backspace presses on an empty field (Reminders-style row deletion)
+final class BackspaceAwareTextField: UITextField {
+    var onDeleteBackwardWhenEmpty: (() -> Void)?
+
+    override func deleteBackward() {
+        let wasEmpty = text?.isEmpty ?? true
+        super.deleteBackward()
+        if wasEmpty {
+            onDeleteBackwardWhenEmpty?()
         }
     }
 }
