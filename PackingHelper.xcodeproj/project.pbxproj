@@ -109,7 +109,7 @@
 		510728122C1FD5D000EBF362 /* UserListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserListView.swift; sourceTree = "<group>"; };
 		5107281B2C1FDA1900EBF362 /* UserEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserEditView.swift; sourceTree = "<group>"; };
 		5107281F2C21297C00EBF362 /* UserListRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserListRowView.swift; sourceTree = "<group>"; };
-		510728212C212D5500EBF362 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		510728212C212D5500EBF362 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5110C6312AE5B028002742D0 /* CalendarUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarUtilities.swift; sourceTree = "<group>"; };
 		5110C6332AE5DA70002742D0 /* StyleUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleUtilities.swift; sourceTree = "<group>"; };
 		5110C6352AE5DE7D002742D0 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
@@ -162,6 +162,7 @@
 		519B725D2ADB2D94009401C0 /* Symbols.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Symbols.framework; path = System/Library/Frameworks/Symbols.framework; sourceTree = SDKROOT; };
 		519C8AAE2BFEEB4D0008B1B0 /* PackingHelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PackingHelper.entitlements; sourceTree = "<group>"; };
 		519C8AAF2BFEEFE10008B1B0 /* WeatherUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherUtilities.swift; sourceTree = "<group>"; };
+		51A5B9F32FFAB7D6007E45B0 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		51AC5FB32C31B47F00DF83F6 /* CreateListMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateListMenu.swift; sourceTree = "<group>"; };
 		51AC5FB62C4326C400DF83F6 /* MissingUsersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissingUsersView.swift; sourceTree = "<group>"; };
 		51AC5FBF2C4749BF00DF83F6 /* PurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseManager.swift; sourceTree = "<group>"; };
@@ -277,6 +278,7 @@
 			isa = PBXGroup;
 			children = (
 				5101F9A62F15DF45000DFA0C /* CLAUDE.md */,
+				51A5B9F32FFAB7D6007E45B0 /* Config.xcconfig */,
 				516337932E799FBE0043388F /* PackingHelperPlus.storekit */,
 				519A53032B4FACC200183CB1 /* ProductSuggestionModel.mlmodel */,
 				51289F192AD3B6CD00545115 /* PackingHelperApp.swift */,
@@ -845,6 +847,7 @@
 		};
 		51289F252AD3B6CF00545115 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 51A5B9F32FFAB7D6007E45B0 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon3;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -882,6 +885,7 @@
 		};
 		51289F262AD3B6CF00545115 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 51A5B9F32FFAB7D6007E45B0 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon3;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

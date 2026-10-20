@@ -1,0 +1,16 @@
+# Secrets / local config — never commit. Use Config.xcconfig.example as the template.
+Config.xcconfig
+
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+build/
+DerivedData/
+*.moved-aside
+
+# Swift Package Manager
+.swiftpm/
+.build/

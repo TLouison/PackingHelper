@@ -1,0 +1,20 @@
+//
+//  Config.xcconfig.example
+//  PackingHelper
+//
+//  Template for the real, gitignored Config.xcconfig.
+//  Copy this to `Config.xcconfig` and fill in the values below.
+//
+//    cp Config.xcconfig.example Config.xcconfig
+//
+//  These values ship inside the app binary, so ONLY put publishable,
+//  non-secret values here. True secrets (the Anthropic API key, the
+//  RevenueCat *secret* key) live on the Cloudflare Worker via
+//  `wrangler secret put` — never in the app.
+
+// RevenueCat *public* SDK key (starts with `appl_`). Safe to ship.
+REVENUECAT_API_KEY=appl_YOUR_PUBLIC_SDK_KEY
+
+// Deployed AI assistant Worker URL (PackingHelperWorkers). Not a secret.
+// The `/$()/`  escapes the `//` so xcconfig doesn't treat it as a comment.
+WORKER_URL=https:/$()/packing-helper-ai.YOUR-SUBDOMAIN.workers.dev
