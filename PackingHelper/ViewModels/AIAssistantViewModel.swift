@@ -29,6 +29,9 @@ final class AIAssistantViewModel {
     private(set) var remaining: Int?
     private(set) var resetsAt: Date?
     var errorMessage: String?
+    /// Set when the Worker rejects us as unsubscribed even though the local
+    /// gate let us in (stale CustomerInfo, e.g. a lapsed sandbox renewal).
+    private(set) var subscriptionLapsed = false
 
     private var tripContext: AITripContext?
     private var contextReady = false
@@ -151,6 +154,8 @@ final class AIAssistantViewModel {
         case .limitReached(let resetsAt):
             remaining = 0
             self.resetsAt = resetsAt
+        case .notSubscribed:
+            subscriptionLapsed = true
         default:
             break
         }

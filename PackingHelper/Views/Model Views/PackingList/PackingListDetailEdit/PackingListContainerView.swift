@@ -35,6 +35,9 @@ struct PackingListContainerView: View {
     // AI assistant (trip context only)
     @State private var showingAIAssistant: Bool = false
     @State private var showingAIPaywall: Bool = false
+    /// Show the paywall once the assistant sheet finishes dismissing (two
+    /// sheets can't present back-to-back in the same update).
+    @State private var showPaywallAfterAIDismiss: Bool = false
 
     // Centralized add-item state
     @State private var newItemName = ""
@@ -168,12 +171,21 @@ struct PackingListContainerView: View {
                     .presentationDetents([.fraction(0.65), .large])
             }
         }
-        .sheet(isPresented: $showingAIAssistant) {
+        .sheet(isPresented: $showingAIAssistant, onDismiss: {
+            if showPaywallAfterAIDismiss {
+                showPaywallAfterAIDismiss = false
+                showingAIPaywall = true
+            }
+        }) {
             if let trip = context.trip {
                 AIAssistantSheet(
                     trip: trip,
                     users: users,
-                    targetUser: $newItemUser
+                    targetUser: $newItemUser,
+                    onSubscriptionLapsed: {
+                        showPaywallAfterAIDismiss = true
+                        showingAIAssistant = false
+                    }
                 )
                 .presentationDetents([.large])
             }

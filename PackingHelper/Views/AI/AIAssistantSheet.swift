@@ -13,8 +13,12 @@ struct AIAssistantSheet: View {
     let trip: Trip
     let users: [User]?
     @Binding var targetUser: User?
+    /// Called after the Worker reports no active subscription and entitlements
+    /// have been refreshed; the presenter should close this and show the paywall.
+    var onSubscriptionLapsed: () -> Void = {}
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(PurchaseManager.self) private var purchaseManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel = AIAssistantViewModel()
@@ -46,6 +50,14 @@ struct AIAssistantSheet: View {
         }
         .task {
             await viewModel.prepare(trip: trip, targetUser: targetUser, modelContext: modelContext)
+        }
+        .onChange(of: viewModel.subscriptionLapsed) { _, lapsed in
+            guard lapsed else { return }
+            composerFocused = false
+            Task {
+                await purchaseManager.refresh()
+                onSubscriptionLapsed()
+            }
         }
     }
 

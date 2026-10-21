@@ -44,6 +44,15 @@ class PurchaseManager {
         }
     }
 
+    /// Re-fetch entitlements from RevenueCat, bypassing the SDK cache. The
+    /// stream doesn't emit when an expiry date simply passes, so call this on
+    /// foreground and whenever the Worker rejects us as unsubscribed.
+    func refresh() async {
+        if let info = try? await Purchases.shared.customerInfo(fetchPolicy: .fetchCurrent) {
+            apply(info)
+        }
+    }
+
     private func apply(_ info: CustomerInfo) {
         isPlusActive = info.entitlements[Self.entitlementID]?.isActive == true
     }
