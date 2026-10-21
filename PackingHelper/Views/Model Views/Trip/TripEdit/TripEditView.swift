@@ -219,7 +219,7 @@ struct TripEditView: View {
 
     // MARK: - Name Section
     var nameSection: some View {
-        formSection("Name", footer: "Optional. Uses the destination if left blank.") {
+        formSection("Trip Name", footer: "Optional. Uses the destination if left blank.") {
             TextField(destinationLocation?.name ?? "Trip name", text: $tripName)
                 .submitLabel(.done)
                 .padding()
