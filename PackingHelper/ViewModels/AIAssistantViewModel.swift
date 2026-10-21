@@ -89,19 +89,20 @@ final class AIAssistantViewModel {
 
     // MARK: - Adding suggestions
 
-    /// Inserts one suggestion into the appropriate list and marks it added.
-    func add(_ suggestion: AISuggestedItem, from entryID: UUID) {
-        guard let list = destinationList(for: suggestion) else { return }
+    /// Inserts one suggestion and marks it added. `list` overrides the
+    /// automatic destination when the user picks one explicitly.
+    func add(_ suggestion: AISuggestedItem, from entryID: UUID, to list: PackingList? = nil) {
+        guard let list = list ?? destinationList(for: suggestion) else { return }
         insert(suggestion, into: list)
         markAdded(suggestion.name, in: entryID)
     }
 
     /// Inserts every not-yet-added suggestion in an entry.
-    func addAll(from entryID: UUID) {
+    func addAll(from entryID: UUID, to list: PackingList? = nil) {
         guard let index = entries.firstIndex(where: { $0.id == entryID }) else { return }
         for suggestion in entries[index].suggestions
         where !entries[index].addedNames.contains(suggestion.name) {
-            if let list = destinationList(for: suggestion) {
+            if let list = list ?? destinationList(for: suggestion) {
                 insert(suggestion, into: list)
                 entries[index].addedNames.insert(suggestion.name)
             }
@@ -131,17 +132,14 @@ final class AIAssistantViewModel {
     }
 
     /// Task suggestions go to a task-type list if the trip has one; everything
-    /// else (and the fallback) goes to the selected target list.
+    /// else (and the fallback) goes to the trip's default list.
     private func destinationList(for suggestion: AISuggestedItem) -> PackingList? {
         guard let trip else { return nil }
         if suggestion.kind == .task, let taskList = trip.getLists(for: .task).first {
             return taskList
         }
-        return targetList ?? trip.defaultPackingList ?? trip.lists?.first
+        return trip.defaultPackingList ?? trip.lists?.first
     }
-
-    /// The list currently selected in the packing view; set by the sheet.
-    var targetList: PackingList?
 
     private func markAdded(_ name: String, in entryID: UUID) {
         guard let index = entries.firstIndex(where: { $0.id == entryID }) else { return }

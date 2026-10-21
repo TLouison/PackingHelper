@@ -13,7 +13,6 @@ struct AIAssistantSheet: View {
     let trip: Trip
     let users: [User]?
     @Binding var targetUser: User?
-    @Binding var targetList: PackingList?
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -27,8 +26,10 @@ struct AIAssistantSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                targetPicker
-                Divider()
+                if hasMultiplePackers {
+                    packerPicker
+                    Divider()
+                }
                 conversation
                 composer
             }
@@ -45,43 +46,14 @@ struct AIAssistantSheet: View {
         }
         .task {
             await viewModel.prepare(trip: trip, targetUser: targetUser, modelContext: modelContext)
-            viewModel.targetList = targetList
         }
     }
 
-    // MARK: - Target picker
+    // MARK: - Packer picker
 
-    private var targetPicker: some View {
-        HStack(spacing: 8) {
-            Menu {
-                ForEach(lists, id: \.id) { list in
-                    Button {
-                        targetList = list
-                        viewModel.targetList = list
-                    } label: {
-                        if list.id == targetList?.id {
-                            Label(list.name, systemImage: "checkmark")
-                        } else {
-                            Text(list.name)
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "list.bullet").font(.caption)
-                    Text(targetList?.name ?? "Select List").fontWeight(.medium)
-                    Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .opaqueGlassCapsule()
-            }
-            .disabled(lists.count <= 1)
-
-            if hasMultiplePackers {
-                UserPickerView(selectedUser: $targetUser, style: .menu, allowAll: false)
-            }
-
+    private var packerPicker: some View {
+        HStack {
+            UserPickerView(selectedUser: $targetUser, style: .menu, allowAll: false)
             Spacer()
         }
         .padding(.horizontal)
@@ -105,10 +77,10 @@ struct AIAssistantSheet: View {
                             if entry.role == .assistant {
                                 AISuggestedItemChips(
                                     suggestions: entry.suggestions,
-                                    entryID: entry.id,
+                                    lists: lists,
                                     isAdded: { viewModel.isAdded($0, in: entry.id) },
-                                    onAdd: { viewModel.add($0, from: entry.id) },
-                                    onAddAll: { withAnimation(.packingSpring) { viewModel.addAll(from: entry.id) } }
+                                    onAdd: { suggestion, list in viewModel.add(suggestion, from: entry.id, to: list) },
+                                    onAddAll: { list in withAnimation(.packingSpring) { viewModel.addAll(from: entry.id, to: list) } }
                                 )
                             }
                         }

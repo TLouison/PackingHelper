@@ -3,17 +3,19 @@
 //  PackingHelper
 //
 //  Renders an assistant reply's suggested items as tappable chips plus an
-//  "Add all" affordance. Tapping a chip inserts the item into the user's list.
+//  "Add all" affordance. Tapping adds to the automatic destination; when the
+//  trip has multiple lists, long-press (chip) or the Add all menu picks one.
 //
 
 import SwiftUI
 
 struct AISuggestedItemChips: View {
     let suggestions: [AISuggestedItem]
-    let entryID: UUID
+    let lists: [PackingList]
     let isAdded: (AISuggestedItem) -> Bool
-    let onAdd: (AISuggestedItem) -> Void
-    let onAddAll: () -> Void
+    /// `nil` list = automatic destination.
+    let onAdd: (AISuggestedItem, PackingList?) -> Void
+    let onAddAll: (PackingList?) -> Void
 
     private var allAdded: Bool {
         suggestions.allSatisfy { isAdded($0) }
@@ -29,12 +31,36 @@ struct AISuggestedItemChips: View {
                 }
 
                 if suggestions.count > 1 {
-                    Button(action: onAddAll) {
-                        Label(allAdded ? "All added" : "Add all", systemImage: allAdded ? "checkmark.circle.fill" : "plus.circle")
-                            .font(.footnote.weight(.medium))
-                    }
-                    .disabled(allAdded)
+                    addAllButton
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var addAllButton: some View {
+        let label = Label(allAdded ? "All added" : "Add all", systemImage: allAdded ? "checkmark.circle.fill" : "plus.circle")
+            .font(.footnote.weight(.medium))
+
+        if lists.count > 1 {
+            Menu {
+                listButtons { onAddAll($0) }
+            } label: {
+                label
+            } primaryAction: {
+                onAddAll(nil)
+            }
+            .disabled(allAdded)
+        } else {
+            Button { onAddAll(nil) } label: { label }
+                .disabled(allAdded)
+        }
+    }
+
+    private func listButtons(_ action: @escaping (PackingList) -> Void) -> some View {
+        Section("Add to") {
+            ForEach(lists, id: \.id) { list in
+                Button(list.name) { action(list) }
             }
         }
     }
@@ -43,7 +69,7 @@ struct AISuggestedItemChips: View {
     private func chip(for suggestion: AISuggestedItem) -> some View {
         let added = isAdded(suggestion)
         Button {
-            withAnimation(.packingSpring) { onAdd(suggestion) }
+            withAnimation(.packingSpring) { onAdd(suggestion, nil) }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: added ? "checkmark" : categoryIcon(suggestion.category))
@@ -66,6 +92,13 @@ struct AISuggestedItemChips: View {
         }
         .buttonStyle(.plain)
         .disabled(added)
+        .contextMenu {
+            if lists.count > 1 && !added {
+                listButtons { list in
+                    withAnimation(.packingSpring) { onAdd(suggestion, list) }
+                }
+            }
+        }
     }
 
     private func categoryIcon(_ category: PackingRecommendationCategory) -> String {

@@ -173,8 +173,7 @@ struct PackingListContainerView: View {
                 AIAssistantSheet(
                     trip: trip,
                     users: users,
-                    targetUser: $newItemUser,
-                    targetList: $newItemList
+                    targetUser: $newItemUser
                 )
                 .presentationDetents([.large])
             }
