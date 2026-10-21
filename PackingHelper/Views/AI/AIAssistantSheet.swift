@@ -87,12 +87,12 @@ struct AIAssistantSheet: View {
                             AIChatBubbleView(role: entry.role, text: entry.text)
 
                             if entry.role == .assistant {
-                                AISuggestedItemChips(
+                                AISuggestedItemList(
                                     suggestions: entry.suggestions,
                                     lists: lists,
                                     isAdded: { viewModel.isAdded($0, in: entry.id) },
                                     onAdd: { suggestion, list in viewModel.add(suggestion, from: entry.id, to: list) },
-                                    onAddAll: { list in withAnimation(.packingSpring) { viewModel.addAll(from: entry.id, to: list) } }
+                                    onAddAll: { items, list in withAnimation(.packingSpring) { viewModel.addAll(items, from: entry.id, to: list) } }
                                 )
                             }
                         }

@@ -100,10 +100,11 @@ final class AIAssistantViewModel {
         markAdded(suggestion.name, in: entryID)
     }
 
-    /// Inserts every not-yet-added suggestion in an entry.
-    func addAll(from entryID: UUID, to list: PackingList? = nil) {
+    /// Inserts every not-yet-added suggestion from `suggestions` (one section
+    /// of an entry).
+    func addAll(_ suggestions: [AISuggestedItem], from entryID: UUID, to list: PackingList? = nil) {
         guard let index = entries.firstIndex(where: { $0.id == entryID }) else { return }
-        for suggestion in entries[index].suggestions
+        for suggestion in suggestions
         where !entries[index].addedNames.contains(suggestion.name) {
             if let list = list ?? destinationList(for: suggestion) {
                 insert(suggestion, into: list)

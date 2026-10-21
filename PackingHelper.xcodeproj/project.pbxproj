@@ -96,7 +96,7 @@
 		51C8BBA82C2CE73B005D2B71 /* ColorUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51C8BBA72C2CE737005D2B71 /* ColorUtilities.swift */; };
 		51C8BBAA2C2D08B7005D2B71 /* UserColorPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51C8BBA92C2D08B7005D2B71 /* UserColorPicker.swift */; };
 		51C8BBB02C30799F005D2B71 /* LoggerUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51C8BBAF2C30799F005D2B71 /* LoggerUtilities.swift */; };
-		51F8A1CD308737C7002FFE56 /* AISuggestedItemChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F8A1CB308737C7002FFE56 /* AISuggestedItemChips.swift */; };
+		51F8A1CD308737C7002FFE56 /* AISuggestedItemList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F8A1CB308737C7002FFE56 /* AISuggestedItemList.swift */; };
 		51F8A1CE308737C7002FFE56 /* AIAssistantSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F8A1C9308737C7002FFE56 /* AIAssistantSheet.swift */; };
 		51F8A1CF308737C7002FFE56 /* AIChatBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F8A1CA308737C7002FFE56 /* AIChatBubbleView.swift */; };
 /* End PBXBuildFile section */
@@ -196,7 +196,7 @@
 		51C8BBAF2C30799F005D2B71 /* LoggerUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggerUtilities.swift; sourceTree = "<group>"; };
 		51F8A1C9308737C7002FFE56 /* AIAssistantSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantSheet.swift; sourceTree = "<group>"; };
 		51F8A1CA308737C7002FFE56 /* AIChatBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatBubbleView.swift; sourceTree = "<group>"; };
-		51F8A1CB308737C7002FFE56 /* AISuggestedItemChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISuggestedItemChips.swift; sourceTree = "<group>"; };
+		51F8A1CB308737C7002FFE56 /* AISuggestedItemList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISuggestedItemList.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -597,7 +597,7 @@
 			children = (
 				51F8A1C9308737C7002FFE56 /* AIAssistantSheet.swift */,
 				51F8A1CA308737C7002FFE56 /* AIChatBubbleView.swift */,
-				51F8A1CB308737C7002FFE56 /* AISuggestedItemChips.swift */,
+				51F8A1CB308737C7002FFE56 /* AISuggestedItemList.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -733,7 +733,7 @@
 				5107281C2C1FDA1900EBF362 /* UserEditView.swift in Sources */,
 				51A5B9E72FFAB653007E45B0 /* AIAssistantViewModel.swift in Sources */,
 				51A5B9E82FFAB653007E45B0 /* AIAssistantService.swift in Sources */,
-				51F8A1CD308737C7002FFE56 /* AISuggestedItemChips.swift in Sources */,
+				51F8A1CD308737C7002FFE56 /* AISuggestedItemList.swift in Sources */,
 				51F8A1CE308737C7002FFE56 /* AIAssistantSheet.swift in Sources */,
 				51F8A1CF308737C7002FFE56 /* AIChatBubbleView.swift in Sources */,
 				51A5B9E92FFAB653007E45B0 /* AITripContextBuilder.swift in Sources */,
