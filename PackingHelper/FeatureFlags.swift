@@ -48,6 +48,12 @@ class FeatureFlags {
         }
     }
 
+    var showingUnsplashPhotos: Bool {
+        didSet {
+            UserDefaults.standard.set(showingUnsplashPhotos, forKey: "featureFlag_showingUnsplashPhotos")
+        }
+    }
+
     private init() {
         // Initialize from UserDefaults
         self.showingRecommendations = UserDefaults.standard.bool(forKey: "featureFlag_showingRecommendations")
@@ -56,5 +62,6 @@ class FeatureFlags {
         self.showingNotifications = UserDefaults.standard.bool(forKey: "featureFlag_showingNotifications")
         self.showingPackingEngine = UserDefaults.standard.bool(forKey: "featureFlag_showingPackingEngine")
         self.showingProfilePictures = UserDefaults.standard.bool(forKey: "featureFlag_showingProfilePictures")
+        self.showingUnsplashPhotos = UserDefaults.standard.bool(forKey: "featureFlag_showingUnsplashPhotos")
     }
 }

@@ -19,6 +19,8 @@ struct TripEditView: View {
     @State private var tripType: TripType = .plane
     @State private var tripAccomodation: TripAccomodation = .hotel
     @State private var destinationLocation: TripLocation?
+    /// Staged cover photo; written to the trip only on save. nil = destination map.
+    @State private var coverPhotoDraft: CoverPhotoDraft?
 
     // UI State
     @State private var showingDestinationSearch = false
@@ -63,6 +65,7 @@ struct TripEditView: View {
             _tripType = State(initialValue: trip.type)
             _tripAccomodation = State(initialValue: trip.accomodation)
             _destinationLocation = State(initialValue: trip.destination)
+            _coverPhotoDraft = State(initialValue: trip.coverPhoto.map { CoverPhotoDraft($0) })
         }
     }
 
@@ -73,6 +76,7 @@ struct TripEditView: View {
                 VStack(spacing: 28) {
                     destinationSection
                     nameSection
+                    coverPhotoSection
                     datesSection
                     transportSection
                     accommodationSection
@@ -225,6 +229,13 @@ struct TripEditView: View {
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(.rect(cornerRadius: 15))
+        }
+    }
+
+    // MARK: - Cover Photo Section
+    var coverPhotoSection: some View {
+        formSection("Cover Photo", footer: "Optional. Shown instead of the map on your trip.") {
+            CoverPhotoSection(draft: $coverPhotoDraft, destinationName: destinationLocation?.name)
         }
     }
 
@@ -385,6 +396,7 @@ struct TripEditView: View {
             existingTrip.type = tripType
             existingTrip.destination = destination
             existingTrip.accomodation = tripAccomodation
+            existingTrip.applyCoverPhoto(coverPhotoDraft, in: modelContext)
         } else {
             // Create new trip
             let newTrip = Trip(
@@ -397,6 +409,7 @@ struct TripEditView: View {
                 accomodation: tripAccomodation
             )
             modelContext.insert(newTrip)
+            newTrip.applyCoverPhoto(coverPhotoDraft, in: modelContext)
 
             // Auto-create one default catch-all section (if enabled in settings)
             if autoCreateDefaultLists {
@@ -412,6 +425,18 @@ struct TripEditView: View {
             try modelContext.save()
         } catch {
             AppLogger.trip.error("Failed to save trip: \(error.localizedDescription)")
+        }
+
+        // Unsplash requires a download ping when a photo is actually used;
+        // only freshly picked photos carry a pending location.
+        if let downloadLocation = coverPhotoDraft?.pendingDownloadLocation {
+            Task {
+                do {
+                    try await UnsplashService.shared.trackDownload(downloadLocation)
+                } catch {
+                    AppLogger.trip.error("Failed to track Unsplash download: \(error.localizedDescription)")
+                }
+            }
         }
 
         if let createdTrip {

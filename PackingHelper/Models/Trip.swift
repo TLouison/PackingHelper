@@ -95,6 +95,7 @@ final class Trip {
     @Relationship var origin: TripLocation?
     @Relationship var destination: TripLocation?
     @Relationship(deleteRule: .cascade, inverse: \PackingList.trip) var lists: [PackingList]? = []
+    @Relationship(deleteRule: .cascade, inverse: \TripCoverPhoto.trip) var coverPhoto: TripCoverPhoto?
 
     var startDate: Date = Date.now
     var endDate: Date = Date.now.advanced(by: SECONDS_IN_DAY)

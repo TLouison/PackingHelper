@@ -108,20 +108,13 @@ enum AIAssistantError: LocalizedError {
     }
 }
 
-// MARK: - Service
+// MARK: - Worker
 
-struct AIAssistantService {
-    static let shared = AIAssistantService()
-
-    private let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 60
-        return URLSession(configuration: config)
-    }()
-
+/// PackingHelperWorkers location, shared by every Worker-backed service.
+enum WorkerConfig {
     /// Resolves the Worker base URL, preferring a Developer Menu override for
     /// local `wrangler dev` testing.
-    private var baseURL: URL? {
+    static var baseURL: URL? {
         if let override = UserDefaults.standard.string(forKey: "debug_workerURLOverride"),
            !override.isEmpty,
            let url = URL(string: override) {
@@ -134,9 +127,21 @@ struct AIAssistantService {
         }
         return url
     }
+}
+
+// MARK: - Service
+
+struct AIAssistantService {
+    static let shared = AIAssistantService()
+
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60
+        return URLSession(configuration: config)
+    }()
 
     func sendMessage(_ request: AIAssistantRequest) async throws -> AIAssistantResponse {
-        guard let baseURL else { throw AIAssistantError.notConfigured }
+        guard let baseURL = WorkerConfig.baseURL else { throw AIAssistantError.notConfigured }
         let endpoint = baseURL.appendingPathComponent("v1/assistant/message")
 
         var urlRequest = URLRequest(url: endpoint)

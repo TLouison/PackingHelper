@@ -67,7 +67,9 @@ struct TripListRowView: View {
     
     var body: some View {
         ZStack {
-            if isMapLoading {
+            if trip.coverPhoto != nil {
+                // Cover photo is drawn as the background below.
+            } else if isMapLoading {
                 // Skeleton view while map is loading
                 RoundedRectangle(cornerRadius: defaultCornerRadius)
                     .fill(Color(.systemGray5))
@@ -123,6 +125,11 @@ struct TripListRowView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            if let coverPhoto = trip.coverPhoto {
+                CoverPhotoImageView(photo: coverPhoto)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
         .shadow(radius: defaultShadowRadius)
         .onAppear {

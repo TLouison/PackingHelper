@@ -20,7 +20,9 @@ struct TripDetailHeroView: View {
 
     var body: some View {
         ZStack {
-            if isMapLoading {
+            if trip.coverPhoto != nil {
+                // Cover photo is drawn as the background below.
+            } else if isMapLoading {
                 // Skeleton view while map is loading
                 RoundedRectangle(cornerRadius: defaultCornerRadius)
                     .fill(Color(.systemGray5))
@@ -64,6 +66,12 @@ struct TripDetailHeroView: View {
                 .frame(minHeight: 400)
                 .padding(.bottom, 8)
                 .padding(.horizontal, 8)
+        }
+        .background {
+            if let coverPhoto = trip.coverPhoto {
+                CoverPhotoImageView(photo: coverPhoto)
+                    .clipShape(.rect(cornerRadius: defaultCornerRadius))
+            }
         }
     }
 }

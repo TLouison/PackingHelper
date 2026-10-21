@@ -41,6 +41,16 @@
 		5134EC672C05904100862E19 /* TripDetailForecastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5134EC662C05904100862E19 /* TripDetailForecastView.swift */; };
 		5134EC6E2C08177D00862E19 /* TripDetailSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5134EC6D2C08177D00862E19 /* TripDetailSectionView.swift */; };
 		5134EC752C0EAF8E00862E19 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5134EC742C0EAF8E00862E19 /* User.swift */; };
+		5141F5D930888FD900902459 /* CoverPhotoImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5D030888FD900902459 /* CoverPhotoImageLoader.swift */; };
+		5141F5DA30888FD900902459 /* BlurHash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5CE30888FD900902459 /* BlurHash.swift */; };
+		5141F5DB30888FD900902459 /* CoverPhotoImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5D130888FD900902459 /* CoverPhotoImageView.swift */; };
+		5141F5DC30888FD900902459 /* UnsplashPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5D630888FD900902459 /* UnsplashPickerView.swift */; };
+		5141F5DD30888FD900902459 /* CoverPhotoSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5D330888FD900902459 /* CoverPhotoSection.swift */; };
+		5141F5DE30888FD900902459 /* TripCoverPhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5D430888FD900902459 /* TripCoverPhoto.swift */; };
+		5141F5DF30888FD900902459 /* UnsplashService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5D730888FD900902459 /* UnsplashService.swift */; };
+		5141F5E030888FD900902459 /* CoverPhotoFocusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5CF30888FD900902459 /* CoverPhotoFocusView.swift */; };
+		5141F5E130888FD900902459 /* TripDetailPhotoCreditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5D530888FD900902459 /* TripDetailPhotoCreditView.swift */; };
+		5141F5E230888FD900902459 /* CoverPhotoProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5141F5D230888FD900902459 /* CoverPhotoProcessing.swift */; };
 		51466B342ADB3EA200258ABB /* TransitionUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51466B332ADB3EA200258ABB /* TransitionUtilities.swift */; };
 		515B859A2AD7693C002D614F /* PreviewContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515B85992AD7693C002D614F /* PreviewContainer.swift */; };
 		515B859C2AD76F4C002D614F /* TripSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515B859B2AD76F4C002D614F /* TripSettingsSheet.swift */; };
@@ -138,6 +148,16 @@
 		5134EC662C05904100862E19 /* TripDetailForecastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripDetailForecastView.swift; sourceTree = "<group>"; };
 		5134EC6D2C08177D00862E19 /* TripDetailSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripDetailSectionView.swift; sourceTree = "<group>"; };
 		5134EC742C0EAF8E00862E19 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
+		5141F5CE30888FD900902459 /* BlurHash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurHash.swift; sourceTree = "<group>"; };
+		5141F5CF30888FD900902459 /* CoverPhotoFocusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverPhotoFocusView.swift; sourceTree = "<group>"; };
+		5141F5D030888FD900902459 /* CoverPhotoImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverPhotoImageLoader.swift; sourceTree = "<group>"; };
+		5141F5D130888FD900902459 /* CoverPhotoImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverPhotoImageView.swift; sourceTree = "<group>"; };
+		5141F5D230888FD900902459 /* CoverPhotoProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverPhotoProcessing.swift; sourceTree = "<group>"; };
+		5141F5D330888FD900902459 /* CoverPhotoSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverPhotoSection.swift; sourceTree = "<group>"; };
+		5141F5D430888FD900902459 /* TripCoverPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripCoverPhoto.swift; sourceTree = "<group>"; };
+		5141F5D530888FD900902459 /* TripDetailPhotoCreditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripDetailPhotoCreditView.swift; sourceTree = "<group>"; };
+		5141F5D630888FD900902459 /* UnsplashPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsplashPickerView.swift; sourceTree = "<group>"; };
+		5141F5D730888FD900902459 /* UnsplashService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsplashService.swift; sourceTree = "<group>"; };
 		51466B332ADB3EA200258ABB /* TransitionUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionUtilities.swift; sourceTree = "<group>"; };
 		515B85992AD7693C002D614F /* PreviewContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewContainer.swift; sourceTree = "<group>"; };
 		515B859B2AD76F4C002D614F /* TripSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripSettingsSheet.swift; sourceTree = "<group>"; };
@@ -303,6 +323,7 @@
 		51289F182AD3B6CD00545115 /* PackingHelper */ = {
 			isa = PBXGroup;
 			children = (
+				5141F5D830888FD900902459 /* CoverPhoto */,
 				510728212C212D5500EBF362 /* Info.plist */,
 				519C8AAE2BFEEB4D0008B1B0 /* PackingHelper.entitlements */,
 				51A5B9E42FFAB653007E45B0 /* Services */,
@@ -387,6 +408,23 @@
 				51B8A7022E79ED160068296E /* WeatherChip.swift */,
 			);
 			path = Weather;
+			sourceTree = "<group>";
+		};
+		5141F5D830888FD900902459 /* CoverPhoto */ = {
+			isa = PBXGroup;
+			children = (
+				5141F5CE30888FD900902459 /* BlurHash.swift */,
+				5141F5CF30888FD900902459 /* CoverPhotoFocusView.swift */,
+				5141F5D030888FD900902459 /* CoverPhotoImageLoader.swift */,
+				5141F5D130888FD900902459 /* CoverPhotoImageView.swift */,
+				5141F5D230888FD900902459 /* CoverPhotoProcessing.swift */,
+				5141F5D330888FD900902459 /* CoverPhotoSection.swift */,
+				5141F5D430888FD900902459 /* TripCoverPhoto.swift */,
+				5141F5D530888FD900902459 /* TripDetailPhotoCreditView.swift */,
+				5141F5D630888FD900902459 /* UnsplashPickerView.swift */,
+				5141F5D730888FD900902459 /* UnsplashService.swift */,
+			);
+			path = CoverPhoto;
 			sourceTree = "<group>";
 		};
 		515B85982AD76930002D614F /* Utilities */ = {
@@ -716,6 +754,16 @@
 				51AC5FB72C4326C400DF83F6 /* MissingUsersView.swift in Sources */,
 				51289F282AD4DDA500545115 /* TripDetailView.swift in Sources */,
 				51C8BB762C287A60005D2B71 /* Preferences.swift in Sources */,
+				5141F5D930888FD900902459 /* CoverPhotoImageLoader.swift in Sources */,
+				5141F5DA30888FD900902459 /* BlurHash.swift in Sources */,
+				5141F5DB30888FD900902459 /* CoverPhotoImageView.swift in Sources */,
+				5141F5DC30888FD900902459 /* UnsplashPickerView.swift in Sources */,
+				5141F5DD30888FD900902459 /* CoverPhotoSection.swift in Sources */,
+				5141F5DE30888FD900902459 /* TripCoverPhoto.swift in Sources */,
+				5141F5DF30888FD900902459 /* UnsplashService.swift in Sources */,
+				5141F5E030888FD900902459 /* CoverPhotoFocusView.swift in Sources */,
+				5141F5E130888FD900902459 /* TripDetailPhotoCreditView.swift in Sources */,
+				5141F5E230888FD900902459 /* CoverPhotoProcessing.swift in Sources */,
 				519A48142F604E0500CB8475 /* PersistentTextField.swift in Sources */,
 				510728202C21297C00EBF362 /* UserListRowView.swift in Sources */,
 				51748B672AE0DA53009E919B /* ViewModifierUtilities.swift in Sources */,

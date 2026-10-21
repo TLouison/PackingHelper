@@ -68,6 +68,11 @@ struct TripDetailView: View {
                 
                 TripDetailInfoView(trip: trip)
                     .shadow(radius: defaultShadowRadius)
+
+                if let coverPhoto = trip.coverPhoto, coverPhoto.source == .unsplash {
+                    TripDetailPhotoCreditView(photo: coverPhoto)
+                        .padding(.top, -8)
+                }
             }
             .padding()
             .sheet(isPresented: $isShowingTripDetailSheet) { TripDetailSheet(trip: trip) }

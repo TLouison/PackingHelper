@@ -11,7 +11,7 @@ import SwiftData
 let previewContainer: ModelContainer = {
     do {
         let container = try ModelContainer(
-            for: Trip.self, TripLocation.self, PackingList.self, Item.self,
+            for: Trip.self, TripLocation.self, PackingList.self, Item.self, TripCoverPhoto.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         
