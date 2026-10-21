@@ -19,6 +19,7 @@ enum PackerType: String, CaseIterable {
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) var colorScheme
+    @Environment(PurchaseManager.self) private var purchaseManager
 
     @Query private var users: [User]
 
@@ -32,6 +33,7 @@ struct SettingsView: View {
     @State private var showDeveloperMenu = false
     @State private var currentLocation: TripLocation = TripLocation.sampleOrigin
     @State private var displayPaywall: Bool = false
+    @State private var displayCustomerCenter: Bool = false
 
     private var defaultLocation: Binding<TripLocation> {
         Binding(
@@ -82,14 +84,32 @@ struct SettingsView: View {
                         //                                .foregroundStyle(defaultLinearGradient)
                         //                        }
                         //                    }
-                        Button {
-                            displayPaywall.toggle()
-                        } label: {
-                            Label {
-                                Text("Upgrade to Premium")
-                            } icon: {
-                                Image(systemName: "plus.square.fill")
-                                    .foregroundStyle(defaultLinearGradient)
+                        if purchaseManager.hasUnlockedPlus {
+                            Button {
+                                displayCustomerCenter = true
+                            } label: {
+                                Label {
+                                    HStack {
+                                        Text("Packing Helper Plus")
+                                        Spacer()
+                                        Text("Active")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } icon: {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .foregroundStyle(defaultLinearGradient)
+                                }
+                            }
+                        } else {
+                            Button {
+                                displayPaywall.toggle()
+                            } label: {
+                                Label {
+                                    Text("Upgrade to Premium")
+                                } icon: {
+                                    Image(systemName: "plus.square.fill")
+                                        .foregroundStyle(defaultLinearGradient)
+                                }
                             }
                         }
                     }
@@ -149,6 +169,7 @@ struct SettingsView: View {
             .sheet(isPresented: $displayPaywall) {
                 PlusPaywallView()
             }
+            .presentCustomerCenter(isPresented: $displayCustomerCenter)
             .navigationTitle("Settings")
             .onAppear {
                 // Update currentLocation with the stored value when the view appears
