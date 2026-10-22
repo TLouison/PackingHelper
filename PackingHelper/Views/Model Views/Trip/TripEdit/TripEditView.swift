@@ -25,6 +25,7 @@ struct TripEditView: View {
     // UI State
     @State private var showingDestinationSearch = false
     @State private var showDeleteAlert = false
+    @State private var showMovingToPastAlert = false
 
     // Template step (new trips only): lists are chosen before the trip exists, applied on create
     @Query(
@@ -41,10 +42,33 @@ struct TripEditView: View {
     private var canSave: Bool { destinationLocation != nil }
     private var hasTemplateStep: Bool { isCreating && !templateLists.isEmpty }
 
+    /// Editing an upcoming trip so it has already ended moves it out of the
+    /// upcoming list (same cutoff as TripListView's queries), so warn first.
+    private var willMoveToPastTrips: Bool {
+        guard let trip else { return false }
+        return trip.endDate > .now && endDate <= .now
+    }
+
     /// Name falls back to the destination when left blank.
     private var resolvedName: String {
         let trimmed = tripName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? (destinationLocation?.name ?? "Trip") : trimmed
+    }
+
+    /// New trips can't end in the past; existing trips keep their full range.
+    private var earliestReturnDate: Date {
+        isCreating ? max(startDate, Calendar.current.startOfDay(for: .now)) : startDate
+    }
+
+    /// The picker only sets the day, so a new trip returning today could carry a
+    /// time that's already passed and land straight in Past Trips. Push it to the
+    /// end of today instead.
+    private var resolvedEndDate: Date {
+        guard isCreating, endDate <= .now else { return endDate }
+        let startOfTomorrow = Calendar.current.date(
+            byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)
+        ) ?? .now
+        return startOfTomorrow.addingTimeInterval(-1)
     }
 
     private var nights: Int {
@@ -113,6 +137,14 @@ struct TripEditView: View {
             } message: {
                 Text("Are you sure you want to delete this trip? This action cannot be undone.")
             }
+            .alert("Moving to Past Trips", isPresented: $showMovingToPastAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Save") {
+                    saveTrip()
+                }
+            } message: {
+                Text("This trip's return date has passed, so it will no longer appear with your upcoming trips. You can find it under Past Trips on the Trips tab.")
+            }
         }
     }
 
@@ -171,7 +203,7 @@ struct TripEditView: View {
                         Text("Return")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        DatePicker("Return", selection: $endDate, in: startDate..., displayedComponents: .date)
+                        DatePicker("Return", selection: $endDate, in: earliestReturnDate..., displayedComponents: .date)
                             .labelsHidden()
                     }
                 }
@@ -251,6 +283,8 @@ struct TripEditView: View {
             Button {
                 if hasTemplateStep {
                     showingTemplateStep = true
+                } else if willMoveToPastTrips {
+                    showMovingToPastAlert = true
                 } else {
                     saveTrip()
                 }
@@ -402,7 +436,7 @@ struct TripEditView: View {
             let newTrip = Trip(
                 name: resolvedName,
                 startDate: startDate,
-                endDate: endDate,
+                endDate: resolvedEndDate,
                 type: tripType,
                 origin: nil,
                 destination: destination,
