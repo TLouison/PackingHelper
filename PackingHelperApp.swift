@@ -17,6 +17,7 @@ struct PackingHelperApp: App {
     @AppStorage("hasMigratedSortOrders") private var hasMigratedSortOrders = false
     @AppStorage("hasMigratedDefaultLists") private var hasMigratedDefaultLists = false
     @AppStorage("hasMigratedPackingModelV2") private var hasMigratedPackingModelV2 = false
+    @AppStorage("hasAssignedTemplateOwners") private var hasAssignedTemplateOwners = false
 
     @Environment(\.scenePhase) var scenePhase
 
@@ -55,6 +56,31 @@ struct PackingHelperApp: App {
         if !hasMigratedPackingModelV2 {
             migratePackingModelV2()
         }
+
+        if !hasAssignedTemplateOwners {
+            assignTemplateOwners()
+        }
+    }
+
+    // Templates are owned by a packer; give ownerless ones to the first packer.
+    // Retried next launch if no packers exist yet.
+    private func assignTemplateOwners() {
+        let context = modelContainer.mainContext
+
+        let userDescriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.created, order: .forward)])
+        guard let firstPacker = (try? context.fetch(userDescriptor))?.first else { return }
+
+        let templateDescriptor = FetchDescriptor<PackingList>(
+            predicate: #Predicate<PackingList> { $0.template == true }
+        )
+        if let templates = try? context.fetch(templateDescriptor) {
+            for template in templates where template.user == nil {
+                template.user = firstPacker
+            }
+            try? context.save()
+        }
+
+        hasAssignedTemplateOwners = true
     }
 
     private func migrateDayOfLists() {

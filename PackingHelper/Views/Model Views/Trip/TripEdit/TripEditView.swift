@@ -416,7 +416,7 @@ struct TripEditView: View {
                 PackingList.createDefaultList(for: newTrip, in: modelContext)
             }
 
-            // nil user = each list goes to the packer who owns the template
+            // nil user = each template's items go to its owner (shared templates stay unassigned)
             newTrip.applyDefaultLists(to: nil, lists: selectedTemplates, in: modelContext)
             createdTrip = newTrip
         }

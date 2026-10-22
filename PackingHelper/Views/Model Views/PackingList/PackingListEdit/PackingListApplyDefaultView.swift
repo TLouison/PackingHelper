@@ -39,8 +39,8 @@ struct PackingListApplyDefaultView: View {
                         Text("Select Packer")
                     } footer: {
                         Text(selectedUser == nil ?
-                             "Lists will be applied to the packer who created it" :
-                                "Lists will be applied to \(selectedUser?.name ?? "")")
+                             "Each template's items go to the packer who owns it" :
+                                "Templates without an owner will be applied to \(selectedUser?.name ?? ""). Owned templates always go to their owner.")
                     }
                 }
                 
@@ -173,8 +173,8 @@ struct ListSelectionView: View {
     @State private var showingOtherLists = false
 
     private var filteredLists: [PackingList] {
-        // Templates aren't owned by a packer (`list.user` is legacy and unset in v2), so the
-        // selected packer only decides who the copied items are assigned to, not which templates show.
+        // Every template is listed regardless of owner; the selected packer only receives
+        // items from templates without an owner (owned templates go to their owner).
         let usedTemplates = trip.alreadyUsedTemplates
         return defaultPackingLists
             .filter { list in
@@ -310,7 +310,8 @@ struct ListSelectionView: View {
             ForEach(lists) { list in
                 SelectablePackingListCard(
                     list: list,
-                    isSelected: selectedLists.contains(list)
+                    isSelected: selectedLists.contains(list),
+                    showsOwner: FeatureFlags.shared.showingMultiplePackers
                 ) {
                     toggleSelection(for: list)
                 }
@@ -358,6 +359,7 @@ struct ListSelectionView: View {
 struct SelectablePackingListCard: View {
     let list: PackingList
     let isSelected: Bool
+    var showsOwner: Bool = false
     let onTap: () -> Void
     
     var body: some View {
@@ -378,8 +380,12 @@ struct SelectablePackingListCard: View {
                 
                 Spacer()
                 
-                // Right side: Count and type icon
+                // Right side: Owner, count and type icon
                 HStack(spacing: 8) {
+                    if showsOwner, let owner = list.user {
+                        owner.pillIcon
+                    }
+
                     HStack(spacing: 4) {
                         Text("\(list.totalItems)")
                             .font(.subheadline)

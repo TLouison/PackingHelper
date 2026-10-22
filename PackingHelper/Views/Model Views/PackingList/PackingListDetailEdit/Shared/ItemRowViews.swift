@@ -205,6 +205,9 @@ struct UnifiedItemRow: View {
     let onTogglePacked: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
+    /// Set only when the item isn't in its section's template yet: shows the "New" pill and enables
+    /// the leading "Add to Template" swipe (the caller confirms before saving)
+    var onAddToTemplate: (() -> Void)? = nil
 
     @State private var offset: CGFloat = 0
     @State private var restingOffset: CGFloat = 0
@@ -213,6 +216,13 @@ struct UnifiedItemRow: View {
 
     /// Resting position when the delete action is revealed
     private let revealOffset: CGFloat = -72
+
+    /// Resting position when the add-to-template action is revealed (reveal only, no full swipe)
+    private let leadingRevealOffset: CGFloat = 72
+
+    private var canAddToTemplate: Bool {
+        onAddToTemplate != nil && !isTemplating
+    }
 
     /// Swiping past this point deletes on release (Reminders-style full swipe)
     private var fullSwipeThreshold: CGFloat {
@@ -227,6 +237,11 @@ struct UnifiedItemRow: View {
         ZStack(alignment: .trailing) {
             deleteAction
 
+            if canAddToTemplate {
+                addToTemplateAction
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             rowContent
                 .padding(.vertical, 4)
                 .padding(.horizontal, 16)
@@ -238,6 +253,15 @@ struct UnifiedItemRow: View {
         .gesture(swipeGesture)
         .sensoryFeedback(.impact(weight: .medium), trigger: isPastFullSwipe) { _, isPast in isPast }
         .accessibilityAction(named: "Delete", onDelete)
+        .accessibilityActions {
+            if canAddToTemplate {
+                Button("Add to Template", action: performAddToTemplate)
+            }
+        }
+        .onChange(of: canAddToTemplate) { _, canAdd in
+            // Saved elsewhere (e.g. a duplicate's swipe or the review sheet) while revealed
+            if !canAdd && offset > 0 { closeSwipe() }
+        }
         .onChange(of: item.isPacked) { _, _ in
             // Reset offset when item is packed/unpacked
             closeSwipe()
@@ -270,17 +294,44 @@ struct UnifiedItemRow: View {
         .accessibilityHidden(true)
     }
 
+    private var addToTemplateAction: some View {
+        Button(action: performAddToTemplate) {
+            Image(systemName: "square.and.arrow.down.on.square.fill")
+                .font(.body)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .buttonStyle(.plain)
+        .frame(width: max(0, offset))
+        .background(Color.accentColor, in: .rect(cornerRadius: 10))
+        .opacity(offset > 0 ? 1 : 0)
+        .accessibilityHidden(true)
+    }
+
     private var swipeGesture: some Gesture {
         DragGesture(minimumDistance: 20)
             .onChanged { value in
                 guard !isDeleting,
                       abs(value.translation.width) > abs(value.translation.height)
                 else { return }
-                offset = min(0, restingOffset + value.translation.width)
+                let proposed = restingOffset + value.translation.width
+                if canAddToTemplate && proposed > 0 {
+                    // Rubber-band past the reveal point; there's no full-swipe commit
+                    offset = proposed <= leadingRevealOffset
+                        ? proposed
+                        : leadingRevealOffset + (proposed - leadingRevealOffset) * 0.25
+                } else {
+                    offset = min(0, proposed)
+                }
             }
             .onEnded { _ in
                 guard !isDeleting else { return }
-                if isPastFullSwipe {
+                if offset > 0 {
+                    withAnimation(.packingSpring) {
+                        offset = offset > leadingRevealOffset / 2 ? leadingRevealOffset : 0
+                    }
+                    restingOffset = offset
+                } else if isPastFullSwipe {
                     performDelete()
                 } else {
                     withAnimation(.packingSpring) {
@@ -296,6 +347,11 @@ struct UnifiedItemRow: View {
             offset = 0
         }
         restingOffset = 0
+    }
+
+    private func performAddToTemplate() {
+        closeSwipe()
+        onAddToTemplate?()
     }
 
     private func performDelete() {
@@ -332,11 +388,25 @@ struct UnifiedItemRow: View {
                     onEdit()
                 }
             } label: {
-                Text(item.name)
-                    .font(.body)
-                    .strikethrough(item.isPacked)
-                    .foregroundStyle(item.isPacked ? .gray : .primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 6) {
+                    Text(item.name)
+                        .font(.body)
+                        .strikethrough(item.isPacked)
+                        .foregroundStyle(item.isPacked ? .gray : .primary)
+
+                    if canAddToTemplate {
+                        Text("New")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.quaternary, in: .capsule)
+                            .transition(.scale.combined(with: .opacity))
+                            .accessibilityLabel("New, not in template")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
 
@@ -382,6 +452,9 @@ struct PackedItemsSection: View {
     let items: [Item]
     let onTogglePacked: (Item) -> Void
     let onDeleteItem: (Item) -> Void
+    /// Items that aren't in their section's template yet
+    var templateCandidateIDs: Set<PersistentIdentifier> = []
+    var onAddToTemplate: ((Item) -> Void)? = nil
     var horizontalPadding: CGFloat = 16
     /// When false the section is always expanded and the header is not a toggle
     /// (used for the dedicated packed column in the wide layout)
@@ -416,13 +489,19 @@ struct PackedItemsSection: View {
                             isTemplating: false,
                             onTogglePacked: { onTogglePacked(item) },
                             onEdit: {},
-                            onDelete: { onDeleteItem(item) }
+                            onDelete: { onDeleteItem(item) },
+                            onAddToTemplate: addToTemplateAction(for: item)
                         )
                         .opacity(0.6)
                     }
                 }
             }
         }
+    }
+
+    private func addToTemplateAction(for item: Item) -> (() -> Void)? {
+        guard let onAddToTemplate, templateCandidateIDs.contains(item.persistentModelID) else { return nil }
+        return { onAddToTemplate(item) }
     }
 
     private var header: some View {

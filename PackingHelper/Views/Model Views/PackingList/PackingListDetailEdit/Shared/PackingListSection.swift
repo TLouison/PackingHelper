@@ -30,6 +30,10 @@ struct PackingListSection: View {
     let onItemReorder: (Item, PackingList, Int) -> Void
     let onCrossListDrop: (Item, PackingList, Int) -> Void
     let onAddItemToList: (PackingList) -> Void
+    /// Items that aren't in their section's template yet
+    var templateCandidateIDs: Set<PersistentIdentifier> = []
+    var onAddToTemplate: ((Item) -> Void)? = nil
+    var onUpdateTemplate: (() -> Void)? = nil
     var isReorderMode: Bool = false
 
     /// Keeps just-packed items in place briefly before they move to the packed section
@@ -75,6 +79,7 @@ struct PackingListSection: View {
                 onEditList: onEditList,
                 onDeleteList: onDeleteList,
                 onSaveAsDefault: onSaveAsDefault,
+                onUpdateTemplate: onUpdateTemplate,
                 isReorderMode: isReorderMode
             )
 
@@ -92,7 +97,9 @@ struct PackingListSection: View {
                         onReorder: { item, index in
                             onItemReorder(item, packingList, index)
                         },
-                        onCrossListMove: onCrossListDrop
+                        onCrossListMove: onCrossListDrop,
+                        templateCandidateIDs: templateCandidateIDs,
+                        onAddToTemplate: onAddToTemplate
                     )
                     .padding(.horizontal, 8)
                 }

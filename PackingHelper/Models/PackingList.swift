@@ -118,7 +118,7 @@ final class PackingList {
     // Whether this is a protected default catch-all section (undeletable, name-locked)
     var isDefault: Bool = false
 
-    // Legacy: user is now on Item; kept for migration reads
+    // Template owner. Unused for trip lists (users live on items; legacy values kept for migration reads)
     var user: User?
     var trip: Trip?
 
@@ -251,6 +251,7 @@ extension PackingList {
         _ packingList: PackingList?,
         name: String,
         template: Bool,
+        owner: User? = nil,
         in context: ModelContext,
         for trip: Trip?
     ) -> PackingList? {
@@ -258,9 +259,15 @@ extension PackingList {
         if let packingList {
             AppLogger.packingList.debug("Packing list already exists. Updating with new info.")
             packingList.name = name
+            if packingList.template {
+                packingList.user = owner
+            }
         } else {
             AppLogger.packingList.debug("Packing list does not already exist. Creating with new info.")
             let newPackingList = PackingList(template: template, name: name, countAsDays: false)
+            if template {
+                newPackingList.user = owner
+            }
 
             context.insert(newPackingList)
 
@@ -410,7 +417,9 @@ extension PackingList {
 
     static func copy(_ list: PackingList, for trip: Trip, with user: User?) -> PackingList {
         let newList = PackingList.copy(list, for: trip)
-        if let user {
+        // An owned template's items always go to its owner; the chosen packer only applies to shared templates
+        let owner = list.template ? list.user : nil
+        if let user = owner ?? user {
             AppLogger.packingList.info("Copied packing list \(list.name) to apply to a trip for user \(user.name).")
             // Assign user to all copied items (not the list itself)
             newList.items?.forEach { $0.user = user }
@@ -422,5 +431,87 @@ extension PackingList {
         let newList = PackingList._copy(list, template: true)
         newList.template = true
         return newList
+    }
+}
+
+// MARK: - Saving trip items back to templates
+
+extension String {
+    /// Key for "same item" comparisons between trip lists and templates
+    var itemMatchKey: String {
+        lowercased()
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+    }
+}
+
+/// Trip items sharing a name that aren't in the template their section was applied from
+struct TemplateCandidate: Identifiable {
+    let key: String
+    /// Every trip item in the group, oldest first
+    let items: [Item]
+
+    var id: String { key }
+
+    /// Supplies the name, category and type for the template copy
+    var displayItem: Item { items[0] }
+}
+
+extension PackingList {
+    /// Normalized names of this list's items
+    var itemMatchKeys: Set<String> {
+        Set((items ?? []).map(\.name.itemMatchKey))
+    }
+
+    /// Whether an item in this trip section may be saved back to its template:
+    /// only the template owner's items, or unassigned ones (any item if the template has no owner)
+    func isTemplateEligible(_ item: Item) -> Bool {
+        guard let source = appliedFromTemplate else { return false }
+        guard let owner = source.user, let user = item.user else { return true }
+        return user.persistentModelID == owner.persistentModelID
+    }
+
+    /// Eligible items not present in the source template, grouped by name.
+    /// Empty when this isn't a trip section applied from a template.
+    var templateCandidates: [TemplateCandidate] {
+        guard !template, let source = appliedFromTemplate else { return [] }
+        let templateKeys = source.itemMatchKeys
+        let eligible = (items ?? []).filter { item in
+            let key = item.name.itemMatchKey
+            return !key.isEmpty && !templateKeys.contains(key) && isTemplateEligible(item)
+        }
+        return Dictionary(grouping: eligible) { $0.name.itemMatchKey }
+            .map { key, items in
+                TemplateCandidate(key: key, items: items.sorted { $0.created < $1.created })
+            }
+            .sorted { lhs, rhs in
+                (lhs.displayItem.sortOrder, lhs.displayItem.created) < (rhs.displayItem.sortOrder, rhs.displayItem.created)
+            }
+    }
+
+    /// Adds one item per candidate to the template this section was applied from
+    func saveToTemplate(_ candidates: [TemplateCandidate], in context: ModelContext) {
+        guard let source = appliedFromTemplate else { return }
+        // Re-checked here so double taps or a stale review sheet can't add duplicates
+        var existingKeys = source.itemMatchKeys
+        var nextSortOrder = (source.items?.map(\.sortOrder).max() ?? -1) + 1
+
+        for candidate in candidates where existingKeys.insert(candidate.key).inserted {
+            let item = candidate.displayItem
+            // Templates store base counts and aren't assigned to a packer
+            let templateItem = Item(
+                name: item.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                category: item.category,
+                count: 1,
+                isPacked: false,
+                sortOrder: nextSortOrder,
+                type: item.type,
+                isDayOf: item.isDayOf
+            )
+            context.insert(templateItem)
+            templateItem.list = source
+            nextSortOrder += 1
+            AppLogger.packingList.info("Saved \(templateItem.name) back to template \(source.name)")
+        }
     }
 }

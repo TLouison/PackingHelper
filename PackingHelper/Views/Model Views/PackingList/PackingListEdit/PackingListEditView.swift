@@ -18,7 +18,10 @@ struct PackingListEditView: View {
     var trip: Trip? = nil
     var onListCreated: ((PackingList) -> Void)? = nil
 
+    @Query(sort: \User.created) private var users: [User]
+
     @State private var listName = ""
+    @State private var owner: User?
 
     @State private var isDeleting: Bool = false
     @Binding var isDeleted: Bool
@@ -28,6 +31,10 @@ struct PackingListEditView: View {
         guard !trimmed.isEmpty else { return false }
         // Reject reserved name unless this IS the default list itself
         if PackingList.isReservedName(trimmed) && !(packingList?.isDefault ?? false) {
+            return false
+        }
+        // Templates need an owner once there's more than one packer to choose from
+        if isTemplate && users.count > 1 && owner == nil {
             return false
         }
         return true
@@ -57,6 +64,10 @@ struct PackingListEditView: View {
                         }
                     } else {
                         TextField("\(self.titleName) Name", text: $listName)
+                    }
+
+                    if isTemplate && users.count > 1 {
+                        UserPickerView(selectedUser: $owner, style: .inline, allowAll: false)
                     }
                 }
             }
@@ -93,6 +104,9 @@ struct PackingListEditView: View {
             if let packingList {
                 listName = packingList.name
             }
+            if isTemplate {
+                owner = packingList?.user ?? users.first
+            }
         }
         .alert("Delete \(packingList?.name ?? "section")?", isPresented: $isDeleting) {
             Button("Yes, delete \(packingList?.name ?? "section")", role: .destructive) {
@@ -113,6 +127,7 @@ struct PackingListEditView: View {
             packingList,
             name: listName,
             template: isTemplate,
+            owner: isTemplate ? (owner ?? users.first) : nil,
             in: modelContext,
             for: trip
         )

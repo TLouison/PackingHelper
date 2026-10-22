@@ -56,6 +56,9 @@ struct SectionedPackingListView<AssistantPanel: View>: View {
 
     @State private var isShowingSaveSuccessful: Bool = false
     @State private var listToDelete: PackingList?
+    @State private var templateUpdateList: PackingList?
+    @State private var itemPendingTemplateSave: Item?
+    @State private var templateSaveCount = 0
 
     var hasMultiplePackers: Bool {
         guard let users = users else { return false }
@@ -82,6 +85,13 @@ struct SectionedPackingListView<AssistantPanel: View>: View {
             packedItems.append(contentsOf: listPacked)
         }
         return Item.sorted(packedItems, sortOrder: .byCustomOrder)
+    }
+
+    /// Items across all sections that aren't in their section's template yet
+    var templateCandidateIDs: Set<PersistentIdentifier> {
+        Set(lists.flatMap { list in
+            list.templateCandidates.flatMap { $0.items.map(\.persistentModelID) }
+        })
     }
 
     func isExpanded(for list: PackingList) -> Binding<Bool> {
@@ -127,7 +137,9 @@ struct SectionedPackingListView<AssistantPanel: View>: View {
                             PackedItemsSection(
                                 items: allPackedItems,
                                 onTogglePacked: togglePacked,
-                                onDeleteItem: deleteItem
+                                onDeleteItem: deleteItem,
+                                templateCandidateIDs: templateCandidateIDs,
+                                onAddToTemplate: addItemToTemplate
                             )
                         }
 
@@ -197,6 +209,22 @@ struct SectionedPackingListView<AssistantPanel: View>: View {
                 }
             }
         }
+        .sheet(item: $templateUpdateList) { list in
+            TemplateUpdateSheet(sections: [list])
+        }
+        .alert(
+            "Add to Template?",
+            isPresented: Binding(get: { itemPendingTemplateSave != nil }, set: { if !$0 { itemPendingTemplateSave = nil } }),
+            presenting: itemPendingTemplateSave
+        ) { item in
+            Button("Add to Template") {
+                confirmAddToTemplate(item)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { item in
+            Text(addToTemplateMessage(for: item))
+        }
+        .sensoryFeedback(.success, trigger: templateSaveCount)
         .alert("List saved as default", isPresented: $isShowingSaveSuccessful) {
             Button("OK", role: .cancel) {}
         }
@@ -259,6 +287,9 @@ struct SectionedPackingListView<AssistantPanel: View>: View {
                     onAddItemToList: { targetList in
                         onStartAddingItem(targetList)
                     },
+                    templateCandidateIDs: templateCandidateIDs,
+                    onAddToTemplate: addItemToTemplate,
+                    onUpdateTemplate: { templateUpdateList = list },
                     isReorderMode: isReorderingSections,
                     pendingPacks: pendingPacks,
                     isAddingNewItem: isAddingNewItem,
@@ -323,6 +354,8 @@ struct SectionedPackingListView<AssistantPanel: View>: View {
                 items: allPackedItems,
                 onTogglePacked: togglePacked,
                 onDeleteItem: deleteItem,
+                templateCandidateIDs: templateCandidateIDs,
+                onAddToTemplate: addItemToTemplate,
                 isCollapsible: false
             )
         }
@@ -375,6 +408,37 @@ struct SectionedPackingListView<AssistantPanel: View>: View {
         withAnimation(.packingSpring) {
             modelContext.delete(item)
         }
+    }
+
+    /// Swipe action: saving changes the template for every future trip, so confirm first
+    private func addItemToTemplate(_ item: Item) {
+        itemPendingTemplateSave = item
+    }
+
+    private func confirmAddToTemplate(_ item: Item) {
+        guard let list = item.list,
+              let candidate = list.templateCandidates.first(where: { $0.key == item.name.itemMatchKey })
+        else { return }
+        withAnimation(.packingSpring) {
+            list.saveToTemplate([candidate], in: modelContext)
+        }
+        templateSaveCount += 1
+    }
+
+    private func addToTemplateMessage(for item: Item) -> String {
+        let source = item.list?.appliedFromTemplate
+        let templateName = source?.name ?? "this"
+        var templateLabel = "your \"\(templateName)\" template"
+        if hasMultiplePackers, let owner = source?.user {
+            templateLabel = "\(owner.name)'s \"\(templateName)\" template"
+        }
+
+        var message = "\"\(item.name)\" will be saved to \(templateLabel), so future trips that use it will include this item."
+        if item.count > 1 {
+            message += " It will start with a count of 1."
+        }
+        message += " Trips that already use this template won't change."
+        return message
     }
 
     private func deleteList(_ list: PackingList) {

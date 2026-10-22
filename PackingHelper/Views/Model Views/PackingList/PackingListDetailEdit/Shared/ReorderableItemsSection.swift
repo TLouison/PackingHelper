@@ -19,6 +19,9 @@ struct ReorderableItemsSection: View {
     let onDeleteItem: (Item) -> Void
     let onReorder: (Item, Int) -> Void
     var onCrossListMove: ((Item, PackingList, Int) -> Void)? = nil
+    /// Items that aren't in their section's template yet
+    var templateCandidateIDs: Set<PersistentIdentifier> = []
+    var onAddToTemplate: ((Item) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -54,7 +57,8 @@ struct ReorderableItemsSection: View {
                         isTemplating: isTemplating,
                         onTogglePacked: { onTogglePacked(item) },
                         onEdit: { editingItemId = item.persistentModelID },
-                        onDelete: { onDeleteItem(item) }
+                        onDelete: { onDeleteItem(item) },
+                        onAddToTemplate: addToTemplateAction(for: item)
                     )
                     .draggable(ItemTransferData(item: item)) {
                         // Drag preview
@@ -74,6 +78,11 @@ struct ReorderableItemsSection: View {
                 }
             }
         }
+    }
+
+    private func addToTemplateAction(for item: Item) -> (() -> Void)? {
+        guard let onAddToTemplate, templateCandidateIDs.contains(item.persistentModelID) else { return nil }
+        return { onAddToTemplate(item) }
     }
 
     private func handleDrop(at index: Int, item: Item) {

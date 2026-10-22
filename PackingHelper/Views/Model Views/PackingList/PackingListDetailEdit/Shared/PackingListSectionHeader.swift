@@ -15,6 +15,7 @@ struct PackingListSectionHeader: View {
     let onEditList: () -> Void
     let onDeleteList: () -> Void
     let onSaveAsDefault: () -> Void
+    var onUpdateTemplate: (() -> Void)? = nil
     var isReorderMode: Bool = false
 
     private var isEmpty: Bool {
@@ -96,6 +97,12 @@ struct PackingListSectionHeader: View {
                     onEditList()
                 } label: {
                     Label("Edit List", systemImage: "pencil")
+                }
+
+                if let onUpdateTemplate, !packingList.templateCandidates.isEmpty {
+                    Button(action: onUpdateTemplate) {
+                        Label("Update Template…", systemImage: "square.and.arrow.down.on.square")
+                    }
                 }
 
                 if !packingList.template && !packingList.isDefault {

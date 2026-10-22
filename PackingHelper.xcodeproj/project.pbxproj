@@ -60,6 +60,7 @@
 		51623D762D489C84003E2BF5 /* PackingListFilterSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51623D752D489C84003E2BF5 /* PackingListFilterSection.swift */; };
 		51623D802D4C5A8F003E2BF5 /* SortOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51623D7F2D4C5A8F003E2BF5 /* SortOrder.swift */; };
 		516337942E799FBE0043388F /* PackingHelperPlus.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 516337932E799FBE0043388F /* PackingHelperPlus.storekit */; };
+		517149B23089CB13004A7E67 /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 517149B03089CB13004A7E67 /* TemplateUpdateSheet.swift */; };
 		51748B532ADCF368009E919B /* PackingEngineCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51748B522ADCF368009E919B /* PackingEngineCore.swift */; };
 		51748B602ADF8367009E919B /* TripListScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51748B5F2ADF8367009E919B /* TripListScrollView.swift */; };
 		51748B652AE0D514009E919B /* TripDetailHeroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51748B642AE0D514009E919B /* TripDetailHeroView.swift */; };
@@ -167,6 +168,7 @@
 		51623D752D489C84003E2BF5 /* PackingListFilterSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackingListFilterSection.swift; sourceTree = "<group>"; };
 		51623D7F2D4C5A8F003E2BF5 /* SortOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortOrder.swift; sourceTree = "<group>"; };
 		516337932E799FBE0043388F /* PackingHelperPlus.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = PackingHelperPlus.storekit; sourceTree = "<group>"; };
+		517149B03089CB13004A7E67 /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		51748B522ADCF368009E919B /* PackingEngineCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackingEngineCore.swift; sourceTree = "<group>"; };
 		51748B5F2ADF8367009E919B /* TripListScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripListScrollView.swift; sourceTree = "<group>"; };
 		51748B642AE0D514009E919B /* TripDetailHeroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripDetailHeroView.swift; sourceTree = "<group>"; };
@@ -396,6 +398,7 @@
 		5132E8482AE22808002575AC /* PackingList */ = {
 			isa = PBXGroup;
 			children = (
+				517149B13089CB13004A7E67 /* TemplateUpdate */,
 				51C8BB702C25220C005D2B71 /* PackingListDetailEdit */,
 				5110C6422AFD7FA9002742D0 /* PackingListEdit */,
 			);
@@ -462,6 +465,14 @@
 				51748B522ADCF368009E919B /* PackingEngineCore.swift */,
 			);
 			path = PackingEngine;
+			sourceTree = "<group>";
+		};
+		517149B13089CB13004A7E67 /* TemplateUpdate */ = {
+			isa = PBXGroup;
+			children = (
+				517149B03089CB13004A7E67 /* TemplateUpdateSheet.swift */,
+			);
+			path = TemplateUpdate;
 			sourceTree = "<group>";
 		};
 		51748B542ADCF405009E919B /* TripList */ = {
@@ -766,6 +777,7 @@
 				5141F5E230888FD900902459 /* CoverPhotoProcessing.swift in Sources */,
 				519A48142F604E0500CB8475 /* PersistentTextField.swift in Sources */,
 				510728202C21297C00EBF362 /* UserListRowView.swift in Sources */,
+				517149B23089CB13004A7E67 /* TemplateUpdateSheet.swift in Sources */,
 				51748B672AE0DA53009E919B /* ViewModifierUtilities.swift in Sources */,
 				5110C64A2B033734002742D0 /* PackingListApplyDefaultView.swift in Sources */,
 				51C8BBA82C2CE73B005D2B71 /* ColorUtilities.swift in Sources */,

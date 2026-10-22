@@ -14,6 +14,8 @@ struct TripDetailPackingView: View {
     @Binding var isAddingNewPackingList: Bool
     @Binding var isApplyingDefaultPackingList: Bool
 
+    @State private var isShowingTemplateReview = false
+
     var body: some View {
         TripDetailCustomSectionView {
             HStack {
@@ -59,6 +61,19 @@ struct TripDetailPackingView: View {
                 .frame(maxWidth: .infinity, maxHeight: 30)
                 .roundedBox(background: .ultraThick)
                 .shaded()
+
+                if trip.showsTemplateReviewCard {
+                    TemplateReviewCard(trip: trip) {
+                        isShowingTemplateReview = true
+                    }
+                    .transition(.opacity)
+                }
+            }
+        }
+        // Owned here (not by the card) so hiding the card after saving doesn't tear down the sheet
+        .sheet(isPresented: $isShowingTemplateReview) {
+            TemplateUpdateSheet(sections: trip.templateCandidateSections) {
+                trip.templateReviewDismissed = true
             }
         }
     }

@@ -106,6 +106,9 @@ final class Trip {
 
     var dayOfNotificationUUID: String?
 
+    /// Set when the user saves from or dismisses the post-trip template review card
+    var templateReviewDismissed: Bool = false
+
     static let maxFreeTrips: Int = 3
 
     init(name: String, startDate: Date, endDate: Date, type: TripType, origin: TripLocation?, destination: TripLocation, accomodation: TripAccomodation) {
@@ -265,6 +268,20 @@ extension Trip {
 
     var alreadyUsedTemplates: [PackingList] {
         return self.listsFromTemplates.compactMap { $0.appliedFromTemplate }
+    }
+
+    /// Template sections with items that could be saved back to their template, in section order
+    var templateCandidateSections: [PackingList] {
+        PackingList.sorted(listsFromTemplates, sortOrder: .byCustomOrder)
+            .filter { !$0.templateCandidates.isEmpty }
+    }
+
+    var templateCandidateCount: Int {
+        listsFromTemplates.reduce(0) { $0 + $1.templateCandidates.count }
+    }
+
+    var showsTemplateReviewCard: Bool {
+        status == .complete && !templateReviewDismissed && templateCandidateCount > 0
     }
 
     // MARK: Item counts — item-based (replaces list-type-filtered overloads)

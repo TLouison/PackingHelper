@@ -1,277 +1,344 @@
-# Trip Cover Photos — Spec
+# Save Trip Items Back to Templates — Spec
 
-Let users replace the map background of a trip with a photo, either from their
-photo library or picked from Unsplash search results.
+When a user adds items to a trip section that was applied from a template, let
+them persist those new items back to the source template so future trips get
+them automatically.
 
 ## Summary of decisions
 
 | Topic | Decision |
 | --- | --- |
-| Sources | Photo library (free) + Unsplash search (Plus only) |
-| Surfaces | `TripListRowView` card background and `TripDetailHeroView` background. Map is used when no photo is set. |
-| Attribution | Unsplash credit is a small caption below the last card on the trip detail page (plus photographer names in the picker grid). None on the hero or list card |
-| Default | New trips get the map, as today. Photos are opt-in only. |
-| Entry point | New **Cover Photo** section in `TripEditView` (covers both new-trip creation and the trip settings sheet), placed right after **Trip Name** |
-| Commit model | Staged in edit state. Applied on Save, discarded on Cancel |
-| Framing | Focal point picker shown after **every** pick (library and Unsplash) |
-| Unsplash API | Proxied through the existing `PackingHelperWorkers` Cloudflare Worker. The access key never ships in the app |
-| Unsplash storage | Hotlinked (compliant with Unsplash guidelines) plus an app-side disk cache |
-| Library storage | Downscaled bytes in SwiftData (`.externalStorage`) |
-| Plus lapse | Existing Unsplash photos are kept (grandfathered). Only new Unsplash selections are locked |
-| Destination change | Photo is kept as-is. No prompt and no auto-clear |
-| Rollout | Library ships right away. Unsplash sits behind a feature flag until Unsplash approves the production key |
+| Direction | Trip → template, **new items only**. Removals and edits (rename, count) never flow back |
+| Eligible sections | Only trip sections with `appliedFromTemplate != nil`. Default list, custom, and AI-only sections are excluded |
+| Matching | Normalized name (trimmed, case-insensitive, collapsed whitespace). No lineage/source-ID tracking |
+| Count written to template | Always `1` (templates store base counts; `countAsDays` rescales at apply) |
+| Propagation | None. Other trips that applied the same template are untouched (applied lists stay snapshots) |
+| Triggers | (1) Leading swipe on a row, (2) section header context menu → "Update Template…", (3) post-trip card in trip detail |
+| Indicator | Subtle "New" pill after the item name for candidate items |
+| Swipe | Leading (right) swipe, **reveal-only**. Tapping the revealed button opens a confirmation alert explaining the save is permanent for future trips |
+| Feedback | Pill animates out + `.success` haptic after confirming. No toast, no undo |
+| Review sheet | Checklist, **nothing pre-checked**, "Select All" available. **Paged, one packer per screen** |
+| Post-trip card | Trip status `.complete` only. Paged-by-packer sheet, grouped by template within a page. Dismissal persisted on `Trip` |
+| Template ownership | **New:** templates are owned by a packer via the existing `PackingList.user` field (revived for templates) |
+| Packer scoping | Only items assigned to the template's owner (or unassigned) are candidates. Other packers' items never go to it |
+| Owner on create | Picker required when 2+ packers; auto-assigned to the sole packer otherwise |
+| Owner migration | Existing ownerless templates → first packer (by `created`) |
+| Apply | Owned template's copied items are assigned to the owner (owner beats the apply-sheet packer picker) |
+| Duplicates | Same normalized name within one section's eligible items collapses to one candidate |
+| Pricing | Free |
 
 ---
 
-## 1. Data model
+## 1. Definitions
 
-### New `@Model TripCoverPhoto`
+**Template section** — a trip `PackingList` where `template == false` and
+`appliedFromTemplate != nil`. If the source template was deleted, the
+relationship is nullified and the section is no longer eligible.
 
-`Models/TripCoverPhoto.swift`
+**Template owner** — `template.user` (see §2a). `nil` only if the owning packer
+was deleted (`User.delete` nullifies it).
 
-```swift
-enum CoverPhotoSource: String, Codable { case library, unsplash }
+**Eligible item** — an `Item` in a template section where
+`template.user == nil || item.user == nil || item.user == template.user`.
+Items assigned to any other packer are never eligible, even if that packer has a
+template with the same name. Writes always go through the section's
+`appliedFromTemplate` relationship, never a name lookup, so same-named templates
+can't be confused.
 
-@Model
-final class TripCoverPhoto {
-    var source: CoverPhotoSource = CoverPhotoSource.library
+**Candidate item** — an eligible item whose normalized name does not match any
+item name in `appliedFromTemplate.items`.
 
-    // Focal point in unit coordinates (0...1), default center.
-    var focalX: Double = 0.5
-    var focalY: Double = 0.5
-    // Extra zoom on top of aspect-fill, 1...3.
-    var zoom: Double = 1.0
+**Candidate group** — candidate items in one section sharing a normalized name.
+The UI treats a group as one candidate (one review row; saving any member
+clears the pill on all members).
 
-    // Library only
-    @Attribute(.externalStorage) var imageData: Data?
+**Review packer** — the packer a candidate is reviewed under = the template's
+owner. Ownerless templates are reviewed on a trailing "Shared" page.
 
-    // Unsplash only
-    var unsplashId: String?
-    var unsplashRawURL: String?        // urls.raw; sized via imgix params at load time
-    var unsplashHTMLLink: String?      // links.html (photo page)
-    var photographerName: String?
-    var photographerUsername: String?
-    var photographerProfileURL: String? // user.links.html
-    var colorHex: String?              // dominant color
-    var blurHash: String?
-
-    var trip: Trip?
-    var createdDate: Date = Date.now
-}
-```
-
-### `Trip` changes
+Name normalization:
 
 ```swift
-@Relationship(deleteRule: .cascade, inverse: \TripCoverPhoto.trip) var coverPhoto: TripCoverPhoto?
-```
-
-- Optional and additive, so SwiftData lightweight migration handles it. No migration code needed.
-- Add `TripCoverPhoto.self` to every `ModelContainer(for:)` call: `PackingHelperApp.swift`, `PreviewContainer.swift`, `SampleData.swift`.
-- Replacing a photo: delete the old `TripCoverPhoto` and insert the new one (no in-place mutation across sources).
-- `TripEditView` calls `trip.applyCoverPhoto(draft, in:)` on save (`Trip.create_or_update` is unused by the edit flow, so it's left alone).
-
-## 2. Rendering
-
-### Shared component: `CoverPhotoImageView`
-
-`CoverPhoto/CoverPhotoImageView.swift`. `TripListRowView` and `TripDetailHeroView` draw it as a `.background` sized to the card/hero, and skip their skeleton+Map branch when a photo is set.
-
-- If `trip.coverPhoto == nil`, render the existing map behavior unchanged (skeleton, then `Map`; non-interactive in the row, as today in the hero).
-- If a photo is set:
-  - Render `Image` with `.resizable().scaledToFill()`, cropped around the focal point (offset the image so the focal point stays as close to the frame center as the overflow allows).
-  - The hero photo is **static**: no tap, no full-screen viewer, no toggle back to the map.
-  - Clip to `defaultCornerRadius` like the map does.
-- **Placeholder while loading / on cache miss:**
-  - Unsplash: a decoded BlurHash (small 32×32 decode, scaled up) over a `colorHex` fill, then cross-fade the real image in.
-  - Library: decode from `imageData` off the main thread. Show the systemGray5 skeleton briefly.
-  - If the Unsplash image fails to load and isn't cached, keep the BlurHash/color. Do **not** fall back to the map.
-- **Legibility:** no extra scrim. The existing `roundedBox()`/`shaded()` overlays are enough.
-
-### Attribution (Unsplash only)
-
-- **Detail page — photo credit caption:** `TripDetailPhotoCreditView`, appended as the **last** item in `TripDetailView`'s `LazyVStack` (after `TripDetailInfoView`). Not a card: a small centered `.caption2` secondary-colored line, "Photo by {Name} on Unsplash", with only the two links underlined. "{Name}" opens `photographerProfileURL` and "Unsplash" opens `https://unsplash.com`. Both get `?utm_source=packing_helper&utm_medium=referral`. Rendered only when `trip.coverPhoto?.source == .unsplash`.
-- **Hero:** no attribution overlay. The hero photo stays clean.
-- **Picker grid:** photographer name on each result.
-- **Not** shown on the trip list card.
-- `TripEditView` shows no attribution.
-
-### Image loading/cache: `CoverPhotoImageLoader`
-
-`Utilities/CoverPhotoImageLoader.swift`. A small actor with no third-party dependency.
-
-- Memory: `NSCache<NSString, UIImage>` of decoded images.
-- Disk: `Caches/CoverPhotos/{unsplashId}_{width}.jpg`.
-- Request URL: `unsplashRawURL` + `&w={pixelWidth}&q=80&fm=jpg&fit=max`. `pixelWidth` = view width × screen scale, bucketed (e.g. 400/800/1200/1600) so the list and hero share cache entries where possible.
-- De-duplicate in-flight requests per key.
-- Library images also go through the loader (key = `persistentModelID` + data hash) to get the memory cache and off-main decode.
-- No explicit eviction for removed photos. The Caches directory is purgeable by the OS.
-
-## 3. Edit flow (`TripEditView`)
-
-### Cover Photo section
-
-Placed after `nameSection`. Built with the existing `formSection("Cover Photo")` helper.
-
-- **Preview:** a small thumbnail at card aspect ratio (90×132) showing the staged photo cropped at its focal point. With no photo, show a "Map" placeholder state (icon + "Uses destination map").
-- **Menu** (single button, e.g. "Choose Photo" / "Change Photo"):
-  - **Choose from Library** → `PhotosPicker` (`matching: .images`). No photo-library permission prompt is needed.
-  - **Search Unsplash** with a PLUS badge. Hidden when `FeatureFlags.shared.showingUnsplashPhotos` is false.
-    - Plus active (`PurchaseManager.isPlusActive`): open the Unsplash picker sheet.
-    - Not Plus: present `PlusPaywallView`.
-  - **Adjust Focus** (only when a photo is staged) → focal point screen.
-  - **Remove Photo** (destructive, only when a photo is staged) → staged back to the map.
-
-### Staging
-
-- `@State private var coverPhotoDraft: CoverPhotoDraft?` plus a flag for "removed".
-- `CoverPhotoDraft` is a plain struct mirroring `TripCoverPhoto` fields, plus a `pendingUnsplashDownloadLocation` (see §5).
-- Seeded from `trip.coverPhoto` when editing.
-- **On Save:** apply to `Trip` (create/replace/delete the `TripCoverPhoto`). If the draft is a *newly picked* Unsplash photo, fire the download-tracking ping (fire-and-forget, non-blocking).
-- **On Cancel:** discard. No ping fires.
-- Changing destination does not affect the staged photo.
-
-### Library pick processing
-
-Done off the main thread after `PhotosPicker` returns:
-
-1. Load `Data` via `loadTransferable(type: Data.self)`.
-2. Downscale so the long edge is at most **2048px** (`CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceCreateThumbnailWithTransform` so orientation is baked in).
-3. Re-encode as JPEG at quality 0.8 **without metadata**, which strips EXIF and GPS.
-4. Go to the focal point screen.
-
-Show a progress indicator in the preview while processing. On failure, show an inline error ("Couldn't load that photo") and leave the previous draft in place.
-
-### Focal point screen
-
-`CoverPhotoFocusView`. Shown after **every** pick (library and Unsplash) and from **Adjust Focus**.
-
-- **Fixed frames, moving photo** (like iOS wallpaper cropping). A 480pt-tall editor shows two fixed outlines centered on top of each other: **Trip Page** (white, solid, ~0.9 aspect) and **Card** (yellow, dashed, 300×440 aspect). Everything outside them is dimmed. The photo sits underneath. Drag pans it and pinch zooms it (1×–3×, around the frame center). No separate preview views.
-- At 1× each frame is the largest crop of its shape that fits the photo, so the frames match how each surface aspect-fills. The focus (unit `(x, y)` of the photo under the frames' center) and `zoom` are stored on `TripCoverPhoto`.
-- The photo is clamped so it always covers both frames. Because the real surfaces clamp individually, the editor is a close approximation, not pixel-exact (the narrower card can't be pushed quite as far sideways as it could on its own).
-- A "1.0×" readout and a **Reset** button (center + 1×) sit under the editor. VoiceOver: swipe up/down adjusts zoom by 0.25×, plus a "Reset framing" action.
-- The image loader asks for proportionally more pixels when zoomed (width buckets go up to 2400px; library photos top out at their stored 2048px).
-- Default is center (0.5, 0.5). **Done** accepts it, **Cancel** discards the pick (Adjust Focus Cancel keeps the prior focus).
-
-## 4. Unsplash picker (`UnsplashPickerView`)
-
-Presented as a sheet from `TripEditView` with `NavigationStack` and `.searchable`.
-
-- **Initial query:** the destination name (`TripLocation.name`, the city portion if it's parseable). Results load immediately. The user can edit the query, and submitting runs a new search (page 1). Empty query → empty state prompt.
-- **Grid:** 2 columns at landscape aspect. Each cell shows the `small` URL thumbnail (BlurHash/color placeholder) and the photographer name.
-- **Paging:** 12 results per page, `orientation=landscape`, `content_filter=high`. A **Load More** button at the end of the grid; it's hidden when `page >= totalPages`. No infinite scroll.
-- **Selection:** tapping a cell opens the focal point screen. Done returns the draft to `TripEditView` and dismisses the picker.
-- **States:** loading (skeleton cells), empty results ("No photos for '{q}'"), error with Retry. 401 `not_subscribed` → refresh entitlements (`PurchaseManager.refresh()`) and show the paywall. 429 → "Too many searches, try again shortly."
-
-## 5. Worker (`PackingHelperWorkers`)
-
-New routes alongside `/v1/assistant/message`. Refactor `index.ts` into a small router. Keep the Swift DTOs (new `Services/UnsplashService.swift`) in sync with the README contract.
-
-New secret: `UNSPLASH_ACCESS_KEY` (`wrangler secret put`). Requests to Unsplash use `Authorization: Client-ID …` and `Accept-Version: v1`.
-
-### `POST /v1/photos/search`
-
-Request:
-
-```json
-{ "rcAppUserId": "…", "query": "Lisbon", "page": 1 }
-```
-
-- Validate: query is non-empty, trimmed, max 100 chars, and `page` is between 1 and 50.
-- Auth: `verifySubscriber(env, rcAppUserId)`. It already caches positives in KV for 10 min (`ENT_CACHE_TTL = 600`). Reuse it as-is.
-- Cache: KV key `unsplash:search:v1:{normalizedQuery}:{page}`, where normalized means lowercased, trimmed, with whitespace collapsed. TTL **24h**. Serve from cache before calling Unsplash.
-- Upstream: `GET https://api.unsplash.com/search/photos?query=…&page=…&per_page=12&orientation=landscape&content_filter=high`.
-- Response: trimmed down to only what the app needs:
-
-```json
-{
-  "page": 1,
-  "totalPages": 34,
-  "results": [
-    {
-      "id": "abc123",
-      "width": 6000, "height": 4000,
-      "color": "#a3b1c2",
-      "blurHash": "LKO2?U%2Tw=w]~RBVZRi};RPxuwH",
-      "urls": { "raw": "https://images.unsplash.com/…", "small": "https://images.unsplash.com/…" },
-      "htmlLink": "https://unsplash.com/photos/abc123",
-      "downloadLocation": "https://api.unsplash.com/photos/abc123/download?ixid=…",
-      "photographer": { "name": "Jane Doe", "username": "janedoe", "profileURL": "https://unsplash.com/@janedoe" }
+extension String {
+    /// Key for "same item" comparisons between trip lists and templates.
+    var itemMatchKey: String {
+        lowercased()
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
     }
-  ]
 }
 ```
 
-### `POST /v1/photos/download`
+Candidates are computed live — no stored flag. Adding a template item named
+"Sunscreen" from the Templates tab immediately clears the pill on matching trip
+items, and deleting it from the template brings the pill back. Everything
+packed, unpacked, or assigned to any packer is eligible.
 
-Request: `{ "rcAppUserId": "…", "downloadLocation": "https://api.unsplash.com/photos/…/download?ixid=…" }`
+## 2. Model changes
 
-- Validate that `downloadLocation` host is `api.unsplash.com` and the path matches `/photos/{id}/download` (prevents SSRF and open proxying).
-- Auth: `verifySubscriber`.
-- Calls the URL with the Client-ID header. Returns `204`. This is required by the Unsplash guidelines whenever a user selects a photo.
+### 2a. Template ownership (`PackingList.user`)
 
-### Errors
+Today templates have no owner: `PackingListEditView` / `PackingList.save` never
+set `user`, and the field is commented as legacy. Pre-v2 templates may still
+have it set. This spec revives it **for templates only** (trip lists still keep
+users on items).
 
-Same shape as the existing contract (`{ error, message }`):
+- Update the legacy comment on `PackingList.user`: "Template owner. Unused for
+  trip lists (users live on items)."
+- `PackingList.save(...)` gains `owner: User?`; sets `user` when
+  `template == true`.
+- **Template create/edit (`PackingListEditView`, template mode):** packer picker
+  (`UserPickerView`, `allowAll: false`) shown when 2+ packers exist. Required —
+  Save disabled until chosen; preselect the first packer by `created`. With one
+  packer, the picker is hidden and the sole packer is assigned.
+- **Migration:** one-time, gated by `@AppStorage("hasAssignedTemplateOwners")`,
+  run alongside the existing launch migrations in `PackingHelperApp.swift`. Every
+  `template == true` list with `user == nil` → first packer by `created`. No-op
+  (and flag stays false) if no packers exist yet; retry next launch.
+- **Templates tab:** `DefaultPackingViewListTypeSectionView` already shows the
+  owner pill from `packingList.user`; the existing packer filter
+  (`PackingListFilterSection`) now works for real.
+- `UserGridView` "N template lists" count becomes accurate as-is.
+- **Apply:** `PackingList.copy(_:for:with:)` assigns items to `list.user` when the
+  template has an owner, ignoring the passed user. The passed user only applies
+  to ownerless templates. The apply-sheet packer picker keeps working for those.
+  Update comments at `PackingListApplyDefaultView.swift:176` and
+  `TripEditView.swift:419`.
+- `PackingListApplyDefaultView` still lists all templates (not filtered by
+  packer). Show the owner pill on each row so it's clear whose list it is.
+- Leave `UserPickerView`/`UserPickerBaseView` `list.user == user` branches
+  (IMPROVEMENTS 1.9) as-is; they become meaningful again. Update 1.9's note.
 
-| Status | code | Meaning |
-| --- | --- | --- |
-| 400 | `bad_request` | Invalid body/query/downloadLocation |
-| 401 | `not_subscribed` | No active Plus entitlement |
-| 429 | `rate_limited` | Unsplash returned 403/429 (hourly limit exhausted) |
-| 502 | `upstream_error` | Other Unsplash failure |
+### `PackingList` (extension, no schema change)
 
-No per-user daily search cap for now. The 24h KV cache is the main mitigation.
+```swift
+extension PackingList {
+    /// Normalized names of this list's items.
+    var itemMatchKeys: Set<String>
 
-## 6. Feature flag
+    /// Eligible template-section items (owner/unassigned only) not present in
+    /// the source template, grouped by match key. Empty when the list isn't a
+    /// template section.
+    var templateCandidates: [TemplateCandidate]
 
-- Add `FeatureFlags.showingUnsplashPhotos` (UserDefaults key `featureFlag_showingUnsplashPhotos`), with a toggle in `DeveloperMenu`.
-- When off: the **Search Unsplash** menu item is hidden. Library photos and the rendering of existing Unsplash photos are unaffected.
-- Remove the flag once Unsplash approves the production key (the demo key is 50 req/hr; production is 5,000 req/hr). The approval application needs screenshots of the picker attribution and the detail page photo credit caption.
+    /// Adds one item per candidate to `appliedFromTemplate`.
+    func saveToTemplate(_ candidates: [TemplateCandidate], in context: ModelContext)
+}
 
-## 7. Files
+struct TemplateCandidate: Identifiable, Hashable {
+    let key: String          // itemMatchKey
+    let items: [Item]        // all trip items in the group (≥1)
+    var id: String { key }
+    var displayItem: Item    // earliest-created member; supplies name/category/type
+}
+```
 
-All new app code lives in one folder, `PackingHelper/CoverPhoto/`, so it can be added to the target in one drag:
-- `TripCoverPhoto.swift`: model, `CoverPhotoDraft`, `CoverPhotoRepresentable`, `Trip.applyCoverPhoto(_:in:)`
-- `UnsplashService.swift`: DTOs, `search(query:page:)`, `trackDownload(_:)`, UTM helper
-- `CoverPhotoImageLoader.swift`: memory + disk cache, bucketed widths
-- `CoverPhotoImageView.swift`: focal-point aspect-fill rendering with BlurHash/color placeholder (used as `.background` on the card and hero instead of a separate `TripBackgroundView`)
-- `BlurHash.swift`: decoder
-- `CoverPhotoProcessing.swift`: downscale + strip metadata
-- `CoverPhotoSection.swift`, `CoverPhotoFocusView.swift`, `UnsplashPickerView.swift`
-- `TripDetailPhotoCreditView.swift`
+`saveToTemplate` creates template items with:
 
-Worker: `src/unsplash.ts`, router + photo routes in `src/index.ts`, `Env.UNSPLASH_ACCESS_KEY` and photo DTOs in `types.ts`, README contract section.
+| Field | Value |
+| --- | --- |
+| `name` | `displayItem.name` (original casing, trimmed) |
+| `category` | copied from `displayItem` (no ML re-run) |
+| `type`, `isDayOf` | copied |
+| `count` | `1` |
+| `isPacked` | `false` |
+| `user` | `nil` (templates are generic) |
+| `sortOrder` | appended after the template's current max `sortOrder` |
+| `list` | the template |
 
-Modified:
-- `Trip.swift` (relationship)
-- `AIAssistantService.swift` (Worker base URL moved into a shared `WorkerConfig`)
-- `TripListRowView.swift`, `TripDetailHeroView.swift` (cover photo background; map hidden when a photo is set)
-- `TripDetailView.swift` (photo credit caption at the bottom)
-- `TripEditView.swift` (section + staging + save + download ping)
-- `FeatureFlags.swift`, `DeveloperMenu.swift`
-- `PackingHelperApp.swift`, `PreviewContainer.swift`, `SampleData.swift` (container models)
+Re-check membership inside `saveToTemplate` right before inserting (guards against
+double-taps and stale review sheets). Insert into context, then
+`list.addItem`. Don't use `Item.copyForTemplate` (it wires `.list` to the source;
+see IMPROVEMENTS 3.4).
+
+### `Trip`
+
+```swift
+/// Set when the user saves from or dismisses the post-trip template review card.
+var templateReviewDismissed: Bool = false
+```
+
+Default value only, so lightweight migration. Plus a computed helper:
+
+```swift
+extension Trip {
+    /// Template sections that currently have candidates.
+    var templateCandidateSections: [PackingList]
+    var templateCandidateCount: Int   // total candidate groups across sections
+
+    /// Candidate sections grouped by review packer (template owner), ordered
+    /// by packer `created`; ownerless templates last under `nil` ("Shared").
+    var templateCandidatesByPacker: [(packer: User?, sections: [PackingList])]
+}
+```
+
+## 3. Trigger 1 — Row indicator and leading swipe
+
+Applies to `UnifiedItemRow` wherever trip items render (`ReorderableItemsSection`,
+`PackedItemsSection`, `UnifiedPackingListView`). Never in templating mode.
+
+### Indicator
+
+- Subtle "New" capsule (`caption2`, medium weight, secondary text on
+  `.quaternary` fill) trailing the item name, before the count badge. A bare dot
+  was dropped as too cryptic.
+- `accessibilityLabel`: "New, not in template".
+- Removed with `.transition(.scale.combined(with: .opacity))` when the item stops
+  being a candidate.
+
+### Leading swipe
+
+- New optional parameter on `UnifiedItemRow`:
+  `onAddToTemplate: (() -> Void)?`. `nil` = right-swipe does nothing (current
+  clamp at `min(0, …)` stays in effect).
+- When set, offset range becomes `revealOffsetLeading...` and trailing as today.
+  Leading reveal ≈ +72pt, accent-colored button with
+  `square.and.arrow.down.on.square` (or `plus.square.on.square`), mirroring the
+  delete button's shape.
+- **Reveal only.** Dragging past the reveal point rubber-bands; releasing rests
+  at reveal or closes. No full-swipe commit, no full-swipe haptic.
+- Tap revealed button → `closeSwipe()`, `onAddToTemplate()`. Nothing is saved yet.
+- Accessibility action "Add to Template" when available (same confirmation).
+- The caller passes the closure only when the item is a candidate. It presents a
+  confirmation alert (owned by `SectionedPackingListView`, not the row):
+  - Title: "Add to Template?"
+  - Message: "\"Hat\" will be saved to your \"Clothing\" template, so future trips
+    that use it will include this item. Trips that already use this template
+    won't change." With 2+ packers and an owned template: "…to Alex's
+    \"Clothing\" template…". If the item's count is >1, adds "It will start with
+    a count of 1."
+  - Buttons: **Add to Template** / Cancel.
+  - Confirm → `list.saveToTemplate([candidate containing item])` with animation,
+    `.success` haptic. This is rare, so the extra tap is acceptable friction.
+
+Since `UnifiedItemRow` doesn't know about templates, the parent computes
+candidacy once per section (`Set` of candidate item IDs), not per row.
+
+## 4. Trigger 2 — Section "Update Template…"
+
+- `PackingListSectionHeader` context menu gets
+  `Label("Update Template…", systemImage: "square.and.arrow.down.on.square")`,
+  shown only when `packingList.templateCandidates` is non-empty. Placed after
+  "Edit List".
+- Opens `TemplateUpdateSheet` scoped to that one section.
+
+## 5. Trigger 3 — Post-trip card
+
+- In `TripDetailPackingView`, above the packing list (and above the columns in
+  the wide layout), show `TemplateReviewCard` when:
+  `trip.status == .complete && !trip.templateReviewDismissed && trip.templateCandidateCount > 0`.
+- Copy: "You added N items that aren't in your templates." Buttons: **Review**
+  (opens `TemplateUpdateSheet` with all candidate sections) and a close `xmark`
+  (sets `templateReviewDismissed = true`).
+- Saving from the sheet opened via this card sets `templateReviewDismissed = true`
+  even if not every candidate was saved. Cancel leaves the card visible.
+- Card also disappears on its own once candidates hit zero (e.g. user saved all
+  via swipe).
+
+## 6. `TemplateUpdateSheet`
+
+Shared by triggers 2 and 3.
+
+```swift
+struct TemplateUpdateSheet: View {
+    let sections: [PackingList]          // 1 for section trigger, many for card
+    var onSaved: (() -> Void)? = nil     // card uses this to set dismissed
+}
+```
+
+- **Paged by packer.** Pages come from `templateCandidatesByPacker` (filtered
+  to `sections`); packers with no candidates are skipped. Section trigger always
+  yields one page (one template = one owner). Pager = `NavigationStack` with a
+  pushed page per packer (or `TabView(.page)` — implementer's call, but
+  back-navigation must keep selections).
+- Page header: packer avatar (`user.pillIcon` / initial icon) + "Alex's items".
+  Shared page: "Shared templates". Page counter "1 of 3" in the nav title area
+  when more than one page.
+- Page body: `List`, one `Section` per trip section, header = template name
+  (e.g. "Clothing template"). Section order = trip section order.
+- Rows: checkmark toggle + item name + category. One row per candidate group.
+  **All unchecked initially.** "Select All" / "Deselect All" per page.
+- Toolbar: Cancel (leading). Trailing: **Next** on non-final pages, **Add N to
+  Templates** on the final page (N = total across all pages; enabled at 0 so
+  the user can finish a review that saves nothing — card flow still marks
+  dismissed, section flow just closes).
+- Footer: "Added items start with a count of 1. Trips that already use these
+  templates aren't changed."
+- Nothing is written until the final save: then `saveToTemplate` per section
+  across all pages, `.success` haptic, `onSaved?()`, dismiss. Cancel on any page
+  discards everything.
+- Candidates are snapshotted on appear; save re-validates (see §2).
+
+## 7. Edge cases
+
+| Case | Behavior |
+| --- | --- |
+| Source template deleted | `appliedFromTemplate` is nil → section not eligible, no pills/menu |
+| Template edited after apply, adds "Socks" | Trip "Socks" now matches → pill clears |
+| User renames trip item to match template item | Pill clears (live) |
+| Packer B adds "Hat" to a section from A's template | Not a candidate: no pill, no swipe, not in review. Never offered for B's same-named template |
+| Unassigned item (`user == nil`) in A's template section | Eligible, reviewed on A's page |
+| Owner and an unassigned item both add "Sunscreen" | One review row; saving clears both pills |
+| Template owner deleted | `user` nullified → template shared → any packer's items eligible, reviewed on "Shared" page |
+| Template's owner changed after apply | Live: eligibility follows the current owner |
+| Trip lists with a pre-v2 legacy `user` | Ignored; ownership only read when `template == true` |
+| Template section is the default list | Not possible today (default list isn't from a template) |
+| Item is AI-suggested and added into a template section | Eligible like any other item |
+| Trip saved via "Save As Default" into a new template | New list isn't linked back (IMPROVEMENTS 3.4); out of scope |
+| Swipe on a non-candidate | No leading reveal |
+| Same template applied twice to one trip (two sections) | Each section evaluated separately; saving from one clears pills in both via live match |
 
 ## 8. Out of scope
 
-- Map access when a photo is set (no toggle, no map elsewhere)
-- Auto-selecting photos for new trips
-- Per-user Unsplash search caps
-- Attribution on list cards
-- Multiple photos per trip / galleries
-- iCloud sync considerations beyond what SwiftData already does
+- Removing items from templates based on trip deletions.
+- Syncing renames or count changes.
+- Lineage tracking (`sourceItemUUID`).
+- Toast / undo (undo = delete from template in Templates tab).
+- Pushing new template items into other trips.
+- Save-back from non-template sections.
 
-## 9. Test plan (manual, user-run)
+## 9. Files touched
 
-1. New trip → pick a library photo → adjust focus → Save. The list card and hero both show the photo cropped at the focus point.
-2. Edit the trip → Remove Photo → Cancel. The photo is still there. Remove → Save → map is back.
-3. Pick a large HEIC with GPS. The stored data is ≤2048px JPEG with no GPS metadata.
-4. Free user → Search Unsplash → paywall appears.
-5. Plus user → the picker prefills the destination. Load More appends 12; the button hides on the last page.
-6. Pick an Unsplash photo → Cancel the edit. No download ping (check Worker logs). Pick → Save → ping is logged.
-7. Airplane mode after viewing: the Unsplash photo renders from the disk cache. On a cache miss, the BlurHash shows, not the map.
-8. Unsplash trip: photo credit caption appears below the last card on the detail page and its links open the photographer profile and Unsplash with UTM params. Library-photo and map trips show no credit caption.
-9. Simulate a lapsed Plus. The existing Unsplash photo still renders, and Search Unsplash shows the paywall.
-10. Change the destination. The photo is unchanged.
-11. Flag off: Search Unsplash is hidden and existing Unsplash photos still render.
-12. Worker: the same query twice gives a second response from KV. A bad `downloadLocation` host returns 400.
+| File | Change |
+| --- | --- |
+| `Models/PackingList.swift` | `itemMatchKeys`, `templateCandidates`, `saveToTemplate`; `user` comment; `save(owner:)`; owner-wins in `copy(_:for:with:)` |
+| `Models/Trip.swift` | `templateReviewDismissed`, `templateCandidateSections`, `templateCandidateCount`, `templateCandidatesByPacker` |
+| `PackingHelperApp.swift` | Template owner migration |
+| `PackingList/PackingListEdit/PackingListEditView.swift` | Owner picker (template mode, 2+ packers) |
+| `PackingList/PackingListEdit/PackingListApplyDefaultView.swift` | Owner pill on rows; comment fix |
+| `Trip/TripEdit/TripEditView.swift` | Comment fix (`:419`) |
+| `IMPROVEMENTS.md` | Update 1.9 note |
+| `Utilities/` (String ext) | `itemMatchKey` |
+| `Shared/ItemRowViews.swift` | "New" pill, leading reveal swipe, `onAddToTemplate` |
+| `Shared/ReorderableItemsSection.swift`, `PackedItemsSection` | Compute candidate IDs, pass closure |
+| `Shared/PackingListSectionHeader.swift` | "Update Template…" menu item |
+| `SectionedPackingListView.swift` | Sheet presentation for section trigger |
+| `Trip/TripDetail/TripDetailPackingView.swift` | `TemplateReviewCard` |
+| New `PackingList/TemplateUpdate/TemplateUpdateSheet.swift`, `TemplateReviewCard.swift` | Add via Xcode for target membership |
+
+## 10. Test plan (manual)
+
+1. Apply template "Clothing" to trip. Add "Hat" to the section → "New" pill appears.
+2. Right-swipe "Hat" → button reveals; overswipe doesn't commit; tap → confirmation
+   alert explaining the save. Cancel → nothing saved, pill stays. Confirm → haptic, pill
+   fades. Open template → "Hat", count 1, no packer.
+3. Add "  hat " for the owner again → no pill (normalized match).
+4. Add "Scarf" for owner and once unassigned → one row in "Update Template…";
+   save → both pills gone.
+4a. Packer B adds "Gloves" to A's "Clothing" section → no pill, no swipe, absent
+   from review, even when B owns a template named "Clothing".
+4b. Two packers, each with own templates applied; complete trip → card →
+   page 1 = A's items by template, Next → page 2 = B's. Back keeps checks.
+   Cancel on page 2 → nothing saved. Save → each item in its owner's template.
+4c. Fresh install migration: ownerless templates get the first packer; owner pill
+   appears in Templates tab.
+4d. New template with 2 packers → Save disabled until owner picked; with 1
+   packer → no picker, auto-owned.
+4e. Apply A's template choosing B in the apply sheet → items assigned to A.
+5. Section with no candidates → no "Update Template…" in menu.
+6. Default "Packing List" section items → never a pill, no right-swipe.
+7. Delete source template → pills vanish from that trip section.
+8. Set trip dates in the past → card shows with count; Review → grouped sheet,
+   nothing checked; save one → card gone permanently. Repeat with ✕ → gone.
+9. Cancel from card's sheet → card stays.
+10. Other trip using the same template → unchanged after save.
+11. VoiceOver: "Not in template" announced; "Add to Template" action works.
