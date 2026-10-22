@@ -17,9 +17,12 @@ struct TripListScrollView: View {
     
     @State private var tripToDelete: Trip? = nil
     @State private var showTripDeleteAlert: Bool = false
+    @State private var reviewingTrip: Trip? = nil
     
     var trips: [Trip]
     var canShowCTA: Bool = false
+    /// Leads with the past trips summary card
+    var showsPastTripsSummary: Bool = false
     
     //    var shouldShowCTA: Bool {
     //        !purchaseManager.hasUnlockedPlus && canShowCTA && trips.count >= Trip.maxFreeTrips
@@ -44,11 +47,21 @@ struct TripListScrollView: View {
         ScrollView(.horizontal) {
             HStack {
                 let enumerated = Array(trips.enumerated())
-                
+
+                if showsPastTripsSummary {
+                    PastTripsSummaryCard(path: $path, trips: trips) { trip in
+                        reviewingTrip = trip
+                    }
+                    .modifier(TripCardPageStyle())
+                }
+
                 ForEach(enumerated, id: \.element.id) { index, trip in
                     // Use ZStack to guarantee a hittable layer
                     ZStack {
                         TripListRowView(trip: trip, disabled: shouldDisable(index: index))
+                            // Display only; the layer below takes taps. Keeps row content that draws past the
+                            // card's edges from swallowing taps meant for neighboring cards.
+                            .allowsHitTesting(false)
                         
                         Color.clear
                             .contentShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
@@ -58,13 +71,7 @@ struct TripListScrollView: View {
                                 }
                             }
                     }
-                    .padding(.vertical)
-                    .containerRelativeFrame(.horizontal, count: 1, spacing: 16)
-                    .scrollTransition { content, phase in
-                        content
-                            .opacity(phase.isIdentity ? 1.0 : 0.8)
-                            .scaleEffect(y: phase.isIdentity ? 1.0 : 0.9)
-                    }
+                    .modifier(TripCardPageStyle())
                     .contextMenu {
                         Button(role: .destructive) {
                             tripToDelete = trip
@@ -94,6 +101,12 @@ struct TripListScrollView: View {
         // Regular width (iPhone Duo unfolded, iPad): cards span the full screen width with standard edge padding
         .contentMargins(.horizontal, horizontalSizeClass == .regular ? 16 : 24, for: .scrollContent)
         .scrollTargetBehavior(.paging)
+        // Presented from outside the scroll content so the summary card doesn't own the sheet
+        .sheet(item: $reviewingTrip) { trip in
+            TemplateUpdateSheet(sections: trip.templateCandidateSections) {
+                trip.templateReviewDismissed = true
+            }
+        }
         .alert("Delete Trip", isPresented: $showTripDeleteAlert) {
             Button("Cancel", role: .cancel) {
                 tripToDelete = nil
@@ -104,6 +117,20 @@ struct TripListScrollView: View {
         } message: {
             Text("Are you sure you want to delete this trip? This cannot be undone.")
         }
+    }
+}
+
+/// Sizes a card to one page of the trip pager
+private struct TripCardPageStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(.vertical)
+            .containerRelativeFrame(.horizontal, count: 1, spacing: 16)
+            .scrollTransition { content, phase in
+                content
+                    .opacity(phase.isIdentity ? 1.0 : 0.8)
+                    .scaleEffect(y: phase.isIdentity ? 1.0 : 0.9)
+            }
     }
 }
 

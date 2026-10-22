@@ -36,7 +36,8 @@ struct TripListView: View {
     
     @Query(FetchDescriptor(
         predicate: #Predicate<Trip>{ $0.endDate <= now },
-        sortBy: [SortDescriptor(\.startDate, order: .forward)]
+        // Most recently finished first
+        sortBy: [SortDescriptor(\.endDate, order: .reverse)]
     ),
            animation: .snappy
     ) var completedTrips: [Trip]
@@ -57,6 +58,11 @@ struct TripListView: View {
         upcomingTrips.count >= Trip.maxFreeTrips
     }
     
+    /// Whether any past trip has items that could be saved back to their templates
+    var hasPastTripTemplateReview: Bool {
+        completedTrips.contains { $0.showsTemplateReviewCard }
+    }
+
     var viewTitle: String {
         if isShowingCompletedTrips && !completedTrips.isEmpty {
             return "Completed Trips"
@@ -94,7 +100,7 @@ struct TripListView: View {
     @ViewBuilder
     func tripList() -> some View {
         if !completedTrips.isEmpty && isShowingCompletedTrips {
-            TripListScrollView(path: $viewModel.path, trips: completedTrips)
+            TripListScrollView(path: $viewModel.path, trips: completedTrips, showsPastTripsSummary: true)
                 .transition(.pushAndPull(.leading))
         } else if !upcomingTrips.isEmpty {
             TripListScrollView(path: $viewModel.path, trips: upcomingTrips, canShowCTA: true)
@@ -148,7 +154,20 @@ struct TripListView: View {
                                     .symbolEffect(.bounce, value: visibleTripsSymbol == .completed ? upcomingTrips.count : completedTrips.count)
                                     .labelStyle(.titleAndIcon)
                             }
+                            // Only while the button leads to past trips
+                            .overlay(alignment: .topTrailing) {
+                                if !isShowingCompletedTrips && hasPastTripTemplateReview {
+                                    Image(systemName: "exclamationmark.circle.fill")
+                                        .font(.caption2)
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.white, .orange)
+                                        .offset(x: 6, y: -6)
+                                        .transition(.scale.combined(with: .opacity))
+                                }
+                            }
                         }
+                        .accessibilityLabel(isShowingCompletedTrips ? "Show Upcoming Trips" : "Show Past Trips")
+                        .accessibilityValue(!isShowingCompletedTrips && hasPastTripTemplateReview ? "Past trips have items to review" : "")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {

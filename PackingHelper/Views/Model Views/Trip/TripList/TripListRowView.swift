@@ -15,6 +15,7 @@ struct TripListRowView: View {
     @State private var mapPosition: MapCameraPosition = .automatic
     @State private var showDeleteTripAlert: Bool = false
     @State private var isMapLoading: Bool = true
+    @State private var isShimmering: Bool = false
     @State private var featureFlags = FeatureFlags.shared
 
     @Bindable var trip: Trip
@@ -39,6 +40,18 @@ struct TripListRowView: View {
         }
     }
     
+    private func templateReviewIndicator(count: Int) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(.white, .orange)
+            Text("^[\(count) item](inflect: true) to review")
+        }
+        .font(.subheadline.weight(.semibold))
+        .roundedBox()
+        .shaded()
+    }
+
     @ViewBuilder func tripRowOverlay(_ trip: Trip) -> some View {
             VStack {
                 HStack(alignment: .top) {
@@ -53,7 +66,10 @@ struct TripListRowView: View {
                         .shaded()
                 }
                 Spacer()
-                HStack {
+                HStack(alignment: .bottom) {
+                    if trip.showsTemplateReviewCard {
+                        templateReviewIndicator(count: trip.templateCandidateCount)
+                    }
                     Spacer()
                     VStack(alignment: .trailing) {
                         dateInfo()
@@ -83,9 +99,17 @@ struct TripListRowView: View {
                                     endPoint: .trailing
                                 )
                             )
-                            .offset(x: isMapLoading ? 400 : -400)
-                            .animation(.linear(duration: 1.5).repeatForever(autoreverses: false), value: isMapLoading)
+                            .offset(x: isShimmering ? 400 : -400)
                     )
+                    // The shimmer sweeps past the card's edges; clipping doesn't limit hit testing
+                    .allowsHitTesting(false)
+                    .onAppear {
+                        // Started by the skeleton itself, not keyed to isMapLoading: a forever animation on the
+                        // change that removes the skeleton keeps it alive (invisible, sweeping over neighboring cards)
+                        withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                            isShimmering = true
+                        }
+                    }
             } else {
                 Map(
                     position: $mapPosition,
