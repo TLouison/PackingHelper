@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PackingHelper is an unreleased iOS travel preparation app built with SwiftUI and SwiftData. It helps users organize packing lists and tasks before trips, track items across multiple travelers, and reduce pre-trip anxiety.
 
-**Tech Stack:** SwiftUI (iOS 18+), SwiftData, RevenueCat (subscriptions), WeatherKit, MapKit, CoreML
+**Tech Stack:** SwiftUI (iOS 26+), SwiftData, RevenueCat (subscriptions), WeatherKit, MapKit, CoreML
 
 ## Commands
 
@@ -194,5 +194,5 @@ ModelContainer(for: Trip.self, TripLocation.self, PackingList.self, Item.self)
 - App requires at least one User to display trips
 - Free users limited to 3 active trips (enforced via RevenueCat)
 - Weather data only fetched within 5 days of trip start
-- iOS 18+ minimum deployment target
+- iOS 26+ minimum deployment target
 - Some features currently disabled via feature flags (see FeatureFlags struct)

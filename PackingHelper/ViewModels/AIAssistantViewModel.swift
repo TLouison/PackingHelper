@@ -42,8 +42,11 @@ final class AIAssistantViewModel {
     private var modelContext: ModelContext?
 
     var composerDisabled: Bool {
-        isLoading || remaining == 0
+        isLoading || remaining == 0 || !contextReady
     }
+
+    /// Mirrors the Worker's `MAX_MESSAGES` limit; longer histories are rejected with a 400.
+    private static let maxWireMessages = 40
 
     /// Builds the trip context once (async — includes the weather fetch).
     func prepare(trip: Trip, targetUser: User?, modelContext: ModelContext) async {
@@ -65,7 +68,13 @@ final class AIAssistantViewModel {
         isLoading = true
         defer { isLoading = false }
 
-        let wireMessages: [AIChatMessageDTO] = entries.map {
+        // The Worker rejects empty content and more than `maxWireMessages` entries, so drop
+        // empty replies and send only the most recent window, starting on a user turn.
+        var wireEntries = entries.filter { !$0.text.isEmpty }.suffix(Self.maxWireMessages)
+        while let first = wireEntries.first, first.role != .user {
+            wireEntries.removeFirst()
+        }
+        let wireMessages: [AIChatMessageDTO] = wireEntries.map {
             AIChatMessageDTO(role: $0.role == .user ? "user" : "assistant", content: $0.text)
         }
 

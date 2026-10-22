@@ -35,13 +35,15 @@ final class User: Comparable {
         }
     }
     
-    static func create_or_update(_ user: User?, name: String, color: Color, profileImage: UIImage? = nil, in context: ModelContext) {
+    @discardableResult
+    static func create_or_update(_ user: User?, name: String, color: Color, profileImage: UIImage? = nil, in context: ModelContext) -> User {
         if let user {
             user.name = name
             user.setUserColor(color)
             if let image = profileImage {
                 user.setProfileImage(image)
             }
+            return user
         } else {
             let newUser = User(name: name)
             newUser.setUserColor(color)
@@ -49,11 +51,13 @@ final class User: Comparable {
                 newUser.setProfileImage(image)
             }
             context.insert(newUser)
+            return newUser
         }
     }
 }
 
 extension User {
+    @discardableResult
     static func delete(_ user: User, from context: ModelContext) -> Bool {
         // Nullify PackingList.user to prevent cascade-deleting trip sections
         user.lists?.forEach { $0.user = nil }

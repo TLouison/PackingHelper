@@ -23,7 +23,7 @@ struct NewItemRow: View {
 
     /// ScrollViewReader id for the new item row rendered inside a given list
     static func scrollID(for list: PackingList) -> String {
-        "newItemRow-\(list.persistentModelID.hashValue)"
+        "newItemRow-\(list.uuid.uuidString)"
     }
 
     var body: some View {
@@ -383,38 +383,32 @@ struct PackedItemsSection: View {
     let onTogglePacked: (Item) -> Void
     let onDeleteItem: (Item) -> Void
     var horizontalPadding: CGFloat = 16
+    /// When false the section is always expanded and the header is not a toggle
+    /// (used for the dedicated packed column in the wide layout)
+    var isCollapsible: Bool = true
 
     @State private var isExpanded = false
 
+    private var showsItems: Bool {
+        !isCollapsible || isExpanded
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.packingSpring) {
-                    isExpanded.toggle()
+            if isCollapsible {
+                Button {
+                    withAnimation(.packingSpring) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    header
                 }
-            } label: {
-                HStack {
-                    Text("PACKED ITEMS")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    Text("\(items.count)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, 8)
+                .buttonStyle(.plain)
+            } else {
+                header
             }
-            .buttonStyle(.plain)
 
-            if isExpanded {
+            if showsItems {
                 VStack(spacing: 4) {
                     ForEach(items) { item in
                         UnifiedItemRow(
@@ -429,5 +423,76 @@ struct PackedItemsSection: View {
                 }
             }
         }
+    }
+
+    private var header: some View {
+        HStack {
+            Text("PACKED ITEMS")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Text("\(items.count)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if isCollapsible {
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Wide Packing Layout
+
+/// Regular width (iPhone Duo unfolded, iPad): packed items on the left half, available items on the right.
+/// Each column scrolls independently.
+struct WidePackingColumns<Packed: View, Available: View>: View {
+    @ViewBuilder let packed: Packed
+    @ViewBuilder let available: Available
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ScrollView {
+                packed
+                    .padding(.vertical)
+                    .padding(.horizontal, 8)
+            }
+            .frame(maxWidth: .infinity)
+
+            Divider()
+
+            ScrollView {
+                available
+                    .padding(.vertical)
+                    .padding(.horizontal, 8)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+}
+
+/// Placeholder for the packed column before anything has been packed
+struct NothingPackedView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 44))
+                .foregroundStyle(.gray.opacity(0.3))
+
+            Text("Packed items will appear here")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 60)
     }
 }

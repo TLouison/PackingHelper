@@ -34,7 +34,8 @@ struct ContentView: View {
                 }
             }
 
-            Tab("Settings", systemImage: "gear", value: AppTab.settings) {
+            // Prominent role detaches Settings into its own group, apart from Trips/Templates
+            Tab("Settings", systemImage: "gear", value: AppTab.settings, role: settingsTabRole) {
                 SettingsView()
             }
         }
@@ -45,6 +46,10 @@ struct ContentView: View {
             OnboardingContainerView(modelContext: modelContext)
                 .interactiveDismissDisabled()
         }
+    }
+
+    private var settingsTabRole: TabRole? {
+        if #available(iOS 27.0, *) { .prominent } else { nil }
     }
 }
 

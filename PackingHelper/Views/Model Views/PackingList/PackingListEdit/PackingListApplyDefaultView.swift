@@ -173,10 +173,12 @@ struct ListSelectionView: View {
     @State private var showingOtherLists = false
 
     private var filteredLists: [PackingList] {
-        defaultPackingLists
+        // Templates aren't owned by a packer (`list.user` is legacy and unset in v2), so the
+        // selected packer only decides who the copied items are assigned to, not which templates show.
+        let usedTemplates = trip.alreadyUsedTemplates
+        return defaultPackingLists
             .filter { list in
-                !trip.alreadyUsedTemplates.contains(list) &&
-                (user == nil || list.user == user) &&
+                !usedTemplates.contains(list) &&
                 (listType != nil ? list.type == listType : selectedListType == nil || list.type == selectedListType) &&
                 (searchText.isEmpty || list.name.localizedCaseInsensitiveContains(searchText))
             }
@@ -206,75 +208,73 @@ struct ListSelectionView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                if showingFilters {
-                    PackingListFilterSection(
-                        searchText: $searchText,
-                        selectedListType: $selectedListType,
-                        selectedUser: .constant(user),
-                        users: [],
-                        showUserFilter: false,
-                        showTypeFilter: listType == nil,
-                        hasActiveFilters: hasActiveFilters,
-                        onClearFilters: clearFilters
-                    )
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
+        VStack(spacing: 0) {
+            if showingFilters {
+                PackingListFilterSection(
+                    searchText: $searchText,
+                    selectedListType: $selectedListType,
+                    selectedUser: .constant(user),
+                    users: [],
+                    showUserFilter: false,
+                    showTypeFilter: listType == nil,
+                    hasActiveFilters: hasActiveFilters,
+                    onClearFilters: clearFilters
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
-                if filteredLists.isEmpty {
-                    PackingListEmptyStateView(
-                        hasFilters: hasActiveFilters,
-                        message: hasActiveFilters ?
-                            "Try adjusting your filters" :
-                            "No lists available to select",
-                        actionButtonTitle: hasActiveFilters ?
-                            "Clear All Filters" : "Done",
-                        onAction: hasActiveFilters ?
-                            clearFilters : { dismiss() }
-                    )
-                    .frame(maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        if isDayOf != nil {
-                            sectionedListsView
-                                .padding(.top)
-                        } else {
-                            listCardsView(filteredLists)
-                                .padding(.horizontal)
-                                .padding(.top)
-                        }
+            if filteredLists.isEmpty {
+                PackingListEmptyStateView(
+                    hasFilters: hasActiveFilters,
+                    message: hasActiveFilters ?
+                        "Try adjusting your filters" :
+                        "No lists available to select",
+                    actionButtonTitle: hasActiveFilters ?
+                        "Clear All Filters" : "Done",
+                    onAction: hasActiveFilters ?
+                        clearFilters : { dismiss() }
+                )
+                .frame(maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    if isDayOf != nil {
+                        sectionedListsView
+                            .padding(.top)
+                    } else {
+                        listCardsView(filteredLists)
+                            .padding(.horizontal)
+                            .padding(.top)
                     }
                 }
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Select Lists")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        withAnimation(.spring(response: 0.3)) {
-                            showingFilters.toggle()
-                        }
-                    } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle\(hasActiveFilters ? ".fill" : "")")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(hasActiveFilters ? .accent : .primary)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Select Lists")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    withAnimation(.spring(response: 0.3)) {
+                        showingFilters.toggle()
                     }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle\(hasActiveFilters ? ".fill" : "")")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(hasActiveFilters ? .accent : .primary)
                 }
+            }
 
-                if !selectedLists.isEmpty {
-                    ToolbarItem(placement: .bottomBar) {
-                        selectionSummary
-                    }
+            if !selectedLists.isEmpty {
+                ToolbarItem(placement: .bottomBar) {
+                    selectionSummary
                 }
+            }
 
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") {
+                    dismiss()
                 }
             }
         }

@@ -112,14 +112,16 @@ enum AIAssistantError: LocalizedError {
 
 /// PackingHelperWorkers location, shared by every Worker-backed service.
 enum WorkerConfig {
-    /// Resolves the Worker base URL, preferring a Developer Menu override for
-    /// local `wrangler dev` testing.
+    /// Resolves the Worker base URL. Debug builds prefer a `debug_workerURLOverride`
+    /// for local `wrangler dev` testing; release builds always use the bundled URL.
     static var baseURL: URL? {
+        #if DEBUG
         if let override = UserDefaults.standard.string(forKey: "debug_workerURLOverride"),
            !override.isEmpty,
            let url = URL(string: override) {
             return url
         }
+        #endif
         guard let raw = Bundle.main.infoDictionary?["WORKER_URL"] as? String,
               !raw.isEmpty,
               let url = URL(string: raw) else {

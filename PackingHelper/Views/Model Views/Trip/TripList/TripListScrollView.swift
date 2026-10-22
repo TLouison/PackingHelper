@@ -11,6 +11,7 @@ import SwiftData
 struct TripListScrollView: View {
     //    @Environment(PurchaseManager.self) private var purchaseManager: PurchaseManager
     @Environment(\.modelContext) var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     
     @Binding var path: NavigationPath
     
@@ -33,7 +34,8 @@ struct TripListScrollView: View {
     }
     
     func deleteTrip() {
-        if let trip = tripToDelete{
+        if let trip = tripToDelete {
+            SectionCollapseStateManager.removeState(for: trip.uuid)
             modelContext.delete(trip)
         }
     }
@@ -89,7 +91,8 @@ struct TripListScrollView: View {
             }
             .scrollTargetLayout()
         }
-        .contentMargins(.horizontal, 24, for: .scrollContent)
+        // Regular width (iPhone Duo unfolded, iPad): cards span the full screen width with standard edge padding
+        .contentMargins(.horizontal, horizontalSizeClass == .regular ? 16 : 24, for: .scrollContent)
         .scrollTargetBehavior(.paging)
         .alert("Delete Trip", isPresented: $showTripDeleteAlert) {
             Button("Cancel", role: .cancel) {

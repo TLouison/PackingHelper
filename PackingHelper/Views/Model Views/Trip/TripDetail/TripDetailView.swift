@@ -30,6 +30,7 @@ struct SheetModifier: ViewModifier {
 
 struct TripDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     
     let trip: Trip
     
@@ -47,34 +48,7 @@ struct TripDetailView: View {
     @State private var tripWeather: TripWeather?
     
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 20) {
-                TripDetailHeroView(
-                    trip: trip,
-                    tripWeather: $tripWeather,
-                    isShowingTripSettingsSheet: $isShowingTripSettingsSheet
-                )
-                    .shadow(radius: defaultShadowRadius)
-                
-                TripDetailPackingView(
-                    trip: trip,
-                    isAddingNewPackingList: $isAddingNewPackingList,
-                    isApplyingDefaultPackingList: $isApplyingDefaultPackingList
-                )
-                    .shadow(radius: defaultShadowRadius)
-                
-                TripDetailForecastView(trip: trip, tripWeather: $tripWeather)
-                    .shadow(radius: defaultShadowRadius)
-                
-                TripDetailInfoView(trip: trip)
-                    .shadow(radius: defaultShadowRadius)
-
-                if let coverPhoto = trip.coverPhoto, coverPhoto.source == .unsplash {
-                    TripDetailPhotoCreditView(photo: coverPhoto)
-                        .padding(.top, -8)
-                }
-            }
-            .padding()
+        content
             .sheet(isPresented: $isShowingTripDetailSheet) { TripDetailSheet(trip: trip) }
             .sheet(isPresented: $isShowingTripSettingsSheet) { TripEditView(trip: trip, isDeleted: $isDeleted) }
             .sheet(isPresented: $isAddingNewPackingList) {
@@ -93,6 +67,63 @@ struct TripDetailView: View {
                     dismiss()
                 }
             }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if horizontalSizeClass == .regular {
+            // Regular width (iPhone Duo unfolded, iPad): hero fills the left half, info boxes scroll on the right
+            HStack(spacing: 0) {
+                heroView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
+
+                ScrollView {
+                    VStack(spacing: 20) {
+                        infoSections
+                    }
+                    .padding()
+                }
+                .frame(maxWidth: .infinity)
+            }
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 20) {
+                    heroView
+                    infoSections
+                }
+                .padding()
+            }
+        }
+    }
+
+    private var heroView: some View {
+        TripDetailHeroView(
+            trip: trip,
+            tripWeather: $tripWeather,
+            isShowingTripSettingsSheet: $isShowingTripSettingsSheet
+        )
+            .shadow(radius: defaultShadowRadius)
+    }
+
+    @ViewBuilder
+    private var infoSections: some View {
+        TripDetailPackingView(
+            trip: trip,
+            isAddingNewPackingList: $isAddingNewPackingList,
+            isApplyingDefaultPackingList: $isApplyingDefaultPackingList
+        )
+            .shadow(radius: defaultShadowRadius)
+
+        TripDetailForecastView(trip: trip, tripWeather: $tripWeather)
+            .shadow(radius: defaultShadowRadius)
+
+        TripDetailInfoView(trip: trip)
+            .shadow(radius: defaultShadowRadius)
+
+        if let coverPhoto = trip.coverPhoto, coverPhoto.source == .unsplash {
+            TripDetailPhotoCreditView(photo: coverPhoto)
+                .padding(.top, -8)
         }
     }
 }

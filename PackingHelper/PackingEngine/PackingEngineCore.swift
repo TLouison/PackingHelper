@@ -25,13 +25,19 @@ struct PackingRecommendationResult {
 }
 
 class PackingEngine {
+    /// Loaded once on first use; compiling the CoreML model per call is expensive.
+    private static let model: ProductSuggestionModel? = {
+        let config = MLModelConfiguration()
+        config.computeUnits = .all
+        return try? ProductSuggestionModel(configuration: config)
+    }()
+
     static func interpretItem(itemName: String) -> PackingRecommendationCategory {
         guard FeatureFlags.shared.showingPackingEngine else { return .other }
 
+        guard let model else { return .other }
+
         do {
-            let config = MLModelConfiguration()
-            config.computeUnits = .all
-            let model = try ProductSuggestionModel(configuration: config)
             let output = try model.prediction(text: itemName)
 
             switch output.label {

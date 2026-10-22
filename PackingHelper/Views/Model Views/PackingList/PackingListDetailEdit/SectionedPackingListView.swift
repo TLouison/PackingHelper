@@ -14,6 +14,7 @@ import OSLog
 
 struct SectionedPackingListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let users: [User]?
     let lists: [PackingList]
@@ -81,146 +82,64 @@ struct SectionedPackingListView: View {
 
     func isExpanded(for list: PackingList) -> Binding<Bool> {
         Binding(
-            get: { !collapsedSections.contains(String(list.persistentModelID.hashValue)) },
+            get: { !collapsedSections.contains(list.collapseKey) },
             set: { expanded in
-                let id = String(list.persistentModelID.hashValue)
+                let id = list.collapseKey
                 if expanded {
                     collapsedSections.remove(id)
                 } else {
                     collapsedSections.insert(id)
                 }
-                SectionCollapseStateManager.saveCollapsedSections(collapsedSections, for: trip.persistentModelID)
+                SectionCollapseStateManager.saveCollapsedSections(collapsedSections, for: trip.uuid)
             }
         )
     }
 
     var body: some View {
         ScrollViewReader { proxy in
-        ScrollView {
-            VStack(spacing: 16) {
-                // List sections with drag-and-drop reordering
-                ForEach(Array(sortedLists.enumerated()), id: \.element.id) { index, list in
-                    VStack(spacing: 0) {
-                        // Drop zone before first section
-                        if isReorderingSections && index == 0 {
-                            SectionDropZone(
-                                insertionIndex: 0,
-                                isDragging: true,
-                                onDrop: { droppedList in
-                                    handleSectionReorder(list: droppedList, to: 0)
-                                }
+        Group {
+            if horizontalSizeClass == .regular {
+                WidePackingColumns {
+                    packedColumn
+                } available: {
+                    VStack(spacing: 16) {
+                        sectionsList
+                        emptyStateAndTapZone
+                    }
+                }
+            } else {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        sectionsList
+
+                        // Global packed items section
+                        if !allPackedItems.isEmpty {
+                            Rectangle()
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(height: 2)
+                                .padding(.horizontal)
+                            PackedItemsSection(
+                                items: allPackedItems,
+                                onTogglePacked: togglePacked,
+                                onDeleteItem: deleteItem
                             )
                         }
 
-                        PackingListSection(
-                            packingList: list,
-                            users: users,
-                            isExpanded: isExpanded(for: list),
-                            editingItemId: $editingItemId,
-                            selectedUser: selectedUser,
-                            selectedType: selectedType,
-                            showDayOfOnly: showDayOfOnly,
-                            onTogglePacked: togglePacked,
-                            onUpdateItem: updateItem,
-                            onDeleteItem: deleteItem,
-                            onEditList: { editingList = list },
-                            onDeleteList: { listToDelete = list },
-                            onSaveAsDefault: { saveListAsDefault(list) },
-                            onItemReorder: handleItemReorder,
-                            onCrossListDrop: handleCrossListMove,
-                            onAddItemToList: { targetList in
-                                onStartAddingItem(targetList)
-                            },
-                            isReorderMode: isReorderingSections,
-                            pendingPacks: pendingPacks,
-                            isAddingNewItem: isAddingNewItem,
-                            targetList: newItemList,
-                            newItemName: $newItemName,
-                            newItemFieldFocused: $newItemFieldFocused,
-                            newItemCount: newItemCount,
-                            onSubmitNewItem: onSubmitNewItem,
-                            onTapEmptyArea: { list in onTapEmptyArea(list) }
-                        )
-                        .draggable(PackingListTransferData(list: list)) {
-                            // Section drag preview
-                            PackingListSectionHeader(
-                                packingList: list,
-                                isExpanded: .constant(false),
-                                onAddItem: {},
-                                onEditList: {},
-                                onDeleteList: {},
-                                onSaveAsDefault: {}
-                            )
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(.ultraThickMaterial)
-                            .clipShape(.rect(cornerRadius: 12))
-                        }
-                        .onAppear {
-                            // Track when dragging starts
-                            if draggedList?.persistentModelID == list.persistentModelID {
-                                draggedList = list
-                            }
-                        }
-
-                        // Drop zone after each section (reorder mode only)
-                        if isReorderingSections {
-                            SectionDropZone(
-                                insertionIndex: index + 1,
-                                isDragging: true,
-                                onDrop: { droppedList in
-                                    handleSectionReorder(list: droppedList, to: index + 1)
-                                }
-                            )
-                        }
+                        emptyStateAndTapZone
                     }
-
-                    // Divider between sections (not in reorder mode, not after last)
-                    if !isReorderingSections && index < sortedLists.count - 1 {
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.2))
-                            .frame(height: 2)
-                            .padding(.horizontal, 8)
-                    }
+                    .padding(.vertical)
+                    .padding(.horizontal, 8)
                 }
-
-                // Global packed items section
-                if !allPackedItems.isEmpty {
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.2))
-                        .frame(height: 2)
-                        .padding(.horizontal)
-                    PackedItemsSection(
-                        items: allPackedItems,
-                        onTogglePacked: togglePacked,
-                        onDeleteItem: deleteItem
-                    )
-                }
-
-                // Empty state
-                if lists.allSatisfy({ ($0.items?.isEmpty ?? true) }) && !isAddingNewItem {
-                    EmptyStateView()
-                        .padding(.top, 60)
-                }
-
-                // Blank space below everything: tap to add to the current list, or to finish adding
-                if !isReorderingSections {
-                    AddItemTapZone(minHeight: 120) {
-                        onTapEmptyArea(nil)
-                    }
-                }
+                .scrollDismissesKeyboard(.interactively)
             }
-            .padding(.vertical)
-            .padding(.horizontal, 8)
         }
-        .scrollDismissesKeyboard(.interactively)
         .onAppear {
             loadCollapseState()
         }
         .onChange(of: newItemList) { _, targetList in
             // Auto-expand the target section when it changes
             if let targetList {
-                let id = String(targetList.persistentModelID.hashValue)
+                let id = targetList.collapseKey
                 if collapsedSections.contains(id) {
                     withAnimation { collapsedSections.remove(id) }
                 }
@@ -240,7 +159,7 @@ struct SectionedPackingListView: View {
         .onChange(of: isAddingNewItem) { _, isAdding in
             if isAdding, let targetList = newItemList {
                 // The inline row only renders in an expanded section
-                let id = String(targetList.persistentModelID.hashValue)
+                let id = targetList.collapseKey
                 if collapsedSections.contains(id) {
                     withAnimation { collapsedSections.remove(id) }
                 }
@@ -297,12 +216,134 @@ struct SectionedPackingListView: View {
         } // end ScrollViewReader
     }
 
+    // MARK: - Content
+
+    @ViewBuilder
+    private var sectionsList: some View {
+        // List sections with drag-and-drop reordering
+        ForEach(Array(sortedLists.enumerated()), id: \.element.id) { index, list in
+            VStack(spacing: 0) {
+                // Drop zone before first section
+                if isReorderingSections && index == 0 {
+                    SectionDropZone(
+                        insertionIndex: 0,
+                        isDragging: true,
+                        onDrop: { droppedList in
+                            handleSectionReorder(list: droppedList, to: 0)
+                        }
+                    )
+                }
+
+                PackingListSection(
+                    packingList: list,
+                    users: users,
+                    isExpanded: isExpanded(for: list),
+                    editingItemId: $editingItemId,
+                    selectedUser: selectedUser,
+                    selectedType: selectedType,
+                    showDayOfOnly: showDayOfOnly,
+                    onTogglePacked: togglePacked,
+                    onUpdateItem: updateItem,
+                    onDeleteItem: deleteItem,
+                    onEditList: { editingList = list },
+                    onDeleteList: { listToDelete = list },
+                    onSaveAsDefault: { saveListAsDefault(list) },
+                    onItemReorder: handleItemReorder,
+                    onCrossListDrop: handleCrossListMove,
+                    onAddItemToList: { targetList in
+                        onStartAddingItem(targetList)
+                    },
+                    isReorderMode: isReorderingSections,
+                    pendingPacks: pendingPacks,
+                    isAddingNewItem: isAddingNewItem,
+                    targetList: newItemList,
+                    newItemName: $newItemName,
+                    newItemFieldFocused: $newItemFieldFocused,
+                    newItemCount: newItemCount,
+                    onSubmitNewItem: onSubmitNewItem,
+                    onTapEmptyArea: { list in onTapEmptyArea(list) }
+                )
+                .draggable(PackingListTransferData(list: list)) {
+                    // Section drag preview
+                    PackingListSectionHeader(
+                        packingList: list,
+                        isExpanded: .constant(false),
+                        onAddItem: {},
+                        onEditList: {},
+                        onDeleteList: {},
+                        onSaveAsDefault: {}
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.ultraThickMaterial)
+                    .clipShape(.rect(cornerRadius: 12))
+                }
+                .onAppear {
+                    // Track when dragging starts
+                    if draggedList?.persistentModelID == list.persistentModelID {
+                        draggedList = list
+                    }
+                }
+
+                // Drop zone after each section (reorder mode only)
+                if isReorderingSections {
+                    SectionDropZone(
+                        insertionIndex: index + 1,
+                        isDragging: true,
+                        onDrop: { droppedList in
+                            handleSectionReorder(list: droppedList, to: index + 1)
+                        }
+                    )
+                }
+            }
+
+            // Divider between sections (not in reorder mode, not after last)
+            if !isReorderingSections && index < sortedLists.count - 1 {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.2))
+                    .frame(height: 2)
+                    .padding(.horizontal, 8)
+            }
+        }
+    }
+
+    /// Wide layout: the left column holds every packed item
+    @ViewBuilder
+    private var packedColumn: some View {
+        if allPackedItems.isEmpty {
+            NothingPackedView()
+        } else {
+            PackedItemsSection(
+                items: allPackedItems,
+                onTogglePacked: togglePacked,
+                onDeleteItem: deleteItem,
+                isCollapsible: false
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var emptyStateAndTapZone: some View {
+        // Empty state
+        if lists.allSatisfy({ ($0.items?.isEmpty ?? true) }) && !isAddingNewItem {
+            EmptyStateView()
+                .padding(.top, 60)
+        }
+
+        // Blank space below everything: tap to add to the current list, or to finish adding
+        if !isReorderingSections {
+            AddItemTapZone(minHeight: 120) {
+                onTapEmptyArea(nil)
+            }
+        }
+    }
+
     private func loadCollapseState() {
-        collapsedSections = SectionCollapseStateManager.loadCollapsedSections(for: trip.persistentModelID)
+        collapsedSections = SectionCollapseStateManager.loadCollapsedSections(for: trip.uuid)
 
         // Auto-collapse empty lists
         for list in lists where (list.items?.isEmpty ?? true) {
-            let id = String(list.persistentModelID.hashValue)
+            let id = list.collapseKey
             if !collapsedSections.contains(id) {
                 collapsedSections.insert(id)
             }
@@ -370,13 +411,13 @@ struct SectionedPackingListView: View {
     private func enterReorderMode() {
         // Save which sections are currently expanded
         expandedSectionsBeforeReorder = Set(sortedLists.compactMap { list in
-            let id = String(list.persistentModelID.hashValue)
+            let id = list.collapseKey
             return collapsedSections.contains(id) ? nil : id
         })
         // Collapse all sections
         withAnimation {
             for list in sortedLists {
-                collapsedSections.insert(String(list.persistentModelID.hashValue))
+                collapsedSections.insert(list.collapseKey)
             }
         }
     }
@@ -387,6 +428,6 @@ struct SectionedPackingListView: View {
             collapsedSections = collapsedSections.subtracting(expandedSectionsBeforeReorder)
             expandedSectionsBeforeReorder = []
         }
-        SectionCollapseStateManager.saveCollapsedSections(collapsedSections, for: trip.persistentModelID)
+        SectionCollapseStateManager.saveCollapsedSections(collapsedSections, for: trip.uuid)
     }
 }

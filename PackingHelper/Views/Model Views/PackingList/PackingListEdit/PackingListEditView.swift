@@ -96,7 +96,9 @@ struct PackingListEditView: View {
         }
         .alert("Delete \(packingList?.name ?? "section")?", isPresented: $isDeleting) {
             Button("Yes, delete \(packingList?.name ?? "section")", role: .destructive) {
-                delete(packingList!)
+                if let packingList {
+                    delete(packingList)
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {

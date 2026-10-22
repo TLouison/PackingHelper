@@ -110,7 +110,7 @@ final class PackingList {
     var countAsDays: Bool = false
     var isDayOf: Bool = false
     var appliedFromTemplate: PackingList? = nil
-    @Relationship(deleteRule:.noAction, inverse: \PackingList.appliedFromTemplate) var appliedToLists: [PackingList]?
+    @Relationship(deleteRule: .nullify, inverse: \PackingList.appliedFromTemplate) var appliedToLists: [PackingList]?
 
     // Sort order for section ordering in sectioned view
     var sortOrder: Int = 0
@@ -154,10 +154,9 @@ final class PackingList {
     }
 
     func removeItem(_ item: Item) {
-        if self.items != nil {
-            AppLogger.packingList.debug("Removing item \(item.name)")
-            self.items!.remove(at: self.items!.firstIndex(of: item)!)
-        }
+        guard let index = items?.firstIndex(of: item) else { return }
+        AppLogger.packingList.debug("Removing item \(item.name)")
+        items?.remove(at: index)
     }
 
     func removeItem(at index: Int) {
@@ -209,6 +208,11 @@ final class PackingList {
             }
         }
     }
+}
+
+extension PackingList {
+    /// Stable key for persisting per-section UI state (e.g. collapsed sections) across launches.
+    var collapseKey: String { uuid.uuidString }
 }
 
 extension PackingList {

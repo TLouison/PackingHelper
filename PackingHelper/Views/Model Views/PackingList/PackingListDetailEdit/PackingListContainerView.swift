@@ -18,6 +18,7 @@ struct PackingListContainerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(PurchaseManager.self) private var purchaseManager
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let context: PackingListContext
     let users: [User]?
@@ -217,9 +218,39 @@ struct PackingListContainerView: View {
             containerToolbar
         }
         .onAppear {
-            newItemUser = users?.first
-            newItemList = lists.first(where: { $0.isDefault }) ?? lists.first
+            // Only seed on first appearance so returning to this view keeps the user's picks
+            if newItemUser == nil {
+                newItemUser = selectedUser ?? users?.first
+            }
+            if resolvedNewItemList == nil {
+                newItemList = fallbackNewItemList
+            }
         }
+        .onChange(of: selectedUser) { _, user in
+            // Keep new items assigned to the packer being filtered on, otherwise they vanish on add
+            if let user {
+                newItemUser = user
+            }
+        }
+        .onChange(of: lists.map(\.persistentModelID)) {
+            // The target section was deleted; fall back so we never insert into a deleted list
+            if resolvedNewItemList == nil {
+                newItemList = fallbackNewItemList
+            }
+        }
+    }
+
+    /// `newItemList` if it still belongs to this trip and hasn't been deleted
+    private var resolvedNewItemList: PackingList? {
+        guard let newItemList, !newItemList.isDeleted,
+              lists.contains(where: { $0.persistentModelID == newItemList.persistentModelID }) else {
+            return nil
+        }
+        return newItemList
+    }
+
+    private var fallbackNewItemList: PackingList? {
+        lists.first(where: { $0.isDefault }) ?? lists.first
     }
 
     // MARK: - New Item Accessory Bar
@@ -267,7 +298,7 @@ struct PackingListContainerView: View {
             HStack(spacing: 6) {
                 Image(systemName: "list.bullet")
                     .font(.caption)
-                Text(newItemList?.name ?? "Select List")
+                Text(resolvedNewItemList?.name ?? "Select List")
                     .fontWeight(.medium)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.caption2)
@@ -364,89 +395,52 @@ struct PackingListContainerView: View {
         )
         let rowItems = isTemplating ? allItems : unpackedItems
 
+        let packedItems = Item.sorted(
+            singleListPendingPacks.settledPacked(list.items ?? []),
+            sortOrder: .byCustomOrder
+        )
+
         ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    if isTemplating {
-                        ReorderableItemsSection(
-                            items: allItems,
-                            isTemplating: true,
-                            editingItemId: $singleListEditingItemId,
-                            onTogglePacked: { _ in },
-                            onUpdateItem: updateSingleListItem,
-                            onDeleteItem: { item in
-                                withAnimation(.packingSpring) { modelContext.delete(item) }
-                            },
-                            onReorder: { item, newIndex in
-                                withAnimation(.packingSpring) {
-                                    SortOrderManager.reorderItems(in: list, moving: item, to: newIndex)
-                                }
-                            }
-                        )
-                    } else {
-                        ReorderableItemsSection(
-                            items: unpackedItems,
-                            isTemplating: false,
-                            editingItemId: $singleListEditingItemId,
-                            onTogglePacked: { item in
-                                singleListPendingPacks.toggle(item)
-                            },
-                            onUpdateItem: updateSingleListItem,
-                            onDeleteItem: { item in
-                                withAnimation(.packingSpring) { modelContext.delete(item) }
-                            },
-                            onReorder: { item, newIndex in
-                                withAnimation(.packingSpring) {
-                                    SortOrderManager.reorderItems(in: list, moving: item, to: newIndex)
-                                }
-                            }
-                        )
-                    }
-
-                    if isAddingNewItem {
-                        NewItemRow(
-                            itemName: $newItemName,
-                            isFocused: $newItemFieldFocused,
-                            itemCount: newItemCount,
-                            showsCheckbox: !isTemplating,
-                            onSubmitReturn: addNewItemAndContinue,
-                            onDeleteEmpty: {
-                                // Backspace on the empty new row moves editing up to the last item
-                                if let lastItem = rowItems.last {
-                                    singleListEditingItemId = lastItem.persistentModelID
-                                }
-                            }
-                        )
-                        .id(NewItemRow.scrollID(for: list))
-                    }
-
-                    if allItems.isEmpty && !isAddingNewItem {
-                        EmptyStateView()
-                            .padding(.top, 60)
-                    }
-
-                    if !isTemplating {
-                        let packedItems = Item.sorted(
-                            singleListPendingPacks.settledPacked(list.items ?? []),
-                            sortOrder: .byCustomOrder
-                        )
-                        if !packedItems.isEmpty {
+            Group {
+                if horizontalSizeClass == .regular && !isTemplating {
+                    // Regular width (iPhone Duo unfolded, iPad): packed on the left, available on the right
+                    WidePackingColumns {
+                        if packedItems.isEmpty {
+                            NothingPackedView()
+                        } else {
                             PackedItemsSection(
                                 items: packedItems,
                                 onTogglePacked: { item in singleListPendingPacks.toggle(item) },
-                                onDeleteItem: { item in withAnimation(.packingSpring) { modelContext.delete(item) } }
+                                onDeleteItem: { item in withAnimation(.packingSpring) { modelContext.delete(item) } },
+                                isCollapsible: false
                             )
                         }
+                    } available: {
+                        VStack(spacing: 0) {
+                            singleListAvailableContent(list: list, allItems: allItems, unpackedItems: unpackedItems, rowItems: rowItems)
+                            singleListTapZone
+                        }
                     }
+                } else {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            singleListAvailableContent(list: list, allItems: allItems, unpackedItems: unpackedItems, rowItems: rowItems)
 
-                    // Blank space below the list: tap to add, or to finish adding
-                    AddItemTapZone(minHeight: 120) {
-                        handleTapOnEmptyArea(in: nil)
+                            if !isTemplating && !packedItems.isEmpty {
+                                PackedItemsSection(
+                                    items: packedItems,
+                                    onTogglePacked: { item in singleListPendingPacks.toggle(item) },
+                                    onDeleteItem: { item in withAnimation(.packingSpring) { modelContext.delete(item) } }
+                                )
+                            }
+
+                            singleListTapZone
+                        }
+                        .padding()
                     }
+                    .scrollDismissesKeyboard(.interactively)
                 }
-                .padding()
             }
-            .scrollDismissesKeyboard(.interactively)
             .onChange(of: isAddingNewItem) { _, isAdding in
                 if isAdding {
                     withAnimation { proxy.scrollTo(NewItemRow.scrollID(for: list), anchor: .bottom) }
@@ -461,6 +455,75 @@ struct PackingListContainerView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Item rows, inline new item row, and empty state for a single list
+    @ViewBuilder
+    private func singleListAvailableContent(list: PackingList, allItems: [Item], unpackedItems: [Item], rowItems: [Item]) -> some View {
+        if isTemplating {
+            ReorderableItemsSection(
+                items: allItems,
+                isTemplating: true,
+                editingItemId: $singleListEditingItemId,
+                onTogglePacked: { _ in },
+                onUpdateItem: updateSingleListItem,
+                onDeleteItem: { item in
+                    withAnimation(.packingSpring) { modelContext.delete(item) }
+                },
+                onReorder: { item, newIndex in
+                    withAnimation(.packingSpring) {
+                        SortOrderManager.reorderItems(in: list, moving: item, to: newIndex)
+                    }
+                }
+            )
+        } else {
+            ReorderableItemsSection(
+                items: unpackedItems,
+                isTemplating: false,
+                editingItemId: $singleListEditingItemId,
+                onTogglePacked: { item in
+                    singleListPendingPacks.toggle(item)
+                },
+                onUpdateItem: updateSingleListItem,
+                onDeleteItem: { item in
+                    withAnimation(.packingSpring) { modelContext.delete(item) }
+                },
+                onReorder: { item, newIndex in
+                    withAnimation(.packingSpring) {
+                        SortOrderManager.reorderItems(in: list, moving: item, to: newIndex)
+                    }
+                }
+            )
+        }
+
+        if isAddingNewItem {
+            NewItemRow(
+                itemName: $newItemName,
+                isFocused: $newItemFieldFocused,
+                itemCount: newItemCount,
+                showsCheckbox: !isTemplating,
+                onSubmitReturn: addNewItemAndContinue,
+                onDeleteEmpty: {
+                    // Backspace on the empty new row moves editing up to the last item
+                    if let lastItem = rowItems.last {
+                        singleListEditingItemId = lastItem.persistentModelID
+                    }
+                }
+            )
+            .id(NewItemRow.scrollID(for: list))
+        }
+
+        if allItems.isEmpty && !isAddingNewItem {
+            EmptyStateView()
+                .padding(.top, 60)
+        }
+    }
+
+    /// Blank space below the list: tap to add, or to finish adding
+    private var singleListTapZone: some View {
+        AddItemTapZone(minHeight: 120) {
+            handleTapOnEmptyArea(in: nil)
         }
     }
 
@@ -615,7 +678,7 @@ struct PackingListContainerView: View {
     }
 
     private func insertNewItem() {
-        guard let list = context.isTrip ? newItemList : context.singleList else { return }
+        guard let list = context.isTrip ? (resolvedNewItemList ?? fallbackNewItemList) : context.singleList else { return }
         let name = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
 

@@ -92,7 +92,7 @@ class Item {
 
         let newItem = Item(
             name: name,
-            category: itemCategory!.rawValue.capitalized,
+            category: (itemCategory ?? .other).rawValue.capitalized,
             count: count,
             isPacked: isPacked,
             type: type,

@@ -58,9 +58,7 @@ struct UserGridView: View {
                 UserEditView(user: nil, isPresentedModally: true)
             }
             .sheet(item: $selectedUser) { user in
-                NavigationStack {
-                    UserEditView(user: user, isPresentedModally: true)
-                }
+                UserEditView(user: user, isPresentedModally: true)
             }
             .sheet(isPresented: $isShowingSubscriptionStoreSheet) {
                 PlusPaywallView()

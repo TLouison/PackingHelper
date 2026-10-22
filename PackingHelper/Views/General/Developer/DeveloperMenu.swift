@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 
+#if DEBUG
 struct DeveloperMenuView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -93,3 +94,4 @@ struct DeveloperMenuView: View {
 #Preview {
     DeveloperMenuView()
 }
+#endif

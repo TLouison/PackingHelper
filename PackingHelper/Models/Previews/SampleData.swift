@@ -37,7 +37,7 @@ extension PreviewTrait where T == Preview.ViewTraits {
     // Trip and Location Creation
     let springBreakLocations = [
         TripLocation(name: "New York City", latitude: 40.7128, longitude: -74.0060),
-        TripLocation(name: "Miami", latitude: 25.7617, longitude: 80.1918)
+        TripLocation(name: "Miami", latitude: 25.7617, longitude: -80.1918)
     ]
     let springBreakTrip = Trip(name: "Spring Break", startDate: Date.distantPast, endDate: Date.distantPast.advanced(by: SECONDS_IN_DAY), type: .plane, origin: springBreakLocations[0], destination: springBreakLocations[1], accomodation: .rental)
     

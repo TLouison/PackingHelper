@@ -30,7 +30,9 @@ struct SettingsView: View {
     @AppStorage("autoCreateDefaultLists") private var autoCreateDefaultLists = true
 
     @State private var selectedTime = Date()
+    #if DEBUG
     @State private var showDeveloperMenu = false
+    #endif
     @State private var currentLocation: TripLocation = TripLocation.sampleOrigin
     @State private var displayPaywall: Bool = false
     @State private var displayCustomerCenter: Bool = false
@@ -155,17 +157,21 @@ struct SettingsView: View {
                     }
                 }
                 
+                #if DEBUG
                 Section("Developer") {
                     Button("Open Developer Menu") {
                         showDeveloperMenu = true
                     }
                 }
+                #endif
             }
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
+            #if DEBUG
             .sheet(isPresented: $showDeveloperMenu) {
                 DeveloperMenuView()
             }
+            #endif
             .sheet(isPresented: $displayPaywall) {
                 PlusPaywallView()
             }

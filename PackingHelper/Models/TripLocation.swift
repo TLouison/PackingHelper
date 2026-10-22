@@ -141,9 +141,11 @@ extension TripLocation {
     }
     
     func getTripWeather(for trip: Trip) async -> TripWeather? {
-        // Try to get cached weather first. We refetch every hour, or if the app has been fully closed.
+        // Try to get cached weather first. We refetch every hour. `weather` is transient, so after a
+        // relaunch it's empty even though `weatherLastFetched` persisted — only treat it as a hit if it has data.
         AppLogger.weather.debug("Checking weather cache. Last fetched: \(self.weatherLastFetched), \(self.weatherLastFetched.distance(to: .now)) seconds ago")
-        if weatherLastFetched.distance(to: .now) < SECONDS_IN_MINUTE * MINUTES_IN_HOUR {
+        let hasCachedWeather = weather.currentWeather != nil || weather.dailyForecast != nil
+        if hasCachedWeather && weatherLastFetched.distance(to: .now) < SECONDS_IN_MINUTE * MINUTES_IN_HOUR {
             return self.weather
         }
 
@@ -166,10 +168,8 @@ extension TripLocation {
                 )
                 newWeather = TripWeather(currentWeather: weatherData.1, dailyForecast: weatherData.0)
             } catch {
+                // Don't stamp weatherLastFetched on failure, so the next appearance retries.
                 AppLogger.weather.error("Failed to fetch weather: \(error.localizedDescription)")
-                await MainActor.run {
-                    self.weatherLastFetched = Date.now
-                }
                 return nil
             }
         } else if allowCurrentWeather {

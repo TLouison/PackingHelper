@@ -134,18 +134,7 @@ struct UserEditView: View {
                     }
                 }
             } message: {
-                Text("Are you sure you want to delete this user? This will also delete all associated lists and cannot be undone.")
-            }
-            .alert("Delete User", isPresented: $showingDeleteConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    if let user {
-                        deleteUser(user)
-                        dismiss()
-                    }
-                }
-            } message: {
-                Text("Are you sure you want to delete this user? This will also delete all associated lists and cannot be undone.")
+                Text("Are you sure you want to delete this user? Their items will stay on your trips, unassigned. This cannot be undone.")
             }
             .sheet(isPresented: $showingLocationSearch) {
                 LocationSearchView(location: $defaultLocation)
@@ -174,18 +163,8 @@ struct UserEditView: View {
     }
     
     private func save() {
-        User.create_or_update(user, name: name, color: userColor, profileImage: selectedImage, in: modelContext)
-
-        // Update default location
-        if let user = user {
-            user.defaultLocation = defaultLocation
-        } else {
-            // For new users, the default location will be set after creation
-            // We need to find the newly created user and set its default location
-            if let newUser = users.first(where: { $0.name == name }) {
-                newUser.defaultLocation = defaultLocation
-            }
-        }
+        let savedUser = User.create_or_update(user, name: name, color: userColor, profileImage: selectedImage, in: modelContext)
+        savedUser.defaultLocation = defaultLocation
 
         // Force save context
         try? modelContext.save()
@@ -197,17 +176,9 @@ struct UserEditView: View {
     }
     
     private func deleteUser(_ user: User) {
-        // Delete all associated lists first
-        if let lists = user.lists {
-            for list in lists {
-                modelContext.delete(list)
-            }
-        }
-        
-        // Delete the user
-        modelContext.delete(user)
-        
-        // Save changes
+        // User.delete unassigns the user's lists and items instead of deleting them;
+        // legacy lists still carry `user`, so deleting them would wipe trip sections.
+        User.delete(user, from: modelContext)
         try? modelContext.save()
     }
 }
