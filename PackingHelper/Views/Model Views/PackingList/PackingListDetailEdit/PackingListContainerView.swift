@@ -39,6 +39,13 @@ struct PackingListContainerView: View {
     /// Show the paywall once the assistant sheet finishes dismissing (two
     /// sheets can't present back-to-back in the same update).
     @State private var showPaywallAfterAIDismiss: Bool = false
+    /// Regular width: the assistant is a side panel instead of a sheet. `isShowingAssistantPanel`
+    /// drives the slide; `isAssistantPanelMounted` keeps the chat rendered until the slide-out finishes.
+    @State private var isShowingAssistantPanel: Bool = false
+    @State private var isAssistantPanelMounted: Bool = false
+    /// Shared by the panel and the sheet so the conversation survives a wide → compact switch.
+    /// Replaced on each fresh open.
+    @State private var assistantViewModel = AIAssistantViewModel()
 
     // Centralized add-item state
     @State private var newItemName = ""
@@ -124,7 +131,8 @@ struct PackingListContainerView: View {
         .overlay(alignment: .bottomTrailing) {
             if isReorderingSections {
                 doneButton
-            } else if !isAddingNewItem {
+            } else if !isAddingNewItem && !isShowingAssistantPanel {
+                // Hidden while the assistant panel is open so it doesn't cover the chat composer
                 fabButton
             }
         }
@@ -180,6 +188,7 @@ struct PackingListContainerView: View {
         }) {
             if let trip = context.trip {
                 AIAssistantSheet(
+                    viewModel: assistantViewModel,
                     trip: trip,
                     users: users,
                     targetUser: $newItemUser,
@@ -230,6 +239,21 @@ struct PackingListContainerView: View {
             // Keep new items assigned to the packer being filtered on, otherwise they vanish on add
             if let user {
                 newItemUser = user
+            }
+        }
+        .onChange(of: horizontalSizeClass) { _, sizeClass in
+            // The panel only exists in the wide layout (e.g. the Duo was folded closed):
+            // hand the open conversation over to the sheet instead of dropping it
+            if sizeClass != .regular && isAssistantPanelMounted {
+                isShowingAssistantPanel = false
+                isAssistantPanelMounted = false
+                showingAIAssistant = true
+            } else if sizeClass == .regular && showingAIAssistant && context.isTrip {
+                // Unfolded with the sheet open: move the conversation back into the side panel.
+                // Shown in place (no slide) since the whole layout is already changing.
+                showingAIAssistant = false
+                isAssistantPanelMounted = true
+                isShowingAssistantPanel = true
             }
         }
         .onChange(of: lists.map(\.persistentModelID)) {
@@ -373,8 +397,23 @@ struct PackingListContainerView: View {
                     newItemCount: newItemCount,
                     onSubmitNewItem: addNewItemAndContinue,
                     onStartAddingItem: startAddingNewItem(in:),
-                    onTapEmptyArea: handleTapOnEmptyArea(in:)
-                )
+                    onTapEmptyArea: handleTapOnEmptyArea(in:),
+                    isShowingAssistantPanel: isShowingAssistantPanel
+                ) {
+                    if isAssistantPanelMounted {
+                        AIAssistantSheet(
+                            viewModel: assistantViewModel,
+                            trip: trip,
+                            users: users,
+                            targetUser: $newItemUser,
+                            onSubscriptionLapsed: {
+                                closeAssistantPanel()
+                                showingAIPaywall = true
+                            },
+                            onClose: closeAssistantPanel
+                        )
+                    }
+                }
             } else if let singleList = context.singleList {
                 singleListView(list: singleList)
             }
@@ -553,10 +592,17 @@ struct PackingListContainerView: View {
     private var tripToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Button {
-                if purchaseManager.hasUnlockedPlus {
-                    showingAIAssistant = true
-                } else {
+                if !purchaseManager.hasUnlockedPlus {
                     showingAIPaywall = true
+                } else if horizontalSizeClass == .regular {
+                    if isShowingAssistantPanel {
+                        closeAssistantPanel()
+                    } else {
+                        openAssistantPanel()
+                    }
+                } else {
+                    assistantViewModel = AIAssistantViewModel()
+                    showingAIAssistant = true
                 }
             } label: {
                 Image(systemName: "sparkles")
@@ -628,6 +674,31 @@ struct PackingListContainerView: View {
                 } label: {
                     Label("List Settings", systemImage: "gear")
                 }
+            }
+        }
+    }
+
+    // MARK: - Assistant Panel
+
+    /// Slides the assistant in from the right, pushing the packed column off the left edge
+    private func openAssistantPanel() {
+        // Reopened mid-slide-out: keep the conversation that's still on screen
+        if !isAssistantPanelMounted {
+            assistantViewModel = AIAssistantViewModel()
+        }
+        isAssistantPanelMounted = true
+        withAnimation(.smooth(duration: 0.45)) {
+            isShowingAssistantPanel = true
+        }
+    }
+
+    private func closeAssistantPanel() {
+        withAnimation(.smooth(duration: 0.45)) {
+            isShowingAssistantPanel = false
+        } completion: {
+            // Reopened mid-slide: keep the chat
+            if !isShowingAssistantPanel {
+                isAssistantPanelMounted = false
             }
         }
     }

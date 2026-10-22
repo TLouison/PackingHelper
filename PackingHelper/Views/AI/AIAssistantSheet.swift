@@ -2,49 +2,57 @@
 //  AIAssistantSheet.swift
 //  PackingHelper
 //
-//  The AI packing assistant chat. Ephemeral per presentation: conversation is
-//  discarded on dismiss; added items are the durable artifact.
+//  The AI packing assistant chat. The presenter owns the view model so a conversation
+//  survives moving between the wide side panel and the sheet; it is discarded when the
+//  assistant is closed. Added items are the durable artifact.
 //
 
 import SwiftUI
 import SwiftData
 
 struct AIAssistantSheet: View {
+    @Bindable var viewModel: AIAssistantViewModel
     let trip: Trip
     let users: [User]?
     @Binding var targetUser: User?
     /// Called after the Worker reports no active subscription and entitlements
     /// have been refreshed; the presenter should close this and show the paywall.
     var onSubscriptionLapsed: () -> Void = {}
+    /// Set when embedded as a side panel (regular width) instead of presented as a sheet.
+    /// The panel draws its own header and calls this from its close button.
+    var onClose: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Environment(PurchaseManager.self) private var purchaseManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var viewModel = AIAssistantViewModel()
     @FocusState private var composerFocused: Bool
 
     private var lists: [PackingList] { trip.lists ?? [] }
     private var hasMultiplePackers: Bool { (users?.count ?? 0) > 1 }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                if hasMultiplePackers {
-                    packerPicker
+        Group {
+            if let onClose {
+                VStack(spacing: 0) {
+                    panelHeader(onClose: onClose)
                     Divider()
+                    chat
                 }
-                conversation
-                composer
-            }
-            .navigationTitle("AI Assistant")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        composerFocused = false
-                        dismiss()
-                    }
+                .background(Color(.systemBackground))
+            } else {
+                NavigationStack {
+                    chat
+                        .navigationTitle("AI Assistant")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    composerFocused = false
+                                    dismiss()
+                                }
+                            }
+                        }
                 }
             }
         }
@@ -59,6 +67,40 @@ struct AIAssistantSheet: View {
                 onSubscriptionLapsed()
             }
         }
+    }
+
+    private var chat: some View {
+        VStack(spacing: 0) {
+            if hasMultiplePackers {
+                packerPicker
+                Divider()
+            }
+            conversation
+            composer
+        }
+    }
+
+    // MARK: - Panel header
+
+    private func panelHeader(onClose: @escaping () -> Void) -> some View {
+        HStack {
+            Label("AI Assistant", systemImage: "sparkles")
+                .font(.headline)
+            Spacer()
+            Button {
+                // Dismiss the keyboard before the panel animates away
+                composerFocused = false
+                onClose()
+            } label: {
+                Image(systemName: "xmark")
+                    .fontWeight(.semibold)
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel("Close AI Assistant")
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Packer picker

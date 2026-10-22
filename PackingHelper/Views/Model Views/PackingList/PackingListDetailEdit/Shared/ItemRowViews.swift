@@ -453,29 +453,56 @@ struct PackedItemsSection: View {
 
 /// Regular width (iPhone Duo unfolded, iPad): packed items on the left half, available items on the right.
 /// Each column scrolls independently.
-struct WidePackingColumns<Packed: View, Available: View>: View {
+///
+/// An optional trailing panel sits just off the right edge. When `isShowingTrailing` is true the
+/// whole strip slides left by one column, so the trailing panel pushes the packed column off screen
+/// and leaves available | trailing visible.
+struct WidePackingColumns<Packed: View, Available: View, Trailing: View>: View {
+    var isShowingTrailing: Bool = false
     @ViewBuilder let packed: Packed
     @ViewBuilder let available: Available
+    @ViewBuilder let trailing: Trailing
 
     var body: some View {
-        HStack(spacing: 0) {
-            ScrollView {
-                packed
-                    .padding(.vertical)
-                    .padding(.horizontal, 8)
-            }
-            .frame(maxWidth: .infinity)
+        GeometryReader { proxy in
+            let columnWidth = proxy.size.width / 2
 
-            Divider()
+            HStack(spacing: 0) {
+                ScrollView {
+                    packed
+                        .padding(.vertical)
+                        .padding(.horizontal, 8)
+                }
+                .frame(width: columnWidth)
+                .overlay(alignment: .trailing) { Divider() }
+                .allowsHitTesting(!isShowingTrailing)
+                .accessibilityHidden(isShowingTrailing)
 
-            ScrollView {
-                available
-                    .padding(.vertical)
-                    .padding(.horizontal, 8)
+                ScrollView {
+                    available
+                        .padding(.vertical)
+                        .padding(.horizontal, 8)
+                }
+                .frame(width: columnWidth)
+                .overlay(alignment: .trailing) { Divider() }
+
+                trailing
+                    .frame(width: columnWidth)
+                    .allowsHitTesting(isShowingTrailing)
+                    .accessibilityHidden(!isShowingTrailing)
             }
-            .frame(maxWidth: .infinity)
+            .offset(x: isShowingTrailing ? -columnWidth : 0)
         }
+        .clipped()
         .scrollDismissesKeyboard(.interactively)
+    }
+}
+
+extension WidePackingColumns where Trailing == EmptyView {
+    init(@ViewBuilder packed: () -> Packed, @ViewBuilder available: () -> Available) {
+        self.packed = packed()
+        self.available = available()
+        self.trailing = EmptyView()
     }
 }
 

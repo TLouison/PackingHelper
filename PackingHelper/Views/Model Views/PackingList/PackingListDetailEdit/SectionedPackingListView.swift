@@ -12,7 +12,7 @@ import SwiftUI
 import SwiftData
 import OSLog
 
-struct SectionedPackingListView: View {
+struct SectionedPackingListView<AssistantPanel: View>: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -42,6 +42,10 @@ struct SectionedPackingListView: View {
     let onStartAddingItem: (PackingList?) -> Void
     /// Tap on blank space: ends adding if active, otherwise starts adding in that list
     let onTapEmptyArea: (PackingList?) -> Void
+
+    /// Wide layout only: the AI panel slides in from the right, pushing the packed column off screen
+    let isShowingAssistantPanel: Bool
+    @ViewBuilder let assistantPanel: AssistantPanel
 
     // Local state
     @State private var pendingPacks = PendingPackTracker()
@@ -99,13 +103,15 @@ struct SectionedPackingListView: View {
         ScrollViewReader { proxy in
         Group {
             if horizontalSizeClass == .regular {
-                WidePackingColumns {
+                WidePackingColumns(isShowingTrailing: isShowingAssistantPanel) {
                     packedColumn
                 } available: {
                     VStack(spacing: 16) {
                         sectionsList
                         emptyStateAndTapZone
                     }
+                } trailing: {
+                    assistantPanel
                 }
             } else {
                 ScrollView {
