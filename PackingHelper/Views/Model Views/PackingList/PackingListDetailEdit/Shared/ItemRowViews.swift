@@ -32,12 +32,15 @@ struct NewItemRow: View {
                 Image(systemName: "circle")
                     .font(.title2)
                     .foregroundStyle(.gray.opacity(0.5))
+            } else {
+                TemplateItemMarker()
             }
 
             PersistentTextField(
                 text: $itemName,
                 isFocused: $isFocused,
                 placeholder: "New Item",
+                textStyle: showsCheckbox ? .body : TemplateItemStyle.textStyle,
                 onSubmit: onSubmitReturn,
                 onDeleteBackwardWhenEmpty: onDeleteEmpty
             )
@@ -46,9 +49,30 @@ struct NewItemRow: View {
                 ItemCountBadge(count: itemCount)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, showsCheckbox ? 4 : TemplateItemStyle.verticalPadding)
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Template Item Styling
+
+/// Template items aren't completable, so they get a dash instead of a checkbox and slightly
+/// larger, roomier rows so each line still reads as its own entry
+enum TemplateItemStyle {
+    static let textStyle: UIFont.TextStyle = .title3
+    static let font: Font = .title3
+    static let verticalPadding: CGFloat = 10
+}
+
+/// Leading dash shown in place of the packed checkbox on template rows
+struct TemplateItemMarker: View {
+    var body: some View {
+        Image(systemName: "minus")
+            .font(.body.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .frame(width: 24)
+            .accessibilityHidden(true)
     }
 }
 
@@ -148,19 +172,22 @@ struct EditableItemRow: View {
                 )
                 .font(.title2)
                 .foregroundStyle(item.isPacked ? .blue : .gray.opacity(0.5))
+            } else {
+                TemplateItemMarker()
             }
 
             PersistentTextField(
                 text: $editName,
                 isFocused: $isFocused,
                 placeholder: "Item name",
+                textStyle: isTemplating ? TemplateItemStyle.textStyle : .body,
                 onSubmit: finish,
                 onDeleteBackwardWhenEmpty: onDeleteEmpty == nil ? nil : deleteEmpty
             )
 
             ItemCountStepper(count: $editCount)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, isTemplating ? TemplateItemStyle.verticalPadding : 4)
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
@@ -243,7 +270,7 @@ struct UnifiedItemRow: View {
             }
 
             rowContent
-                .padding(.vertical, 4)
+                .padding(.vertical, isTemplating ? TemplateItemStyle.verticalPadding : 4)
                 .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -379,6 +406,8 @@ struct UnifiedItemRow: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(item.isPacked ? "Mark as unpacked" : "Mark as packed")
+            } else {
+                TemplateItemMarker()
             }
 
             Button {
@@ -390,7 +419,7 @@ struct UnifiedItemRow: View {
             } label: {
                 HStack(spacing: 6) {
                     Text(item.name)
-                        .font(.body)
+                        .font(isTemplating ? TemplateItemStyle.font : .body)
                         .strikethrough(item.isPacked)
                         .foregroundStyle(item.isPacked ? .gray : .primary)
 

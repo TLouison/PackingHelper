@@ -12,6 +12,7 @@ struct PersistentTextField: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
     var placeholder: String
+    var textStyle: UIFont.TextStyle = .body
     var onSubmit: () -> Void
     /// Called when backspace is pressed while the field is already empty
     var onDeleteBackwardWhenEmpty: (() -> Void)? = nil
@@ -26,7 +27,7 @@ struct PersistentTextField: UIViewRepresentable {
             action: #selector(Coordinator.textChanged(_:)),
             for: .editingChanged
         )
-        tf.font = .preferredFont(forTextStyle: .body)
+        tf.font = .preferredFont(forTextStyle: textStyle)
         tf.adjustsFontForContentSizeCategory = true
         tf.setContentHuggingPriority(.required, for: .vertical)
         tf.setContentCompressionResistancePriority(.required, for: .vertical)
@@ -37,6 +38,10 @@ struct PersistentTextField: UIViewRepresentable {
     func updateUIView(_ tf: BackspaceAwareTextField, context: Context) {
         context.coordinator.parent = self
         tf.onDeleteBackwardWhenEmpty = onDeleteBackwardWhenEmpty
+        let font = UIFont.preferredFont(forTextStyle: textStyle)
+        if tf.font != font {
+            tf.font = font
+        }
         if tf.text != text {
             tf.text = text
         }

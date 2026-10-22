@@ -475,7 +475,9 @@ struct PackingListContainerView: View {
 
                             singleListTapZone
                         }
-                        .padding()
+                        // Template rows already carry their own inset and roomier padding
+                        .padding(.horizontal, isTemplating ? 4 : 16)
+                        .padding(.vertical, isTemplating ? 4 : 16)
                     }
                     .scrollDismissesKeyboard(.interactively)
                 }
