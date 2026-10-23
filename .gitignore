@@ -18,3 +18,6 @@ DerivedData/
 # Local-only
 *.backup
 .claude/settings.local.json
+
+# Apple agent skills (reference docs, re-downloadable)
+xcode-skills/
