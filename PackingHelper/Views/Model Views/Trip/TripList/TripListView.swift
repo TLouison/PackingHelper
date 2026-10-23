@@ -21,6 +21,8 @@ struct TripListView: View {
     @State private var isShowingSettings: Bool = false
     @State private var isShowingCompletedTrips: Bool = false
     @State private var isCompletedTripDropdownOpen: Bool = false
+    // System lays the toolbar out as a vertical bar beside the content
+    @State private var isShowingVerticalToolbar: Bool = false
     
     @State private var visibleTripsSymbol: Symbol = .upcoming
 
@@ -129,6 +131,56 @@ struct TripListView: View {
         }
     }
     
+    @ViewBuilder
+    var visibleTripsToggle: some View {
+        if !users.isEmpty && !completedTrips.isEmpty {
+            Button {
+                withAnimation {
+                    toggleVisibleTrips()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: visibleTripsSymbol.name)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(visibleTripsSymbol == .completed ? Color.green.gradient : Color.accentColor.gradient)
+                        .contentTransition(
+                            .symbolEffect(.replace.downUp.byLayer)
+                        )
+                        .symbolEffect(.bounce, value: visibleTripsSymbol == .completed ? upcomingTrips.count : completedTrips.count)
+                        .labelStyle(.titleAndIcon)
+                }
+            }
+            .accessibilityLabel(isShowingCompletedTrips ? "Show Upcoming Trips" : "Show Past Trips")
+            .accessibilityValue(
+                pastTripsBadgeCount > 0
+                    ? Text("^[\(pastTripsBadgeCount) trip](inflect: true) with items to review")
+                    : Text(verbatim: "")
+            )
+            // System toolbar badge stays opaque; custom overlays pick up the glass vibrancy
+            .badge(pastTripsBadgeCount)
+        }
+    }
+
+    var settingsButton: some View {
+        Button("Settings", systemImage: "gear") {
+            isShowingSettings = true
+        }
+    }
+
+    @ViewBuilder
+    var addTripButton: some View {
+        if !users.isEmpty {
+            SubscriptionAwareButton(localLimitMet: atMaxFreeTrips) {
+                withAnimation {
+                    isShowingAddTripSheet.toggle()
+                }
+            } label: {
+                Label("Add Trip", systemImage: "plus")
+                    .symbolEffect(.bounce.down, value: isShowingAddTripSheet)
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack(path: $viewModel.path) {
             listView
@@ -143,50 +195,27 @@ struct TripListView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if !users.isEmpty && !completedTrips.isEmpty {
-                        Button {
-                            withAnimation {
-                                toggleVisibleTrips()
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: visibleTripsSymbol.name)
-                                    .symbolRenderingMode(.palette)
-                                    .foregroundStyle(visibleTripsSymbol == .completed ? Color.green.gradient : Color.accentColor.gradient)
-                                    .contentTransition(
-                                        .symbolEffect(.replace.downUp.byLayer)
-                                    )
-                                    .symbolEffect(.bounce, value: visibleTripsSymbol == .completed ? upcomingTrips.count : completedTrips.count)
-                                    .labelStyle(.titleAndIcon)
-                            }
-                        }
-                        .accessibilityLabel(isShowingCompletedTrips ? "Show Upcoming Trips" : "Show Past Trips")
-                        .accessibilityValue(
-                            pastTripsBadgeCount > 0
-                                ? Text("^[\(pastTripsBadgeCount) trip](inflect: true) with items to review")
-                                : Text(verbatim: "")
-                        )
-                        // System toolbar badge stays opaque; custom overlays pick up the glass vibrancy
-                        .badge(pastTripsBadgeCount)
+                if isShowingVerticalToolbar {
+                    // Vertical bar reads top to bottom: Settings, trip toggle, then Add down by the tabs
+                    ToolbarItem(placement: .topBarLeading) {
+                        settingsButton
                     }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Settings", systemImage: "gear") {
-                        isShowingSettings = true
+                    ToolbarItem(placement: .topBarLeading) {
+                        visibleTripsToggle
                     }
-                }
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                ToolbarItem(placement: .topBarTrailing) {
-                    if !users.isEmpty {
-                        SubscriptionAwareButton(localLimitMet: atMaxFreeTrips) {
-                            withAnimation {
-                                isShowingAddTripSheet.toggle()
-                            }
-                        } label: {
-                            Label("Add Trip", systemImage: "plus")
-                                .symbolEffect(.bounce.down, value: isShowingAddTripSheet)
-                        }
+                    ToolbarItem(placement: .bottomBar) {
+                        addTripButton
+                    }
+                } else {
+                    ToolbarItem(placement: .topBarLeading) {
+                        visibleTripsToggle
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        settingsButton
+                    }
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                    ToolbarItem(placement: .topBarTrailing) {
+                        addTripButton
                     }
                 }
             }
@@ -195,6 +224,7 @@ struct TripListView: View {
                 SettingsView()
             }
         }
+        .readsVerticalToolbar($isShowingVerticalToolbar)
         .environment(viewModel)
     }
     
@@ -211,6 +241,37 @@ struct TripListView: View {
         case .completed: .upcoming
         case .upcoming: .completed
         }
+    }
+}
+
+private extension View {
+    func readsVerticalToolbar(_ isVertical: Binding<Bool>) -> some View {
+        modifier(VerticalToolbarReader(isVertical: isVertical))
+    }
+}
+
+private struct VerticalToolbarReader: ViewModifier {
+    @Binding var isVertical: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *) {
+            content.modifier(ToolbarVerticalEdgeObserver(isVertical: $isVertical))
+        } else {
+            content
+        }
+    }
+}
+
+@available(iOS 27.1, *)
+private struct ToolbarVerticalEdgeObserver: ViewModifier {
+    @Environment(\.toolbarVerticalEdge) private var toolbarVerticalEdge
+    @Binding var isVertical: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: toolbarVerticalEdge != nil, initial: true) { _, isPresent in
+                isVertical = isPresent
+            }
     }
 }
 
