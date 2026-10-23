@@ -87,6 +87,7 @@ struct TemplateUpdateSheet: View {
     let sections: [PackingList]
     var onSaved: (() -> Void)? = nil
 
+    @State private var featureFlags = FeatureFlags.shared
     @State private var pages: [TemplateReviewPage] = []
     @State private var path: [Int] = []
     @State private var selection: Set<CandidateSelection> = []
@@ -144,12 +145,17 @@ struct TemplateUpdateSheet: View {
                     Text("\(section.templateName) Template")
                 }
             }
-
+        }
+        .safeAreaBar(edge: .bottom) {
             if isLastPage {
-                Section {
-                } footer: {
-                    Text("Added items start with a count of 1. Trips that already use these templates aren't changed.")
-                }
+                // Pinned so it stays visible however long the list is
+                Text("Added items start with a count of 1. Trips that already use these templates aren't changed.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
             }
         }
         .navigationTitle(pages.count > 1 ? "\(index + 1) of \(pages.count)" : "Update Templates")
@@ -160,7 +166,7 @@ struct TemplateUpdateSheet: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 if isLastPage {
-                    Button("Add \(selection.count) to Templates", action: save)
+                    Button(selection.isEmpty ? "Skip" : "Add \(selection.count) to Templates", action: save)
                         .fontWeight(.semibold)
                 } else {
                     Button("Next") { path.append(index + 1) }
@@ -173,12 +179,17 @@ struct TemplateUpdateSheet: View {
     }
 
     private func pageHeader(_ page: TemplateReviewPage) -> some View {
-        HStack(spacing: 12) {
+        // With a single packer, their name and avatar add nothing
+        let showsPacker = featureFlags.showingMultiplePackers
+
+        return HStack(spacing: 12) {
             if let packer = page.packer {
-                // profileView is fixed at 60pt
-                packer.profileView
-                    .scaleEffect(2 / 3)
-                    .frame(width: 40, height: 40)
+                if showsPacker {
+                    // profileView is fixed at 60pt
+                    packer.profileView
+                        .scaleEffect(2 / 3)
+                        .frame(width: 40, height: 40)
+                }
             } else {
                 Image(systemName: "person.2.circle.fill")
                     .resizable()
@@ -187,7 +198,7 @@ struct TemplateUpdateSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(page.title)
+                Text(page.packer != nil && !showsPacker ? "New Items" : page.title)
                     .font(.headline)
                 Text("Choose items to add to these templates for future trips.")
                     .font(.subheadline)

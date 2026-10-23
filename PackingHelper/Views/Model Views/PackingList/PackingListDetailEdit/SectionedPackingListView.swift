@@ -87,9 +87,11 @@ struct SectionedPackingListView<AssistantPanel: View>: View {
         return Item.sorted(packedItems, sortOrder: .byCustomOrder)
     }
 
-    /// Items across all sections that aren't in their section's template yet
+    /// Items across all sections that aren't in their section's template yet.
+    /// Empty once the trip's template review is done: whatever wasn't added was declined.
     var templateCandidateIDs: Set<PersistentIdentifier> {
-        Set(lists.flatMap { list in
+        guard !trip.templateReviewDismissed else { return [] }
+        return Set(lists.flatMap { list in
             list.templateCandidates.flatMap { $0.items.map(\.persistentModelID) }
         })
     }
