@@ -12,6 +12,16 @@
 # Works over Wi-Fi if the phone has been paired with "Connect via network"
 # in Xcode's Devices window, so the Mac can be headless (e.g. over SSH).
 
+# If sourced (`. scripts/run-on-device.sh`), re-run in a child bash instead so
+# a failure's `exit` and `set -euo pipefail` don't kill the caller's shell.
+if (return 0 2>/dev/null); then
+  if [ -n "${BASH_SOURCE:-}" ]; then __rod_self="${BASH_SOURCE[0]}"; else __rod_self="$0"; fi
+  bash "$__rod_self" "$@"
+  __rod_status=$?
+  unset __rod_self
+  return "$__rod_status"
+fi
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
