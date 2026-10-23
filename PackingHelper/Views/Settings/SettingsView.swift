@@ -20,6 +20,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) var colorScheme
     @Environment(PurchaseManager.self) private var purchaseManager
+    @Environment(\.dismiss) private var dismiss
 
     @Query private var users: [User]
 
@@ -177,6 +178,13 @@ struct SettingsView: View {
             }
             .presentCustomerCenter(isPresented: $displayCustomerCenter)
             .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", systemImage: "checkmark", role: .confirm) {
+                        dismiss()
+                    }
+                }
+            }
             .onAppear {
                 // Update currentLocation with the stored value when the view appears
                 let decodedLocation = DefaultLocationInformation.decode(from: defaultLocationData) ?? .default

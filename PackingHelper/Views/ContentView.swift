@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 
 enum AppTab: Hashable {
-    case trips, templates, packers, settings
+    case trips, templates, packers
 }
 
 struct ContentView: View {
@@ -33,11 +33,6 @@ struct ContentView: View {
                     UserGridView()
                 }
             }
-
-            // Prominent role detaches Settings into its own group, apart from Trips/Templates
-            Tab("Settings", systemImage: "gear", value: AppTab.settings, role: settingsTabRole) {
-                SettingsView()
-            }
         }
         .sheet(isPresented: Binding(
             get: { !hasCompletedOnboarding },
@@ -46,10 +41,6 @@ struct ContentView: View {
             OnboardingContainerView(modelContext: modelContext)
                 .interactiveDismissDisabled()
         }
-    }
-
-    private var settingsTabRole: TabRole? {
-        if #available(iOS 27.0, *) { .prominent } else { nil }
     }
 }
 

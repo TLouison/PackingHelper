@@ -18,6 +18,7 @@ struct TripListView: View {
     @State private var viewModel = TripsViewModel()
     
     @State private var isShowingAddTripSheet: Bool = false
+    @State private var isShowingSettings: Bool = false
     @State private var isShowingCompletedTrips: Bool = false
     @State private var isCompletedTripDropdownOpen: Bool = false
     
@@ -58,9 +59,14 @@ struct TripListView: View {
         upcomingTrips.count >= Trip.maxFreeTrips
     }
     
-    /// Whether any past trip has items that could be saved back to their templates
-    var hasPastTripTemplateReview: Bool {
-        completedTrips.contains { $0.showsTemplateReviewCard }
+    /// Past trips with items that could be saved back to their templates
+    var pastTripTemplateReviewCount: Int {
+        completedTrips.count(where: \.showsTemplateReviewCard)
+    }
+
+    /// Only while the button leads to past trips; zero hides the badge
+    var pastTripsBadgeCount: Int {
+        isShowingCompletedTrips || users.isEmpty || completedTrips.isEmpty ? 0 : pastTripTemplateReviewCount
     }
 
     var viewTitle: String {
@@ -137,7 +143,7 @@ struct TripListView: View {
                 }
             }
             .toolbar {
-                ToolbarItemGroup(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarLeading) {
                     if !users.isEmpty && !completedTrips.isEmpty {
                         Button {
                             withAnimation {
@@ -154,22 +160,23 @@ struct TripListView: View {
                                     .symbolEffect(.bounce, value: visibleTripsSymbol == .completed ? upcomingTrips.count : completedTrips.count)
                                     .labelStyle(.titleAndIcon)
                             }
-                            // Only while the button leads to past trips
-                            .overlay(alignment: .topTrailing) {
-                                if !isShowingCompletedTrips && hasPastTripTemplateReview {
-                                    Image(systemName: "exclamationmark.circle.fill")
-                                        .font(.caption2)
-                                        .symbolRenderingMode(.palette)
-                                        .foregroundStyle(.white, .orange)
-                                        .offset(x: 6, y: -6)
-                                        .transition(.scale.combined(with: .opacity))
-                                }
-                            }
                         }
                         .accessibilityLabel(isShowingCompletedTrips ? "Show Upcoming Trips" : "Show Past Trips")
-                        .accessibilityValue(!isShowingCompletedTrips && hasPastTripTemplateReview ? "Past trips have items to review" : "")
+                        .accessibilityValue(
+                            pastTripsBadgeCount > 0
+                                ? Text("^[\(pastTripsBadgeCount) trip](inflect: true) with items to review")
+                                : Text(verbatim: "")
+                        )
+                        // System toolbar badge stays opaque; custom overlays pick up the glass vibrancy
+                        .badge(pastTripsBadgeCount)
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Settings", systemImage: "gear") {
+                        isShowingSettings = true
+                    }
+                }
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 ToolbarItem(placement: .topBarTrailing) {
                     if !users.isEmpty {
                         SubscriptionAwareButton(localLimitMet: atMaxFreeTrips) {
@@ -184,6 +191,9 @@ struct TripListView: View {
                 }
             }
             .toolbarBackground(.hidden)
+            .sheet(isPresented: $isShowingSettings) {
+                SettingsView()
+            }
         }
         .environment(viewModel)
     }
