@@ -33,10 +33,12 @@ struct UserGridView: View {
                 } else {
                     LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(users) { user in
-                            UserGridCell(user: user)
-                                .onTapGesture {
-                                    selectedUser = user
-                                }
+                            Button {
+                                selectedUser = user
+                            } label: {
+                                UserGridCell(user: user)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding()

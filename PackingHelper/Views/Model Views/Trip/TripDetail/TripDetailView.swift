@@ -47,7 +47,11 @@ struct TripDetailView: View {
     /// iPhone Duo folded: toolbar becomes a sidebar, and Edit moves into it
     @State private var isShowingVerticalToolbar: Bool = false
 
-    private let compactHeroHeight: CGFloat = 380
+    /// Compact hero takes 45% of the visible height, so short windows (Duo outer display) keep room for content
+    private static func heroHeight(forContainerHeight containerHeight: CGFloat) -> CGFloat {
+        min(max(containerHeight * 0.45, 240), 380)
+    }
+    @State private var compactHeroHeight: CGFloat = 380
     
     var body: some View {
         content
@@ -95,19 +99,30 @@ struct TripDetailView: View {
     @ViewBuilder
     private var content: some View {
         if horizontalSizeClass == .regular {
-            // Regular width (iPhone Duo unfolded, iPad) fits on one screen, no scrolling
+            // Regular width (iPhone Duo unfolded, iPad) fits on one screen when it can
             GeometryReader { geometry in
                 if geometry.size.width > geometry.size.height {
                     landscapeLayout
                 } else {
-                    portraitLayout
+                    // Scrolls only when the cards don't fit, e.g. large Dynamic Type or a short window
+                    ViewThatFits(in: .vertical) {
+                        portraitLayout
+
+                        ScrollView {
+                            portraitLayout
+                        }
+                        .scrollIndicators(.hidden)
+                    }
                 }
             }
         } else {
             ScrollView {
                 LazyVStack(spacing: 20) {
                     heroView
-                        .frame(height: compactHeroHeight)
+                        .containerRelativeFrame(.vertical) { length, _ in
+                            Self.heroHeight(forContainerHeight: length)
+                        }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { compactHeroHeight = $0 }
                     packingSection
                     forecastSection
                     infoSection

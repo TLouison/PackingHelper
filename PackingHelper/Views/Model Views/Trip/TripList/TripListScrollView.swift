@@ -226,6 +226,18 @@ extension TripListScrollView {
                     }
                 }
         }
+        // The tap layer isn't a Button, so expose the card to VoiceOver as one
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            if !shouldDisable(index: index) {
+                path.append(trip)
+            }
+        }
+        .accessibilityAction(named: "Delete") {
+            tripToDelete = trip
+            showTripDeleteAlert.toggle()
+        }
         .contextMenu {
             Button(role: .destructive) {
                 tripToDelete = trip
@@ -252,6 +264,8 @@ private struct TripCardShelfStyle: ViewModifier {
 
 /// Sizes a card to one page of the trip pager
 private struct TripCardPageStyle: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func body(content: Content) -> some View {
         content
             .padding(.vertical)
@@ -259,7 +273,8 @@ private struct TripCardPageStyle: ViewModifier {
             .scrollTransition { content, phase in
                 content
                     .opacity(phase.isIdentity ? 1.0 : 0.8)
-                    .scaleEffect(y: phase.isIdentity ? 1.0 : 0.9)
+                    // Reduce Motion keeps the fade but drops the squash
+                    .scaleEffect(y: phase.isIdentity || reduceMotion ? 1.0 : 0.9)
             }
     }
 }

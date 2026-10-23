@@ -8,19 +8,24 @@
 import SwiftUI
 import UIKit
 
+/// Content card. Uses a standard material: HIG reserves Liquid Glass for controls and
+/// navigation floating above content, while materials separate content from content.
 struct Box: ViewModifier {
     let background: Material
     
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content
-                .padding()
-                .glassEffect(in: .rect(cornerRadius: defaultCornerRadius))
-        } else {
-            content
-                .padding()
-                .background(background)
-        }
+        content
+            .padding()
+            .background(background, in: .rect(cornerRadius: defaultCornerRadius))
+    }
+}
+
+/// Glass card for content that floats over imagery (cover photo or map), like a trip card's info bar
+struct GlassBox: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding()
+            .glassEffect(in: .rect(cornerRadius: defaultCornerRadius))
     }
 }
 
@@ -113,6 +118,10 @@ extension View {
 
     func roundedBox(background: Material = .thinMaterial) -> some View {
         modifier(Box(background: background)).modifier(Rounded())
+    }
+
+    func glassRoundedBox() -> some View {
+        modifier(GlassBox()).modifier(Rounded())
     }
 
     func opaqueRoundedBox(background: Material = .thinMaterial) -> some View {

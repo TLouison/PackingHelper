@@ -26,6 +26,9 @@ struct TripEditView: View {
     @State private var showingDestinationSearch = false
     @State private var showDeleteAlert = false
     @State private var showMovingToPastAlert = false
+    @State private var showDiscardConfirmation = false
+    /// Form state when the sheet opened; anything different counts as unsaved changes
+    @State private var initialSnapshot: EditSnapshot?
 
     // Template step (new trips only): lists are chosen before the trip exists, applied on create
     @Query(
@@ -73,6 +76,39 @@ struct TripEditView: View {
 
     private var nights: Int {
         Calendar.current.numberOfDaysBetween(startDate, and: endDate)
+    }
+
+    /// The fields a person can edit, reduced to cheap comparable values
+    private struct EditSnapshot: Equatable {
+        var name: String
+        var startDay: Date
+        var endDay: Date
+        var type: TripType
+        var accomodation: TripAccomodation
+        var destinationID: PersistentIdentifier?
+        var coverPhotoID: UUID?
+        var coverFraming: [Double]
+        var templateCount: Int
+    }
+
+    private var currentSnapshot: EditSnapshot {
+        let calendar = Calendar.current
+        return EditSnapshot(
+            name: tripName,
+            startDay: calendar.startOfDay(for: startDate),
+            endDay: calendar.startOfDay(for: endDate),
+            type: tripType,
+            accomodation: tripAccomodation,
+            destinationID: destinationLocation?.persistentModelID,
+            coverPhotoID: coverPhotoDraft?.uuid,
+            coverFraming: coverPhotoDraft.map { [$0.focalX, $0.focalY, $0.zoom] } ?? [],
+            templateCount: selectedTemplates.count
+        )
+    }
+
+    private var hasChanges: Bool {
+        guard let initialSnapshot else { return false }
+        return currentSnapshot != initialSnapshot
     }
 
     // MARK: - Initialization
@@ -126,7 +162,30 @@ struct TripEditView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        if hasChanges {
+                            showDiscardConfirmation = true
+                        } else {
+                            dismiss()
+                        }
+                    }
+                    .confirmationDialog(
+                        isCreating ? "Discard this trip?" : "Discard your changes?",
+                        isPresented: $showDiscardConfirmation,
+                        titleVisibility: .visible
+                    ) {
+                        Button(isCreating ? "Discard Trip" : "Discard Changes", role: .destructive) {
+                            dismiss()
+                        }
+                        Button("Keep Editing", role: .cancel) { }
+                    }
+                }
+            }
+            // Swiping the sheet down would silently drop unsaved edits; Cancel asks first instead
+            .interactiveDismissDisabled(hasChanges)
+            .onAppear {
+                if initialSnapshot == nil {
+                    initialSnapshot = currentSnapshot
                 }
             }
             .alert("Delete Trip", isPresented: $showDeleteAlert) {

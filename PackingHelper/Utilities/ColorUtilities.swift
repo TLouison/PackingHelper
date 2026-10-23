@@ -65,3 +65,31 @@ extension Color {
             }
         }
 }
+
+// MARK: - Contrasting Text
+
+extension View {
+    /// Black or white foreground, whichever reads better on `background`.
+    /// Resolved against the environment so light/dark variants of system colors are both handled.
+    func foregroundStyle(contrastingWith background: Color) -> some View {
+        modifier(ContrastingForeground(background: background))
+    }
+}
+
+private struct ContrastingForeground: ViewModifier {
+    @Environment(\.self) private var environment
+    let background: Color
+
+    func body(content: Content) -> some View {
+        content.foregroundStyle(prefersDarkText ? Color.black : Color.white)
+    }
+
+    /// WCAG relative luminance (from linear sRGB); above ~0.18, black text has the higher contrast ratio
+    private var prefersDarkText: Bool {
+        let resolved = background.resolve(in: environment)
+        let luminance = 0.2126 * resolved.linearRed
+            + 0.7152 * resolved.linearGreen
+            + 0.0722 * resolved.linearBlue
+        return luminance > 0.179
+    }
+}

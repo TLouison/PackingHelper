@@ -53,9 +53,23 @@ struct OnboardingContainerView: View {
     @StateObject private var viewModel: OnboardingViewModel
     @Namespace private var animation
     @State private var dragOffset: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(modelContext: ModelContext, isPreviewMode: Bool = false, onComplete: (() -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: OnboardingViewModel(modelContext: modelContext, isPreviewMode: isPreviewMode, onComplete: onComplete))
+    }
+
+    /// Pages slide in the direction of travel; Reduce Motion swaps the slide for a crossfade
+    private func pageTransition(forPage page: Int) -> AnyTransition {
+        if reduceMotion { return .opacity }
+
+        let forward = viewModel.isMovingForward
+        let fromLeading = AnyTransition.move(edge: .leading).combined(with: .opacity)
+        let fromTrailing = AnyTransition.move(edge: .trailing).combined(with: .opacity)
+
+        let insertion: AnyTransition = page == 0 && forward ? .identity : (forward ? fromTrailing : fromLeading)
+        let removal: AnyTransition = page == 5 ? .identity : (forward ? fromLeading : fromTrailing)
+        return .asymmetric(insertion: insertion, removal: removal)
     }
 
     var body: some View {
@@ -94,6 +108,8 @@ struct OnboardingContainerView: View {
                             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.currentPage)
                     }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Page \(viewModel.currentPage + 1) of 6")
 
                 Spacer()
 
@@ -110,40 +126,22 @@ struct OnboardingContainerView: View {
                 switch viewModel.currentPage {
                 case 0:
                     NameInputView(viewModel: viewModel, namespace: animation)
-                        .transition(.asymmetric(
-                            insertion: viewModel.isMovingForward ? .identity : .move(edge: .leading).combined(with: .opacity),
-                            removal: viewModel.isMovingForward ? .move(edge: .leading).combined(with: .opacity) : .move(edge: .trailing).combined(with: .opacity)
-                        ))
+                        .transition(pageTransition(forPage: 0))
                 case 1:
                     ColorSelectionView(viewModel: viewModel, namespace: animation)
-                        .transition(.asymmetric(
-                            insertion: viewModel.isMovingForward ? .move(edge: .trailing).combined(with: .opacity) : .move(edge: .leading).combined(with: .opacity),
-                            removal: viewModel.isMovingForward ? .move(edge: .leading).combined(with: .opacity) : .move(edge: .trailing).combined(with: .opacity)
-                        ))
+                        .transition(pageTransition(forPage: 1))
                 case 2:
                     DefaultOriginSelectionView(viewModel: viewModel, namespace: animation)
-                        .transition(.asymmetric(
-                            insertion: viewModel.isMovingForward ? .move(edge: .trailing).combined(with: .opacity) : .move(edge: .leading).combined(with: .opacity),
-                            removal: viewModel.isMovingForward ? .move(edge: .leading).combined(with: .opacity) : .move(edge: .trailing).combined(with: .opacity)
-                        ))
+                        .transition(pageTransition(forPage: 2))
                 case 3:
                     TripExplanationView(viewModel: viewModel, namespace: animation)
-                        .transition(.asymmetric(
-                            insertion: viewModel.isMovingForward ? .move(edge: .trailing).combined(with: .opacity) : .move(edge: .leading).combined(with: .opacity),
-                            removal: viewModel.isMovingForward ? .move(edge: .leading).combined(with: .opacity) : .move(edge: .trailing).combined(with: .opacity)
-                        ))
+                        .transition(pageTransition(forPage: 3))
                 case 4:
                     TemplateExplanationView(viewModel: viewModel, namespace: animation)
-                        .transition(.asymmetric(
-                            insertion: viewModel.isMovingForward ? .move(edge: .trailing).combined(with: .opacity) : .move(edge: .leading).combined(with: .opacity),
-                            removal: viewModel.isMovingForward ? .move(edge: .leading).combined(with: .opacity) : .move(edge: .trailing).combined(with: .opacity)
-                        ))
+                        .transition(pageTransition(forPage: 4))
                 case 5:
                     FinishView(viewModel: viewModel, namespace: animation)
-                        .transition(.asymmetric(
-                            insertion: viewModel.isMovingForward ? .move(edge: .trailing).combined(with: .opacity) : .move(edge: .leading).combined(with: .opacity),
-                            removal: .identity
-                        ))
+                        .transition(pageTransition(forPage: 5))
                 default:
                     EmptyView()
                 }

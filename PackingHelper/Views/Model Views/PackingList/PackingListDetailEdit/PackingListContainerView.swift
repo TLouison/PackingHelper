@@ -19,6 +19,7 @@ struct PackingListContainerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(PurchaseManager.self) private var purchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let context: PackingListContext
     let users: [User]?
@@ -131,9 +132,6 @@ struct PackingListContainerView: View {
         .overlay(alignment: .bottomTrailing) {
             if isReorderingSections {
                 doneButton
-            } else if !isAddingNewItem && !isShowingAssistantPanel {
-                // Hidden while the assistant panel is open so it doesn't cover the chat composer
-                fabButton
             }
         }
         .navigationTitle(title ?? "Packing")
@@ -333,25 +331,6 @@ struct PackingListContainerView: View {
             .opaqueGlassCapsule()
         }
         .disabled(lists.count <= 1)
-    }
-
-    // MARK: - FAB Button
-
-    private var fabButton: some View {
-        Button { startAddingNewItem(in: nil) } label: {
-            Image(systemName: "plus.circle.fill")
-                .resizable()
-                .foregroundStyle(.blue)
-        }
-        .accessibilityLabel("Add Item")
-        .frame(width: 60, height: 60)
-        .glassEffectIfAvailable()
-        .padding(.trailing, 16)
-        .padding(.bottom, 16)
-        .transition(.asymmetric(
-            insertion: .scale(scale: 0.3, anchor: .bottomTrailing).combined(with: .opacity),
-            removal: .scale(scale: 0.3, anchor: .bottomTrailing).combined(with: .opacity)
-        ))
     }
 
     // MARK: - Done Button (Reorder Mode)
@@ -574,19 +553,34 @@ struct PackingListContainerView: View {
             addingItemToolbar
         } else if context.isTrip {
             tripToolbar
+            addItemToolbar
         } else {
             singleListToolbar
+            addItemToolbar
+        }
+    }
+
+    /// Primary action lives in the bottom bar; on the folded iPhone Duo the system moves it to the side bar
+    @ToolbarContentBuilder
+    private var addItemToolbar: some ToolbarContent {
+        if !isReorderingSections {
+            ToolbarSpacer(placement: .bottomBar)
+            ToolbarItem(placement: .bottomBar) {
+                Button("Add Item", systemImage: "plus") {
+                    startAddingNewItem(in: nil)
+                }
+            }
         }
     }
 
     @ToolbarContentBuilder
     private var addingItemToolbar: some ToolbarContent {
         ToolbarItem(placement: .confirmationAction) {
+            // Title + symbol so the system has a name to show in overflow menus and expanded bars
             Button { finishAddingNewItem() } label: {
-                Image(systemName: "checkmark")
+                Label("Done", systemImage: "checkmark")
                     .fontWeight(.semibold)
             }
-            .accessibilityLabel("Done")
         }
     }
 
@@ -607,17 +601,23 @@ struct PackingListContainerView: View {
                     showingAIAssistant = true
                 }
             } label: {
-                Image(systemName: "sparkles")
-                    .overlay(alignment: .topTrailing) {
-                        if !purchaseManager.hasUnlockedPlus {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.white, .blue)
-                                .offset(x: 6, y: -6)
+                Label {
+                    Text("AI Packing Assistant")
+                } icon: {
+                    Image(systemName: "sparkles")
+                        .overlay(alignment: .topTrailing) {
+                            if !purchaseManager.hasUnlockedPlus {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.caption2)
+                                    .imageScale(.small)
+                                    .foregroundStyle(.white, .blue)
+                                    .offset(x: 6, y: -6)
+                                    .accessibilityHidden(true)
+                            }
                         }
-                    }
+                }
             }
-            .accessibilityLabel("AI Packing Assistant")
+            .accessibilityHint(purchaseManager.hasUnlockedPlus ? "" : "Requires Packing Helper Plus")
         }
 
         ToolbarItem(placement: .topBarTrailing) {
@@ -642,7 +642,8 @@ struct PackingListContainerView: View {
                     Label("Reorder Sections", systemImage: "arrow.up.arrow.down")
                 }
             } label: {
-                Label("Options", systemImage: "ellipsis.circle")
+                // Ellipsis is reserved for the system overflow menu (iPhone Duo HIG)
+                Label("Sections", systemImage: "list.bullet.rectangle")
             }
         }
     }
@@ -682,6 +683,11 @@ struct PackingListContainerView: View {
 
     // MARK: - Assistant Panel
 
+    /// Reduce Motion swaps the panel slide for an instant change
+    private var assistantPanelAnimation: Animation? {
+        reduceMotion ? nil : .smooth(duration: 0.45)
+    }
+
     /// Slides the assistant in from the right, pushing the packed column off the left edge
     private func openAssistantPanel() {
         // Reopened mid-slide-out: keep the conversation that's still on screen
@@ -689,13 +695,13 @@ struct PackingListContainerView: View {
             assistantViewModel = AIAssistantViewModel()
         }
         isAssistantPanelMounted = true
-        withAnimation(.smooth(duration: 0.45)) {
+        withAnimation(assistantPanelAnimation) {
             isShowingAssistantPanel = true
         }
     }
 
     private func closeAssistantPanel() {
-        withAnimation(.smooth(duration: 0.45)) {
+        withAnimation(assistantPanelAnimation) {
             isShowingAssistantPanel = false
         } completion: {
             // Reopened mid-slide: keep the chat

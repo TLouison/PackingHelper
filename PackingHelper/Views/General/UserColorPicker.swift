@@ -11,7 +11,7 @@ import OSLog
 struct UserColorPicker: View {
     @Binding var selectedColor: Color
     
-    @ViewBuilder private func colorButtonBase(color: Color) -> some View {
+    @ViewBuilder private func colorButtonBase(color: Color, name: String) -> some View {
         Button {
             withAnimation(.snappy) {
                 AppLogger.user.debug("Setting user color to \(color.description)")
@@ -25,32 +25,34 @@ struct UserColorPicker: View {
         .aspectRatio(1, contentMode: .fit)
         .rounded()
         .shaded()
+        .accessibilityLabel(name)
+        .accessibilityAddTraits(color.toHex() == selectedColor.toHex() ? .isSelected : [])
     }
     
-    @ViewBuilder private func colorButton(color: Color) -> some View {
+    @ViewBuilder private func colorButton(color: Color, name: String) -> some View {
         if color.toHex() == selectedColor.toHex() {
-            colorButtonBase(color: color)
+            colorButtonBase(color: color, name: name)
                 .overlay {
                     RoundedRectangle(cornerRadius: defaultCornerRadius)
                         .stroke(Color.secondary.opacity(.infinity), lineWidth: 4)
                 }
         } else {
-            colorButtonBase(color: color)
+            colorButtonBase(color: color, name: name)
         }
     }
     var body: some View {
             Grid {
                 GridRow {
-                    colorButton(color: .red)
-                    colorButton(color: .orange)
-                    colorButton(color: .yellow)
-                    colorButton(color: .green)
+                    colorButton(color: .red, name: "Red")
+                    colorButton(color: .orange, name: "Orange")
+                    colorButton(color: .yellow, name: "Yellow")
+                    colorButton(color: .green, name: "Green")
                 }
                 GridRow {
-                    colorButton(color: .teal)
-                    colorButton(color: .blue)
-                    colorButton(color: .indigo)
-                    colorButton(color: .purple)
+                    colorButton(color: .teal, name: "Teal")
+                    colorButton(color: .blue, name: "Blue")
+                    colorButton(color: .indigo, name: "Indigo")
+                    colorButton(color: .purple, name: "Purple")
                     
                 }
             }

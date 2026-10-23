@@ -20,6 +20,22 @@ struct WeatherChip: View {
     }
     
     var body: some View {
+        chip
+            // Temperature and UV only show after a tap, so VoiceOver gets everything in one element
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Current weather")
+            .accessibilityValue("\(weather.condition.description), \(temperature), UV index \(weather.uvIndex.value)")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint(isShowingTemperature ? "Hides temperature and UV index" : "Shows temperature and UV index")
+            .accessibilityAction {
+                withAnimation {
+                    isShowingTemperature.toggle()
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var chip: some View {
         if #available(iOS 26, *) {
             GlassEffectContainer(spacing: 20) {
                 HStack(spacing: 0) {

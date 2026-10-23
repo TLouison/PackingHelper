@@ -41,6 +41,8 @@ struct UserSelector: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(user.name)
+                    .accessibilityAddTraits(user == selectedUser ? .isSelected : [])
+                    .accessibilityHint(user == selectedUser ? "Shows every packer's items" : "Shows only \(user.name)'s items")
                 }
             }
             .padding(.horizontal)

@@ -31,7 +31,7 @@ struct NewItemRow: View {
             if showsCheckbox {
                 Image(systemName: "circle")
                     .font(.title2)
-                    .foregroundStyle(.gray.opacity(0.5))
+                    .foregroundStyle(.secondary)
             } else {
                 TemplateItemMarker()
             }
@@ -93,6 +93,8 @@ struct ItemCountStepper: View {
             } label: {
                 Image(systemName: "minus")
                     .frame(width: 32, height: 32)
+                    // 44pt hit area without making the capsule taller
+                    .contentShape(Rectangle().inset(by: -6))
             }
             .disabled(count <= 1)
             .accessibilityLabel("Decrease count")
@@ -109,6 +111,8 @@ struct ItemCountStepper: View {
             } label: {
                 Image(systemName: "plus")
                     .frame(width: 32, height: 32)
+                    // 44pt hit area without making the capsule taller
+                    .contentShape(Rectangle().inset(by: -6))
             }
             .disabled(count >= 99)
             .accessibilityLabel("Increase count")
@@ -171,7 +175,7 @@ struct EditableItemRow: View {
                         ? "checkmark.circle.fill" : "circle"
                 )
                 .font(.title2)
-                .foregroundStyle(item.isPacked ? .blue : .gray.opacity(0.5))
+                .foregroundStyle(item.isPacked ? Color.blue : Color.secondary)
             } else {
                 TemplateItemMarker()
             }
@@ -401,8 +405,10 @@ struct UnifiedItemRow: View {
                             ? "checkmark.circle.fill" : "circle"
                     )
                     .font(.title2)
-                    .foregroundStyle(item.isPacked ? .blue : .gray.opacity(0.5))
+                    .foregroundStyle(item.isPacked ? Color.blue : Color.secondary)
                     .contentTransition(.symbolEffect(.replace))
+                    // Reach ~44pt without spacing the rows further apart
+                    .contentShape(Rectangle().inset(by: -8))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(item.isPacked ? "Mark as unpacked" : "Mark as packed")
@@ -421,7 +427,7 @@ struct UnifiedItemRow: View {
                     Text(item.name)
                         .font(isTemplating ? TemplateItemStyle.font : .body)
                         .strikethrough(item.isPacked)
-                        .foregroundStyle(item.isPacked ? .gray : .primary)
+                        .foregroundStyle(item.isPacked ? Color.secondary : Color.primary)
 
                     if canAddToTemplate {
                         Text("New")
@@ -521,7 +527,6 @@ struct PackedItemsSection: View {
                             onDelete: { onDeleteItem(item) },
                             onAddToTemplate: addToTemplateAction(for: item)
                         )
-                        .opacity(0.6)
                     }
                 }
             }

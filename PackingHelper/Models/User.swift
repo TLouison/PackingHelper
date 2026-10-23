@@ -130,18 +130,12 @@ extension User {
     
     var pillIcon: some View {
         Text(self.name)
-            .foregroundStyle(Color.white)
+            .foregroundStyle(contrastingWith: userColor)
             .font(.caption2.smallCaps())
             .fontWeight(.semibold)
-            .shadow(
-                color: Color.gray.opacity(0.3),
-                radius: 3,
-                x: 0,
-                y: 2
-            )
             .padding(.horizontal)
             .padding(.vertical, 5)
-            .background(self.userColor.opacity(0.6))
+            .background(self.userColor)
             .clipShape(.capsule)
             .shaded()
             .glassEffectIfAvailable()
@@ -151,9 +145,9 @@ extension User {
         Text(name.prefix(1).uppercased())
             .font(.caption)
             .fontWeight(.bold)
-            .foregroundStyle(.white)
+            .foregroundStyle(contrastingWith: userColor)
             .frame(width: 24, height: 24)
-            .background(self.userColor.opacity(0.6))
+            .background(self.userColor)
             .clipShape(Circle())
             .glassEffectIfAvailable()
     }

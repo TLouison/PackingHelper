@@ -132,7 +132,8 @@ struct TripListRowView: View {
             packingProgress
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .roundedBox()
+        // Floats over the cover photo or map, so it keeps Liquid Glass
+        .glassRoundedBox()
         .shaded()
         .overlay(alignment: .topTrailing) {
             if trip.showsTemplateReviewCard {
