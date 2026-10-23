@@ -167,37 +167,6 @@ struct TripListView: View {
     }
 }
 
-private extension View {
-    func readsVerticalToolbar(_ isVertical: Binding<Bool>) -> some View {
-        modifier(VerticalToolbarReader(isVertical: isVertical))
-    }
-}
-
-private struct VerticalToolbarReader: ViewModifier {
-    @Binding var isVertical: Bool
-
-    func body(content: Content) -> some View {
-        if #available(iOS 27.1, *) {
-            content.modifier(ToolbarVerticalEdgeObserver(isVertical: $isVertical))
-        } else {
-            content
-        }
-    }
-}
-
-@available(iOS 27.1, *)
-private struct ToolbarVerticalEdgeObserver: ViewModifier {
-    @Environment(\.toolbarVerticalEdge) private var toolbarVerticalEdge
-    @Binding var isVertical: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .onChange(of: toolbarVerticalEdge != nil, initial: true) { _, isPresent in
-                isVertical = isPresent
-            }
-    }
-}
-
 @available(iOS 18.0, *)
 #Preview(traits: .sampleData) {
     TripListView()

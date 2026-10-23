@@ -87,8 +87,8 @@ ContentView (TabView)
 ├── TripListView (Trips tab; Settings opens as a sheet from its toolbar)
 │   ├── TripListRowView
 │   └── NavigationLink → TripDetailView
-│       ├── TripDetailHeroView (overview + settings)
-│       ├── TripDetailPackingView
+│       ├── TripDetailHeroView (cover photo or map + title; Edit lives in the nav toolbar)
+│       ├── TripDetailPackingView (progress card; tap opens packing)
 │       │   └── PackingListContainerView
 │       │       └── SectionedPackingListView (grouped by list)
 │       ├── TripDetailForecastView (weather)

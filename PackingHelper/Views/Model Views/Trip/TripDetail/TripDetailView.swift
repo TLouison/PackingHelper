@@ -35,21 +35,45 @@ struct TripDetailView: View {
     let trip: Trip
     
     @State private var isDeleted: Bool = false
-    @State private var isShowingTripDetailSheet: Bool = false
     @State private var isShowingTripSettingsSheet: Bool = false
     
     @State private var isAddingNewPackingList: Bool = false
     @State private var isApplyingDefaultPackingList: Bool = false
     
-    @GestureState private var isDetectingLongPress = false
-    @State private var completedLongPress = false
-    @State private var isShowingTapAnywherePrompt = false
-    
     @State private var tripWeather: TripWeather?
+
+    /// Compact only: the inline nav title fades in once the hero's title has scrolled away
+    @State private var isShowingNavigationTitle: Bool = false
+    /// iPhone Duo folded: toolbar becomes a sidebar, and Edit moves into it
+    @State private var isShowingVerticalToolbar: Bool = false
+
+    private let compactHeroHeight: CGFloat = 380
     
     var body: some View {
         content
-            .sheet(isPresented: $isShowingTripDetailSheet) { TripDetailSheet(trip: trip) }
+            .navigationTitle(trip.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Sidebar mode has no horizontal bar to show a title in; a principal item would keep an empty one around
+                if !isShowingVerticalToolbar {
+                    ToolbarItem(placement: .principal) {
+                        Text(trip.name)
+                            .font(.headline)
+                            .opacity(isShowingNavigationTitle ? 1 : 0)
+                            .animation(.easeInOut(duration: 0.2), value: isShowingNavigationTitle)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
+
+                ToolbarItem(placement: isShowingVerticalToolbar ? .bottomBar : .topBarTrailing) {
+                    Button("Edit Trip", systemImage: "pencil") {
+                        isShowingTripSettingsSheet = true
+                    }
+                }
+            }
+            // Sidebar mode still reserves a horizontal title strip; drop the title so it has nothing to show
+            .toolbar(removing: isShowingVerticalToolbar ? .title : nil)
+            .readsVerticalToolbar($isShowingVerticalToolbar)
             .sheet(isPresented: $isShowingTripSettingsSheet) { TripEditView(trip: trip, isDeleted: $isDeleted) }
             .sheet(isPresented: $isAddingNewPackingList) {
                 PackingListEditView(trip: trip, isDeleted: .constant(false))
@@ -58,7 +82,6 @@ struct TripDetailView: View {
             .sheet(isPresented: $isApplyingDefaultPackingList) {
                 PackingListApplyDefaultView(trip: trip)
             }
-            .toolbar(.hidden, for: .navigationBar)
             .task {
                 tripWeather = await trip.destination?.getTripWeather(for: trip)
             }
@@ -72,55 +95,116 @@ struct TripDetailView: View {
     @ViewBuilder
     private var content: some View {
         if horizontalSizeClass == .regular {
-            // Regular width (iPhone Duo unfolded, iPad): hero fills the left half, info boxes scroll on the right
-            HStack(spacing: 0) {
-                heroView
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
-
-                ScrollView {
-                    VStack(spacing: 20) {
-                        infoSections
-                    }
-                    .padding()
+            // Regular width (iPhone Duo unfolded, iPad) fits on one screen, no scrolling
+            GeometryReader { geometry in
+                if geometry.size.width > geometry.size.height {
+                    landscapeLayout
+                } else {
+                    portraitLayout
                 }
-                .frame(maxWidth: .infinity)
             }
         } else {
             ScrollView {
                 LazyVStack(spacing: 20) {
                     heroView
-                    infoSections
+                        .frame(height: compactHeroHeight)
+                    packingSection
+                    forecastSection
+                    infoSection
+                    photoCredit
                 }
                 .padding()
+            }
+            // With the toolbar in the sidebar the top edge is free, so start content there instead of under an empty bar
+            .ignoresSafeArea(.container, edges: isShowingVerticalToolbar ? .top : [])
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                // Title block sits at the bottom of the hero
+                geometry.contentOffset.y + geometry.contentInsets.top > compactHeroHeight - 40
+            } action: { _, isPastHero in
+                isShowingNavigationTitle = isPastHero
             }
         }
     }
 
-    private var heroView: some View {
-        TripDetailHeroView(
-            trip: trip,
-            tripWeather: $tripWeather,
-            isShowingTripSettingsSheet: $isShowingTripSettingsSheet
-        )
-            .shadow(radius: defaultShadowRadius)
+    /// Hero pinned on the left; the packing card takes whatever height the right column has left
+    private var landscapeLayout: some View {
+        HStack(alignment: .top, spacing: 20) {
+            heroView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Fixed column when the cards fit; scrolls (without stretching) only on unusually short windows
+            ViewThatFits(in: .vertical) {
+                landscapeColumn
+                    .environment(\.tripDetailCardFillsHeight, true)
+                    .frame(maxHeight: .infinity, alignment: .top)
+
+                ScrollView {
+                    landscapeColumn
+                }
+                .scrollIndicators(.hidden)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .padding()
     }
 
-    @ViewBuilder
-    private var infoSections: some View {
+    private var landscapeColumn: some View {
+        VStack(spacing: 20) {
+            packingSection
+            forecastSection
+            infoSection
+            photoCredit
+        }
+    }
+
+    /// Wide hero on top, packing and info side by side (equal height) underneath
+    private var portraitLayout: some View {
+        VStack(spacing: 20) {
+            heroView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minHeight: 240)
+
+            forecastSection
+
+            HStack(alignment: .top, spacing: 20) {
+                packingSection
+                    .frame(maxWidth: .infinity)
+                infoSection
+                    .frame(maxWidth: .infinity)
+            }
+            .environment(\.tripDetailCardFillsHeight, true)
+            .fixedSize(horizontal: false, vertical: true)
+
+            photoCredit
+        }
+        .padding()
+    }
+
+    private var heroView: some View {
+        TripDetailHeroView(trip: trip, tripWeather: tripWeather)
+            .shaded()
+    }
+
+    private var packingSection: some View {
         TripDetailPackingView(
             trip: trip,
             isAddingNewPackingList: $isAddingNewPackingList,
             isApplyingDefaultPackingList: $isApplyingDefaultPackingList
         )
-            .shadow(radius: defaultShadowRadius)
+    }
 
+    private var forecastSection: some View {
         TripDetailForecastView(trip: trip, tripWeather: $tripWeather)
             .shadow(radius: defaultShadowRadius)
+    }
 
+    private var infoSection: some View {
         TripDetailInfoView(trip: trip)
             .shadow(radius: defaultShadowRadius)
+    }
 
+    @ViewBuilder
+    private var photoCredit: some View {
         if let coverPhoto = trip.coverPhoto, coverPhoto.source == .unsplash {
             TripDetailPhotoCreditView(photo: coverPhoto)
                 .padding(.top, -8)
