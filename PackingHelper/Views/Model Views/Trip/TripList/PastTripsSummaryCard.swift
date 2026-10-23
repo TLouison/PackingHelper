@@ -42,7 +42,7 @@ struct PastTripsSummaryCard: View {
                 if !reviewTrips.isEmpty {
                     section("Items to Review", systemImage: "exclamationmark.circle.fill", tint: .orange) {
                         ForEach(reviewTrips) { trip in
-                            ReviewTripRow(trip: trip) {
+                            TemplateReviewTripRow(trip: trip) {
                                 onReview(trip)
                             } onDismiss: {
                                 withAnimation {
@@ -110,46 +110,6 @@ private struct TintedIconLabelStyle: LabelStyle {
 }
 
 // MARK: - Rows
-
-private struct ReviewTripRow: View {
-    let trip: Trip
-    let onReview: () -> Void
-    let onDismiss: () -> Void
-    let onOpen: () -> Void
-
-    var body: some View {
-        let itemCount = trip.templateCandidateCount
-
-        HStack(spacing: 12) {
-            Button(action: onOpen) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(trip.name)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text("^[\(itemCount) item](inflect: true) not in your templates")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-
-            Button("Review", action: onReview)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss review for \(trip.name)")
-        }
-        .roundedBox(background: .ultraThick)
-    }
-}
 
 private struct RecentTripRow: View {
     let trip: Trip

@@ -19,12 +19,19 @@ struct DefaultPackingListView: View {
     )
     private var defaultPackingLists: [PackingList]
     
+    private static var now: Date { Date.now }
+    @Query(filter: #Predicate<Trip> { $0.endDate <= now }) private var completedTrips: [Trip]
+    
     @State private var searchText = ""
     @State private var showingAddSheet = false
     @State private var showingSearch = false
     /// Shared by both layouts so the open template survives a compact ↔ regular switch
     /// (e.g. folding/unfolding the Duo): sidebar selection when wide, pushed list when compact.
     @State private var selectedList: PackingList?
+    @State private var showingReviewSheet = false
+    /// Opened whenever no template is selected, so portrait iPad isn't left with an empty detail column.
+    /// Starts `.automatic` (what portrait actually shows) so the first visit animates it open too.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     
     private var filteredLists: [PackingList] {
         guard !searchText.isEmpty else { return defaultPackingLists }
@@ -32,6 +39,11 @@ struct DefaultPackingListView: View {
     }
     
     private var hasActiveFilters: Bool { !searchText.isEmpty }
+    
+    /// Past trips with items that could be saved back to their templates
+    private var reviewCount: Int {
+        completedTrips.count(where: \.showsTemplateReviewCard)
+    }
     
     var body: some View {
         Group {
@@ -53,6 +65,9 @@ struct DefaultPackingListView: View {
                 isDeleted: .constant(false)
             )
             .presentationDetents([.height(200)])
+        }
+        .sheet(isPresented: $showingReviewSheet) {
+            TemplateReviewTripsSheet()
         }
         .onChange(of: defaultPackingLists.map(\.persistentModelID)) { _, ids in
             // The selected template was deleted (from its settings sheet or elsewhere)
@@ -88,6 +103,7 @@ struct DefaultPackingListView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .bottom) { reviewBanner }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Template Lists")
             .toolbar { listToolbar }
@@ -100,7 +116,7 @@ struct DefaultPackingListView: View {
     // MARK: - Regular
     
     private var splitView: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(spacing: 0) {
                 if showingSearch {
                     searchBar
@@ -116,6 +132,7 @@ struct DefaultPackingListView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .bottom) { reviewBanner }
             .navigationTitle("Template Lists")
             .toolbar { listToolbar }
         } detail: {
@@ -129,15 +146,76 @@ struct DefaultPackingListView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Color(.systemGroupedBackground))
                 } else {
-                    Color(.systemGroupedBackground)
-                        .ignoresSafeArea()
+                    ContentUnavailableView(
+                        "No Template Selected",
+                        systemImage: suitcaseIcon,
+                        description: Text("Choose a template from the list to view and edit its items.")
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemGroupedBackground))
                 }
             }
         }
         .navigationSplitViewStyle(.balanced)
+        // Nothing open in the detail column: show the sidebar so there's something to pick (and the review banner)
+        .onAppear {
+            guard selectedList == nil, columnVisibility != .all else { return }
+            // Deferred a run loop so the slide-in animates instead of landing with the tab switch
+            Task { @MainActor in
+                withAnimation {
+                    columnVisibility = .all
+                }
+            }
+        }
+        .onChange(of: selectedList) { _, newValue in
+            if newValue == nil {
+                withAnimation {
+                    columnVisibility = .all
+                }
+            }
+        }
     }
     
     // MARK: - Shared
+    
+    /// Pinned below the template list so it stays put while the list scrolls
+    @ViewBuilder
+    private var reviewBanner: some View {
+        let reviewCount = self.reviewCount
+        if reviewCount > 0 {
+            Button { showingReviewSheet = true } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "square.and.arrow.down.on.square")
+                        .font(.title3)
+                        .foregroundStyle(Color.accentColor)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Items to Review")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text("^[\(reviewCount) past trip](inflect: true) with items to save to templates")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer(minLength: 0)
+                    
+                    UnreadBadge(count: reviewCount)
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                // Box inside the label so its padding is part of the tap target
+                .roundedBox(background: .ultraThick)
+                .shaded()
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
     
     private var searchBar: some View {
         HStack {
