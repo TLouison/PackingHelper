@@ -11,7 +11,7 @@ import RevenueCat
 
 @main
 struct PackingHelperApp: App {
-    @AppStorage("isDarkMode") private var isDarkMode = true
+    @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
     @AppStorage("hasLaunchedBefore") private var hasLaunchedBefore = false
     @AppStorage("hasMigratedDayOfLists") private var hasMigratedDayOfLists = false
     @AppStorage("hasMigratedSortOrders") private var hasMigratedSortOrders = false
@@ -222,7 +222,7 @@ struct PackingHelperApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .preferredColorScheme(isDarkMode ? .dark : .light)
+                .preferredColorScheme(AppearanceMode(rawValue: appearanceMode)?.colorScheme)
                 .environment(purchaseManager)
                 .task {
                     await purchaseManager.start()

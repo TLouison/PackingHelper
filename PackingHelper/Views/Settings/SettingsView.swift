@@ -16,15 +16,29 @@ enum PackerType: String, CaseIterable {
     case morningOf = "Morning Of"
 }
 
+enum AppearanceMode: String, CaseIterable {
+    case system = "System"
+    case light = "Light"
+    case dark = "Dark"
+
+    // nil lets the app follow the system setting
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
+
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) var colorScheme
     @Environment(PurchaseManager.self) private var purchaseManager
     @Environment(\.dismiss) private var dismiss
 
     @Query private var users: [User]
 
-    @AppStorage("isDarkMode") private var isDarkMode = true
+    @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
     @AppStorage("packerType") private var packerType = PackerType.nightBefore.rawValue
     @AppStorage("defaultLocation") private var defaultLocationData: Data = (try? JSONEncoder().encode(TripLocation.sampleOrigin)) ?? Data()
     @AppStorage("notificationTime") private var notificationMinutes = 480
@@ -52,10 +66,6 @@ struct SettingsView: View {
                 }
             }
         )
-    }
-    
-    func setDarkMode() {
-        isDarkMode = colorScheme == .dark
     }
     
     var body: some View {
@@ -119,8 +129,12 @@ struct SettingsView: View {
                 }
                 
                 Section("Appearance") {
-                    Toggle(isOn: $isDarkMode) {
-                        Label("Dark Mode", systemImage: "moon.fill")
+                    Picker(selection: $appearanceMode) {
+                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode.rawValue)
+                        }
+                    } label: {
+                        Label("Theme", systemImage: "circle.lefthalf.filled")
                     }
                 }
 
