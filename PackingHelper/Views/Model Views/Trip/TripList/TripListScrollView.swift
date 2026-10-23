@@ -18,6 +18,8 @@ struct TripListScrollView: View {
     @State private var tripToDelete: Trip? = nil
     @State private var showTripDeleteAlert: Bool = false
     @State private var reviewingTrip: Trip? = nil
+    /// Landscape has no room for rows, so regular width switches to a full-height shelf
+    @State private var isLandscape: Bool = false
     
     var trips: [Trip]
     var canShowCTA: Bool = false
@@ -43,64 +45,32 @@ struct TripListScrollView: View {
         }
     }
     
+    /// Share of the screen the featured card takes: height in portrait, width in landscape
+    private static let featuredFraction: CGFloat = 0.6
+
+    /// Upcoming trips lead with the next departure as a wide card on regular width
+    private var featuredTrip: Trip? {
+        showsPastTripsSummary ? nil : trips.first
+    }
+
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack {
-                let enumerated = Array(trips.enumerated())
-
-                if showsPastTripsSummary {
-                    PastTripsSummaryCard(path: $path, trips: trips) { trip in
-                        reviewingTrip = trip
-                    }
-                    .modifier(TripCardPageStyle())
+        Group {
+            // Regular width (iPhone Duo unfolded, iPad): a vertical grid instead of one full-screen card per page
+            if horizontalSizeClass == .regular {
+                if isLandscape {
+                    shelfLayout
+                } else {
+                    gridLayout
                 }
-
-                ForEach(enumerated, id: \.element.id) { index, trip in
-                    // Use ZStack to guarantee a hittable layer
-                    ZStack {
-                        TripListRowView(trip: trip, disabled: shouldDisable(index: index))
-                            // Display only; the layer below takes taps. Keeps row content that draws past the
-                            // card's edges from swallowing taps meant for neighboring cards.
-                            .allowsHitTesting(false)
-                        
-                        Color.clear
-                            .contentShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
-                            .onTapGesture {
-                                if !shouldDisable(index: index) {
-                                    path.append(trip)
-                                }
-                            }
-                    }
-                    .modifier(TripCardPageStyle())
-                    .contextMenu {
-                        Button(role: .destructive) {
-                            tripToDelete = trip
-                            showTripDeleteAlert.toggle()
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    } preview: {
-                        TripListRowView(trip: trip, disabled: false)
-                            .frame(width: 300, height: 440)
-                            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 10))
-                    }
-                }
-                
-                //                if shouldShowCTA {
-                //                    PackingHelperPlusCTA(headerText: "Add unlimited trips with", version: .tall)
-                //                        .containerRelativeFrame(.horizontal, count: 1, spacing: 16)
-                //                        .scrollTransition { content, phase in
-                //                            content
-                //                                .opacity(phase.isIdentity ? 1.0 : 0.8)
-                //                                .scaleEffect(y: phase.isIdentity ? 1.0 : 0.9)
-                //                        }
-                //                }
+            } else {
+                pagerLayout
             }
-            .scrollTargetLayout()
         }
-        // Regular width (iPhone Duo unfolded, iPad): cards span the full screen width with standard edge padding
-        .contentMargins(.horizontal, horizontalSizeClass == .regular ? 16 : 24, for: .scrollContent)
-        .scrollTargetBehavior(.paging)
+        .onGeometryChange(for: Bool.self) { proxy in
+            proxy.size.width > proxy.size.height
+        } action: { isLandscape in
+            self.isLandscape = isLandscape
+        }
         // Presented from outside the scroll content so the summary card doesn't own the sheet
         .sheet(item: $reviewingTrip) { trip in
             TemplateUpdateSheet(sections: trip.templateCandidateSections) {
@@ -117,6 +87,143 @@ struct TripListScrollView: View {
         } message: {
             Text("Are you sure you want to delete this trip? This cannot be undone.")
         }
+    }
+}
+
+extension TripListScrollView {
+    private var summaryCard: some View {
+        PastTripsSummaryCard(path: $path, trips: trips) { trip in
+            reviewingTrip = trip
+        }
+    }
+
+    private var pagerLayout: some View {
+        ScrollView(.horizontal) {
+            HStack {
+                if showsPastTripsSummary {
+                    summaryCard
+                        .modifier(TripCardPageStyle())
+                }
+
+                ForEach(Array(trips.enumerated()), id: \.element.id) { index, trip in
+                    tripCard(trip, index: index)
+                        .modifier(TripCardPageStyle())
+                }
+
+                //                if shouldShowCTA {
+                //                    PackingHelperPlusCTA(headerText: "Add unlimited trips with", version: .tall)
+                //                        .containerRelativeFrame(.horizontal, count: 1, spacing: 16)
+                //                        .scrollTransition { content, phase in
+                //                            content
+                //                                .opacity(phase.isIdentity ? 1.0 : 0.8)
+                //                                .scaleEffect(y: phase.isIdentity ? 1.0 : 0.9)
+                //                        }
+                //                }
+            }
+            .scrollTargetLayout()
+        }
+        .contentMargins(.horizontal, 24, for: .scrollContent)
+        .scrollTargetBehavior(.paging)
+    }
+
+    private var gridLayout: some View {
+        let featured = featuredTrip
+        let gridTrips = Array(trips.enumerated().dropFirst(featured == nil ? 0 : 1))
+
+        return ScrollView {
+            VStack(spacing: 16) {
+                if let featured {
+                    tripCard(featured, index: 0, isFeatured: true)
+                        .containerRelativeFrame(.vertical) { length, _ in
+                            length * Self.featuredFraction
+                        }
+                }
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
+                    if showsPastTripsSummary {
+                        summaryCard
+                            .aspectRatio(3 / 4, contentMode: .fit)
+                    }
+
+                    ForEach(gridTrips, id: \.element.id) { index, trip in
+                        tripCard(trip, index: index)
+                            .aspectRatio(3 / 4, contentMode: .fit)
+                    }
+                }
+            }
+            .padding(.vertical)
+        }
+        .contentMargins(.horizontal, 16, for: .scrollContent)
+    }
+
+    /// Landscape: one row of tall cards, each the full height of the screen, scrolling sideways
+    private var shelfLayout: some View {
+        let featured = featuredTrip
+
+        return ScrollView(.horizontal) {
+            LazyHStack(spacing: 16) {
+                if showsPastTripsSummary {
+                    summaryCard
+                        .modifier(TripCardShelfStyle())
+                }
+
+                ForEach(Array(trips.enumerated()), id: \.element.id) { index, trip in
+                    if trip == featured {
+                        tripCard(trip, index: index, isFeatured: true)
+                            .containerRelativeFrame(.horizontal) { length, _ in
+                                length * Self.featuredFraction
+                            }
+                            .containerRelativeFrame(.vertical)
+                    } else {
+                        tripCard(trip, index: index)
+                            .modifier(TripCardShelfStyle())
+                    }
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .contentMargins(16, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollIndicators(.hidden)
+    }
+
+    private func tripCard(_ trip: Trip, index: Int, isFeatured: Bool = false) -> some View {
+        // Use ZStack to guarantee a hittable layer
+        ZStack {
+            TripListRowView(trip: trip, disabled: shouldDisable(index: index), isFeatured: isFeatured)
+                // Display only; the layer below takes taps. Keeps row content that draws past the
+                // card's edges from swallowing taps meant for neighboring cards.
+                .allowsHitTesting(false)
+
+            Color.clear
+                .contentShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
+                .onTapGesture {
+                    if !shouldDisable(index: index) {
+                        path.append(trip)
+                    }
+                }
+        }
+        .contextMenu {
+            Button(role: .destructive) {
+                tripToDelete = trip
+                showTripDeleteAlert.toggle()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        } preview: {
+            TripListRowView(trip: trip, disabled: false)
+                .frame(width: 300, height: 440)
+                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 10))
+        }
+    }
+}
+
+/// Sizes a card to the full height of the landscape shelf, in the same tall shape as the grid
+private struct TripCardShelfStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .aspectRatio(3 / 4, contentMode: .fit)
+            .containerRelativeFrame(.vertical)
     }
 }
 

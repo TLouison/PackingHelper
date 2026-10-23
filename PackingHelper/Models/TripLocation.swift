@@ -90,6 +90,14 @@ extension TripLocation {
             span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
         ))
     }
+
+    /// City-level framing for trip cards, where street-level detail reads as noise on large cards
+    var overviewCameraPosition: MapCameraPosition {
+        .region(MKCoordinateRegion(
+            center: coordinates,
+            span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
+        ))
+    }
 }
 
 extension TripLocation {
