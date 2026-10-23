@@ -25,6 +25,8 @@ struct TripListScrollView: View {
     var canShowCTA: Bool = false
     /// Leads with the past trips summary card
     var showsPastTripsSummary: Bool = false
+    /// Completed trips; when present, a trailing card opens them
+    var pastTrips: [Trip] = []
     
     //    var shouldShowCTA: Bool {
     //        !purchaseManager.hasUnlockedPlus && canShowCTA && trips.count >= Trip.maxFreeTrips
@@ -97,6 +99,12 @@ extension TripListScrollView {
         }
     }
 
+    private var entryCard: some View {
+        PastTripsEntryCard(trips: pastTrips) {
+            path.append(TripListRoute.pastTrips)
+        }
+    }
+
     private var pagerLayout: some View {
         ScrollView(.horizontal) {
             HStack {
@@ -107,6 +115,11 @@ extension TripListScrollView {
 
                 ForEach(Array(trips.enumerated()), id: \.element.id) { index, trip in
                     tripCard(trip, index: index)
+                        .modifier(TripCardPageStyle())
+                }
+
+                if !pastTrips.isEmpty {
+                    entryCard
                         .modifier(TripCardPageStyle())
                 }
 
@@ -149,6 +162,11 @@ extension TripListScrollView {
                         tripCard(trip, index: index)
                             .aspectRatio(3 / 4, contentMode: .fit)
                     }
+
+                    if !pastTrips.isEmpty {
+                        entryCard
+                            .aspectRatio(3 / 4, contentMode: .fit)
+                    }
                 }
             }
             .padding(.vertical)
@@ -178,6 +196,11 @@ extension TripListScrollView {
                         tripCard(trip, index: index)
                             .modifier(TripCardShelfStyle())
                     }
+                }
+
+                if !pastTrips.isEmpty {
+                    entryCard
+                        .modifier(TripCardShelfStyle())
                 }
             }
             .scrollTargetLayout()

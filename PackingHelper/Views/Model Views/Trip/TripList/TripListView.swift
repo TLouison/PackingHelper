@@ -13,18 +13,19 @@ import MapKit
     var path: NavigationPath = .init()
 }
 
+/// Non-trip destinations pushed onto the trip list's navigation path
+enum TripListRoute: Hashable {
+    case pastTrips
+}
+
 struct TripListView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = TripsViewModel()
     
     @State private var isShowingAddTripSheet: Bool = false
     @State private var isShowingSettings: Bool = false
-    @State private var isShowingCompletedTrips: Bool = false
-    @State private var isCompletedTripDropdownOpen: Bool = false
     // System lays the toolbar out as a vertical bar beside the content
     @State private var isShowingVerticalToolbar: Bool = false
-    
-    @State private var visibleTripsSymbol: Symbol = .upcoming
 
     // Opened once the create sheet finishes dismissing
     @State private var newlyCreatedTrip: Trip?
@@ -46,39 +47,12 @@ struct TripListView: View {
     ) var completedTrips: [Trip]
     @Query private var users: [User]
     
-    enum Symbol: Hashable, CaseIterable {
-        case completed, upcoming
-        
-        var name: String {
-            switch self {
-            case .completed: return "airplane.arrival"
-            case .upcoming: return "airplane.departure"
-            }
-        }
-    }
-    
     var atMaxFreeTrips: Bool {
         upcomingTrips.count >= Trip.maxFreeTrips
     }
     
-    /// Past trips with items that could be saved back to their templates
-    var pastTripTemplateReviewCount: Int {
-        completedTrips.count(where: \.showsTemplateReviewCard)
-    }
-
-    /// Only while the button leads to past trips; zero hides the badge
-    var pastTripsBadgeCount: Int {
-        isShowingCompletedTrips || users.isEmpty || completedTrips.isEmpty ? 0 : pastTripTemplateReviewCount
-    }
-
     var viewTitle: String {
-        if isShowingCompletedTrips && !completedTrips.isEmpty {
-            return "Completed Trips"
-        } else if !upcomingTrips.isEmpty {
-            return "Upcoming Trips"
-        } else {
-            return ""
-        }
+        upcomingTrips.isEmpty ? "" : "Upcoming Trips"
     }
     
     var allTripsCompletedView: some View {
@@ -89,6 +63,9 @@ struct TripListView: View {
         } actions: {
             Button("Create Trip", systemImage: "folder.badge.plus") {
                 isShowingAddTripSheet.toggle()
+            }
+            Button("View Past Trips", systemImage: "globe.americas.fill") {
+                viewModel.path.append(TripListRoute.pastTrips)
             }
         }
     }
@@ -107,13 +84,9 @@ struct TripListView: View {
     
     @ViewBuilder
     func tripList() -> some View {
-        if !completedTrips.isEmpty && isShowingCompletedTrips {
-            TripListScrollView(path: $viewModel.path, trips: completedTrips, showsPastTripsSummary: true)
-                .transition(.pushAndPull(.leading))
-        } else if !upcomingTrips.isEmpty {
-            TripListScrollView(path: $viewModel.path, trips: upcomingTrips, canShowCTA: true)
-                .transition(.pushAndPull(.trailing))
-        } else if upcomingTrips.isEmpty && !completedTrips.isEmpty {
+        if !upcomingTrips.isEmpty {
+            TripListScrollView(path: $viewModel.path, trips: upcomingTrips, canShowCTA: true, pastTrips: completedTrips)
+        } else if !completedTrips.isEmpty {
             allTripsCompletedView
                 .navigationTitle("Trips")
         } else {
@@ -131,36 +104,6 @@ struct TripListView: View {
         }
     }
     
-    @ViewBuilder
-    var visibleTripsToggle: some View {
-        if !users.isEmpty && !completedTrips.isEmpty {
-            Button {
-                withAnimation {
-                    toggleVisibleTrips()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: visibleTripsSymbol.name)
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(visibleTripsSymbol == .completed ? Color.green.gradient : Color.accentColor.gradient)
-                        .contentTransition(
-                            .symbolEffect(.replace.downUp.byLayer)
-                        )
-                        .symbolEffect(.bounce, value: visibleTripsSymbol == .completed ? upcomingTrips.count : completedTrips.count)
-                        .labelStyle(.titleAndIcon)
-                }
-            }
-            .accessibilityLabel(isShowingCompletedTrips ? "Show Upcoming Trips" : "Show Past Trips")
-            .accessibilityValue(
-                pastTripsBadgeCount > 0
-                    ? Text("^[\(pastTripsBadgeCount) trip](inflect: true) with items to review")
-                    : Text(verbatim: "")
-            )
-            // System toolbar badge stays opaque; custom overlays pick up the glass vibrancy
-            .badge(pastTripsBadgeCount)
-        }
-    }
-
     var settingsButton: some View {
         Button("Settings", systemImage: "gear") {
             isShowingSettings = true
@@ -189,34 +132,23 @@ struct TripListView: View {
             .navigationDestination(for: Trip.self) { trip in
                 TripDetailView(trip: trip)
             }
+            .navigationDestination(for: TripListRoute.self) { route in
+                switch route {
+                case .pastTrips: PastTripsView()
+                }
+            }
             .sheet(isPresented: $isShowingAddTripSheet, onDismiss: openNewlyCreatedTrip) {
                 TripEditView(trip: nil, isDeleted: .constant(false)) { trip in
                     newlyCreatedTrip = trip
                 }
             }
             .toolbar {
-                if isShowingVerticalToolbar {
-                    // Vertical bar reads top to bottom: Settings, trip toggle, then Add down by the tabs
-                    ToolbarItem(placement: .topBarLeading) {
-                        settingsButton
-                    }
-                    ToolbarItem(placement: .topBarLeading) {
-                        visibleTripsToggle
-                    }
-                    ToolbarItem(placement: .bottomBar) {
-                        addTripButton
-                    }
-                } else {
-                    ToolbarItem(placement: .topBarLeading) {
-                        visibleTripsToggle
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        settingsButton
-                    }
-                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                    ToolbarItem(placement: .topBarTrailing) {
-                        addTripButton
-                    }
+                ToolbarItem(placement: .topBarLeading) {
+                    settingsButton
+                }
+                // Vertical bar: Add sits in the lower group, down by the tabs
+                ToolbarItem(placement: isShowingVerticalToolbar ? .bottomBar : .topBarTrailing) {
+                    addTripButton
                 }
             }
             .toolbarBackground(.hidden)
@@ -232,15 +164,6 @@ struct TripListView: View {
         guard let trip = newlyCreatedTrip else { return }
         newlyCreatedTrip = nil
         viewModel.path.append(trip)
-    }
-
-    func toggleVisibleTrips() {
-        isShowingCompletedTrips.toggle()
-        // Toggle symbol to other symbol
-        visibleTripsSymbol = switch visibleTripsSymbol {
-        case .completed: .upcoming
-        case .upcoming: .completed
-        }
     }
 }
 
