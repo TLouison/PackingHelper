@@ -133,7 +133,7 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 
 **Purchase Management (Plus):**
 - `PurchaseManager.swift` + RevenueCat SDK; read `purchaseManager.isPlusActive`
-- Plus gates the AI packing assistant and Unsplash cover photos. There is no trip limit
+- Plus gates the AI packing assistant and Unsplash search + Load More (free users get one 25-photo page for their destination, no search bar). There is no trip limit
 - AI and Unsplash go through a Cloudflare Worker (`WORKER_URL`), which verifies the RevenueCat entitlement server-side
 
 **AI Assistant:**

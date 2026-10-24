@@ -326,7 +326,7 @@ struct TripEditView: View {
     // MARK: - Cover Photo Section
     var coverPhotoSection: some View {
         formSection("Cover Photo", footer: "Optional. Shown instead of the map on your trip.") {
-            CoverPhotoSection(draft: $coverPhotoDraft, destinationName: destinationLocation?.name)
+            CoverPhotoSection(draft: $coverPhotoDraft, destinationName: destinationLocation?.name, tripName: tripName)
         }
     }
 

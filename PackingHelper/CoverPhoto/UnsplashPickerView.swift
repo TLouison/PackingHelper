@@ -3,8 +3,10 @@
 //  PackingHelper
 //
 //  Searches Unsplash (via the Worker) for a trip cover photo. Opens with the
-//  destination already searched; results come in pages of 12 behind a
-//  "Load More" button to stay light on the shared Unsplash quota.
+//  destination already searched (falling back to the trip name when the
+//  destination is missing or finds nothing); results come in pages of 25. Free users get
+//  that first page only (no search bar, Load More upsells Plus); Plus users can
+//  search and load more.
 //
 
 import SwiftUI
@@ -17,6 +19,10 @@ struct UnsplashPickerView: View {
 
     @State private var query: String
     @State private var activeQuery = ""
+    /// Tried once if the opening search comes back empty; cleared by any user search.
+    @State private var fallbackQuery: String?
+    /// Still showing the automatic destination/trip-name search, not one the user typed.
+    @State private var isOpeningSearch = true
     @State private var results: [UnsplashPhoto] = []
     @State private var page = 0
     @State private var totalPages = 0
@@ -28,67 +34,99 @@ struct UnsplashPickerView: View {
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
-    init(initialQuery: String, onPick: @escaping (CoverPhotoDraft) -> Void) {
+    init(initialQuery: String, fallbackQuery: String = "", onPick: @escaping (CoverPhotoDraft) -> Void) {
         self.onPick = onPick
-        self._query = State(initialValue: initialQuery)
+        let initial = initialQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = fallbackQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if initial.isEmpty {
+            self._query = State(initialValue: fallback)
+        } else {
+            self._query = State(initialValue: initial)
+            let isDistinct = !fallback.isEmpty && fallback.localizedCaseInsensitiveCompare(initial) != .orderedSame
+            self._fallbackQuery = State(initialValue: isDistinct ? fallback : nil)
+        }
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                content
-                    .padding()
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Unsplash")
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search photos")
-            .onSubmit(of: .search) { startSearch() }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-            .navigationDestination(item: $selectedPhoto) { photo in
-                CoverPhotoFocusView(
-                    draft: CoverPhotoDraft(unsplash: photo),
-                    onCancel: { selectedPhoto = nil },
-                    onDone: { draft in
-                        onPick(draft)
-                        dismiss()
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGroupedBackground))
+                .navigationTitle("Unsplash")
+                .navigationBarTitleDisplayMode(.inline)
+                .modifier(PlusSearchable(isEnabled: purchaseManager.isPlusActive, query: $query, onSubmit: submitSearch))
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
                     }
-                )
-            }
-            .sheet(isPresented: $showingPaywall, onDismiss: {
-                if purchaseManager.isPlusActive { startSearch() }
-            }) {
-                PlusPaywallView()
-            }
-            .task {
-                if activeQuery.isEmpty { startSearch() }
-            }
+                }
+                .navigationDestination(item: $selectedPhoto) { photo in
+                    CoverPhotoFocusView(
+                        draft: CoverPhotoDraft(unsplash: photo),
+                        onCancel: { selectedPhoto = nil },
+                        onDone: { draft in
+                            onPick(draft)
+                            dismiss()
+                        }
+                    )
+                }
+                .sheet(isPresented: $showingPaywall, onDismiss: {
+                    // Keep what's loaded; Load More is available now.
+                    if purchaseManager.isPlusActive, case .notSubscribed? = error { error = nil }
+                }) {
+                    PlusPaywallView()
+                }
+                .task {
+                    if activeQuery.isEmpty { startSearch() }
+                }
         }
     }
 
     // MARK: - Content
 
+    /// Empty states fill the screen (centered); photos and loading skeletons scroll.
     @ViewBuilder
     private var content: some View {
+        if !results.isEmpty || (isLoading && !activeQuery.isEmpty) {
+            ScrollView {
+                grid
+                    .padding()
+            }
+        } else {
+            emptyState
+        }
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
         if activeQuery.isEmpty {
-            ContentUnavailableView(
-                "Search Unsplash",
-                systemImage: "photo.on.rectangle.angled",
-                description: Text("Find a photo for your trip.")
-            )
-        } else if results.isEmpty {
-            if isLoading {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(0..<12, id: \.self) { _ in skeletonCell }
-                }
-            } else if let error {
-                errorView(error)
+            if purchaseManager.isPlusActive {
+                ContentUnavailableView(
+                    "Search Unsplash",
+                    systemImage: "photo.on.rectangle.angled",
+                    description: Text("Find a photo for your trip.")
+                )
             } else {
-                ContentUnavailableView.search(text: activeQuery)
+                ContentUnavailableView(
+                    "No Destination",
+                    systemImage: "photo.on.rectangle.angled",
+                    description: Text("Add a destination or trip name to see photos for it, or get Plus to search Unsplash.")
+                )
+            }
+        } else if let error {
+            errorView(error)
+        } else if isOpeningSearch {
+            noTripPhotosView
+        } else {
+            ContentUnavailableView.search(text: activeQuery)
+        }
+    }
+
+    @ViewBuilder
+    private var grid: some View {
+        if results.isEmpty {
+            LazyVGrid(columns: columns, spacing: 16) {
+                ForEach(0..<12, id: \.self) { _ in skeletonCell }
             }
         } else {
             LazyVGrid(columns: columns, spacing: 16) {
@@ -112,6 +150,8 @@ struct UnsplashPickerView: View {
                     .multilineTextAlignment(.center)
                 Button("Retry") { loadMore() }
             }
+        } else if page < totalPages && !purchaseManager.isPlusActive {
+            plusLoadMoreButton
         } else if page < totalPages {
             Button {
                 loadMore()
@@ -128,6 +168,45 @@ struct UnsplashPickerView: View {
             .controlSize(.large)
             .disabled(isLoading)
         }
+    }
+
+    private var noTripPhotosView: some View {
+        ContentUnavailableView {
+            Label("No Trip Photos", systemImage: "photo.on.rectangle.angled")
+        } description: {
+            Text(purchaseManager.isPlusActive
+                ? "We couldn't find any photos related to your trip. Try searching for something else."
+                : "We couldn't find any photos related to your trip. Get Plus to search Unsplash for something else, or choose one from your library.")
+        } actions: {
+            if !purchaseManager.isPlusActive {
+                Button {
+                    showingPaywall = true
+                } label: {
+                    Label("Get Plus to Search", systemImage: "sparkles")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+
+    /// Looks disabled but stays tappable so it can open the paywall.
+    private var plusLoadMoreButton: some View {
+        Button {
+            showingPaywall = true
+        } label: {
+            VStack(spacing: 2) {
+                Label("Load More", systemImage: "lock.fill")
+                Text("Requires Plus")
+                    .font(.caption)
+            }
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .tint(.secondary)
+        .controlSize(.large)
+        .accessibilityLabel("Load More")
+        .accessibilityHint("Requires Packing Helper Plus. Opens the subscription screen.")
     }
 
     private func resultCell(_ photo: UnsplashPhoto) -> some View {
@@ -204,9 +283,15 @@ struct UnsplashPickerView: View {
         page = 0
         totalPages = 0
         error = nil
-        isLoading = false
+        isLoading = !trimmed.isEmpty
         guard !trimmed.isEmpty else { return }
         searchTask = Task { await loadPage(1) }
+    }
+
+    private func submitSearch() {
+        fallbackQuery = nil
+        isOpeningSearch = false
+        startSearch()
     }
 
     private func loadMore() {
@@ -222,6 +307,13 @@ struct UnsplashPickerView: View {
         do {
             let response = try await UnsplashService.shared.search(query: searchedQuery, page: nextPage)
             guard !Task.isCancelled, searchedQuery == activeQuery else { return }
+
+            if nextPage == 1, response.results.isEmpty, let fallback = fallbackQuery {
+                fallbackQuery = nil
+                query = fallback
+                startSearch()
+                return
+            }
 
             let existing = Set(results.map(\.id))
             results += response.results.filter { !existing.contains($0.id) }
@@ -240,6 +332,23 @@ struct UnsplashPickerView: View {
         }
 
         isLoading = false
+    }
+}
+
+/// The search bar is a Plus feature; free users only see their destination.
+private struct PlusSearchable: ViewModifier {
+    let isEnabled: Bool
+    @Binding var query: String
+    let onSubmit: () -> Void
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search photos")
+                .onSubmit(of: .search, onSubmit)
+        } else {
+            content
+        }
     }
 }
 

@@ -4,7 +4,7 @@
 //
 //  Unsplash photo search for trip cover photos, proxied through the
 //  PackingHelperWorkers Cloudflare Worker (which holds the Unsplash access key,
-//  verifies the subscriber, and caches results). Keep these DTOs in sync with
+//  verifies the subscriber for pages past the first, and caches results). Keep these DTOs in sync with
 //  the Worker's HTTP contract (PackingHelperWorkers/README.md).
 //
 
@@ -67,7 +67,7 @@ enum UnsplashServiceError: LocalizedError {
         case .notConfigured:
             return "Photo search isn't configured yet."
         case .notSubscribed:
-            return "Packing Helper Plus is required to search Unsplash."
+            return "Packing Helper Plus is required to load more photos."
         case .rateLimited:
             return "Too many searches — try again shortly."
         case .server:

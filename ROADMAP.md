@@ -28,7 +28,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 - `TripLocation.swift`: `update(...)` ×2, `from(data:)` (force unwrap), `coordinates`, `Codable` + `DefaultLocationInformation`.
 - `UnifiedPackingListView.swift`: `UnpackedItemsSection`, `NoListSelectedView`. `showDayOfOnly` / `selectedType` bindings are never set by any UI — remove or build the filter.
 - `PackingListContainerView` single-list path is template-only — drop non-template branches.
-- `SettingsView`, `TripDetailView`, `TripListRowView`/`TripListScrollView`, onboarding, Shop CTA (copy promises "unlimited trips, templates, share lists"; Plus actually gives AI + Unsplash), `UserPickerView`, `PackingEngineCore` result types, `WeatherUtilities.getCurrentTemperatureString`, commented-out previews.
+- `SettingsView`, `TripDetailView`, `TripListRowView`/`TripListScrollView`, onboarding, Shop CTA (copy promises "unlimited trips, templates, share lists"; Plus actually gives AI + Unsplash search/Load More), `UserPickerView`, `PackingEngineCore` result types, `WeatherUtilities.getCurrentTemperatureString`, commented-out previews.
 - Check `ProductSuggestionModel.mlproj` "… 1 copy" files.
 
 ## 3. Data integrity ⚠️ some delete-rule changes

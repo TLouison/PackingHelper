@@ -12,6 +12,7 @@ import PhotosUI
 struct CoverPhotoSection: View {
     @Binding var draft: CoverPhotoDraft?
     let destinationName: String?
+    let tripName: String
 
     @Environment(PurchaseManager.self) private var purchaseManager
     @State private var featureFlags = FeatureFlags.shared
@@ -19,7 +20,6 @@ struct CoverPhotoSection: View {
     @State private var libraryItem: PhotosPickerItem?
     @State private var showingLibraryPicker = false
     @State private var showingUnsplashPicker = false
-    @State private var showingPaywall = false
     @State private var pendingFocus: CoverPhotoDraft?
     @State private var isProcessing = false
     @State private var loadError: String?
@@ -66,12 +66,12 @@ struct CoverPhotoSection: View {
             }
         }
         .sheet(isPresented: $showingUnsplashPicker) {
-            UnsplashPickerView(initialQuery: UnsplashPickerView.initialQuery(forDestination: destinationName)) { picked in
+            UnsplashPickerView(
+                initialQuery: UnsplashPickerView.initialQuery(forDestination: destinationName),
+                fallbackQuery: tripName
+            ) { picked in
                 draft = picked
             }
-        }
-        .sheet(isPresented: $showingPaywall) {
-            PlusPaywallView()
         }
     }
 
@@ -119,15 +119,12 @@ struct CoverPhotoSection: View {
 
             if featureFlags.showingUnsplashPhotos {
                 Button {
-                    if purchaseManager.isPlusActive {
-                        showingUnsplashPicker = true
-                    } else {
-                        showingPaywall = true
-                    }
+                    showingUnsplashPicker = true
                 } label: {
-                    Label("Search Unsplash", systemImage: purchaseManager.isPlusActive ? "magnifyingglass" : "lock")
-                    if !purchaseManager.isPlusActive {
-                        Text("Requires Plus")
+                    if purchaseManager.isPlusActive {
+                        Label("Search Unsplash", systemImage: "magnifyingglass")
+                    } else {
+                        Label("Browse Unsplash", systemImage: "photo.on.rectangle.angled")
                     }
                 }
             }
