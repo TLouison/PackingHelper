@@ -1,8 +1,8 @@
 //
-//  UnifiedPackingListView.swift
+//  PackingListSupportViews.swift
 //  PackingHelper
 //
-//  Helper views shared between SectionedPackingListView and the single-list
+//  Helper views shared between FocusPackingView and the single-list
 //  rendering path inside PackingListContainerView.
 //
 //  Created by Todd Louison on 9/16/25.
@@ -10,7 +10,6 @@
 
 import SwiftUI
 import SwiftData
-import OSLog
 
 // MARK: - User Selector
 
@@ -111,45 +110,6 @@ final class PendingPackTracker {
     }
 }
 
-// MARK: - Unpacked Items Section
-
-struct UnpackedItemsSection: View {
-    let items: [Item]
-    var isTemplating: Bool = false
-    
-    @Binding var editingItemId: PersistentIdentifier?
-    let onTogglePacked: (Item) -> Void
-    let onUpdateItem: (Item, String, Int) -> Void
-    let onDeleteItem: (Item) -> Void
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            ForEach(items) { item in
-                if editingItemId == item.persistentModelID {
-                    EditableItemRow(
-                        item: item,
-                        isTemplating: isTemplating,
-                        onCommit: { name, count in
-                            onUpdateItem(item, name, count)
-                        },
-                        onCancel: {
-                            editingItemId = nil
-                        }
-                    )
-                } else {
-                    UnifiedItemRow(
-                        item: item,
-                        isTemplating: isTemplating,
-                        onTogglePacked: { onTogglePacked(item) },
-                        onEdit: { editingItemId = item.persistentModelID },
-                        onDelete: { onDeleteItem(item) }
-                    )
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Empty State
 
 struct EmptyStateView: View {
@@ -168,39 +128,5 @@ struct EmptyStateView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-    }
-}
-
-// MARK: - No List Selected
-
-struct NoListSelectedView: View {
-    let onCreateList: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "list.bullet.rectangle")
-                .font(.system(size: 80))
-                .foregroundStyle(.gray.opacity(0.3))
-            
-            Text("No Packing Lists")
-                .font(.title2)
-                .fontWeight(.semibold)
-            
-            Text("Create your first packing list to get started")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            
-            Button(action: onCreateList) {
-                Label("Create List", systemImage: "plus.circle.fill")
-                    .font(.headline)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.blue)
-                    .foregroundStyle(.white)
-                    .clipShape(.rect(cornerRadius: 25))
-            }
-        }
-        .padding()
     }
 }

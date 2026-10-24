@@ -42,7 +42,6 @@ struct TripListScrollView: View {
     
     func deleteTrip() {
         if let trip = tripToDelete {
-            SectionCollapseStateManager.removeState(for: trip.uuid)
             modelContext.delete(trip)
         }
     }

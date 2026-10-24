@@ -73,7 +73,7 @@ Legacy fields above are slated for removal in one schema change (see ROADMAP.md 
 - Item rows use `PersistentTextField` (UIKit-backed, keeps the keyboard up between rows) with a plain `Binding<Bool>` for focus, not `@FocusState`
 - Always dismiss keyboard BEFORE animating view removal to prevent layout shifts
 - Pattern: `isTextFieldFocused = false` → `withAnimation { ... remove view ... }`
-- See PackingListContainerView, SectionedPackingListView for examples
+- See PackingListContainerView, FocusPackingView for examples
 
 **Extensions:**
 - Models have extensive extensions grouping related functionality
@@ -90,7 +90,7 @@ ContentView (TabView)
 │       ├── TripDetailHeroView (cover photo or map + title; Edit lives in the nav toolbar)
 │       ├── TripDetailPackingView (progress card; tap opens packing)
 │       │   └── PackingListContainerView
-│       │       └── SectionedPackingListView (grouped by list)
+│       │       └── FocusPackingView (chip rail + one page per section)
 │       ├── TripDetailForecastView (weather)
 │       └── TripDetailInfoView (details)
 ├── DefaultPackingListView (Templates tab; badge = past trips with template items to review)
@@ -100,19 +100,16 @@ ContentView (TabView)
 Wide screens (iPad / unfolded) get split layouts for the trip list, templates, and an AI side panel in the packing view.
 
 **Packing List Views (Critical Component):**
-- `PackingListContainerView`: Hosts trip packing (sectioned) and single-template editing
-  - Provides shared toolbar, user selector, summary bar
-  - Manages global add/edit state
-- `SectionedPackingListView`: Shows items grouped by PackingList with collapsible sections
-  - Persists collapse state via `SectionCollapseStateManager` (keyed by list `uuid`)
-- `UnifiedPackingListView.swift` no longer has that struct; it hosts `UserSelector`, `PendingPackTracker`, `EmptyStateView`, `PackedItemsSection`
-- Rows share `ItemRowViews.swift` components (Reminders-style editing):
-  - `NewItemRow`: Inline add row rendered inside the target section; Return saves and keeps the row open, Return on empty or blur closes it (typed text is saved). Count/packer/section live in the container's accessory bar above the keyboard
+- `PackingListContainerView`: Hosts trip packing and single-template editing (the single-list path is template-only)
+  - Provides shared toolbar, user selector, AI assistant sheet/panel
+  - Manages global add state (accessory bar above the keyboard) and the Remove Items undo stack
+- **Trip packing** uses `FocusPackingView` (`PackingListDetailEdit/Focus/`): a chip rail (tap to jump, hold + drag to reorder, + to create a section or apply a template) over a pager with an All page (every section under name headers), one page per section, and an "Add a Section" page at the end; two pages side by side at ≥700pt width. Gets the container's add flow through `FocusPackingInput` (`FocusPackingSupport.swift`, which also holds `PackingItemActions`, `RemovedItem`, `ItemDetailSheet`, `PackCheckbox`, `TileFlowLayout`). A section title's menu turns on Remove Items (minus buttons on every card, Undo + Done in the toolbar; the container keeps the undo stack as `RemovedItem`s)
+- **Template editing** uses `Shared/ItemRowViews.swift` + `ReorderableItemsSection` (Reminders-style editing, drag to reorder):
+  - `NewItemRow`: Inline add row; Return saves and keeps the row open, Return on empty or blur closes it (typed text is saved). Count lives in the container's accessory bar above the keyboard. `NewItemRow.scrollID(for:)` is also the scroll target for Focus's add row
   - `EditableItemRow`: Inline edit; commits on Return, blur, or disappear; backspace on empty name deletes the item
-  - `UnifiedItemRow`: Display item with swipe-to-reveal delete and full-swipe delete
-  - `AddItemTapZone`: Blank area at the end of a section/list; tap starts adding there (or finishes adding)
-- **Trip packing** uses `FocusPackingView` (`PackingListDetailEdit/Prototypes/`): a chip rail (tap to jump, hold + drag to reorder, + to create a section or apply a template) over a pager with an All page (every section under name headers), one page per section, and an "Add a Section" page at the end; two pages side by side at ≥700pt width. Gets the container's add flow through `PackingPrototypeInput`. A section title's menu turns on Remove Items (minus buttons on every card, Undo + Done in the toolbar; the container keeps the undo stack as `RemovedItem`s). `RemindersPackingView`, `TilesPackingView`, and `SectionedPackingListView` are currently unused
-- `PendingPackTracker` (in UnifiedPackingListView.swift): checked items stay in place ~1.5s (tap again to undo) before moving to Packed
+  - `UnifiedItemRow`: Display row with swipe-to-reveal delete and full-swipe delete
+  - `AddItemTapZone`: Blank area at the end of the list; tap starts adding (or finishes adding)
+- `Shared/PackingListSupportViews.swift`: `UserSelector`, `PendingPackTracker` (checked items stay in place ~1.5s, tap again to undo, before moving to Packed), `EmptyStateView`
 
 ### Special Components
 

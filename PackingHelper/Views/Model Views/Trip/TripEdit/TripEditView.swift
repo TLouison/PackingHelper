@@ -609,7 +609,6 @@ struct TripEditView: View {
 
     func deleteTrip() {
         if let tripToDelete = trip {
-            SectionCollapseStateManager.removeState(for: tripToDelete.uuid)
             modelContext.delete(tripToDelete)
             isDeleted = true
             dismiss()

@@ -19,15 +19,13 @@ Paths are relative to `PackingHelper/`. `PLDE/` = `Views/Model Views/PackingList
 
 The app sources are a synced folder, so deleting a file on disk removes it from the target.
 
-**Unused files:** `PLDE/Shared/PackingListEditSection.swift` → `Views/Model Views/Item/EditItemView.swift` → `PLDE/Shared/PackingAddItemCountPickerView.swift`; `DefaultPackingViewListTypeSectionView.swift` → `Views/General/CollapsibleSection.swift`; `Users/UserListView.swift` + `UserListRowView.swift`; `Users/Components/UserPickerBaseView.swift`; `Users/UserView.swift`; `TripDetail/Sheets/TripDetailSheet.swift`, `TripSettingsSheet.swift`; `TripDetailPackingGaugeRowView.swift`; `Models/Preferences.swift`; `Preview Content/PreviewContainer.swift`; `Utilities/CacheUtilities.swift` (unless reused for 6.2); `/AIPrompts.xcconfig`.
+**Unused files:** `Users/UserListView.swift` + `UserListRowView.swift`; `Users/Components/UserPickerBaseView.swift`; `Users/UserView.swift`; `TripDetail/Sheets/TripDetailSheet.swift`, `TripSettingsSheet.swift`; `TripDetailPackingGaugeRowView.swift`; `Models/Preferences.swift`; `Preview Content/PreviewContainer.swift`; `Utilities/CacheUtilities.swift` (unless reused for 6.2); `/AIPrompts.xcconfig`.
 - **Decision:** `SubscriptionAwareButton` hardcodes `canPerformAction = true` — wire to `PurchaseManager` or replace with `Button`.
 
 **Dead code inside live files** (verify no callers first):
 - `Trip.swift`: many unused helpers (`incompleteItemsCount`, `defaultTaskList`, `getLists(for:…)` variants, `create_or_update`, `delete`, `hasMultiplePackers`, `sampleTrip` — a global model that schedules real notifications; switch previews to `.sampleData`).
 - `PackingList.swift`: `filtered(user:)`, `containsMultiplePackers`, sample lists, legacy `createDefaultList`, `removeItem(at:)`.
 - `TripLocation.swift`: `update(...)` ×2, `from(data:)` (force unwrap), `coordinates`, `Codable` + `DefaultLocationInformation`.
-- `UnifiedPackingListView.swift`: `UnpackedItemsSection`, `NoListSelectedView`. `showDayOfOnly` / `selectedType` bindings are never set by any UI — remove or build the filter.
-- `PackingListContainerView` single-list path is template-only — drop non-template branches.
 - `TripDetailView`, `TripListRowView`/`TripListScrollView`, onboarding, Shop CTA (copy promises "unlimited trips, templates, share lists"; Plus actually gives AI + Unsplash search/Load More), `UserPickerView`, `PackingEngineCore` result types, `WeatherUtilities.getCurrentTemperatureString`, commented-out previews.
 - Check `ProductSuggestionModel.mlproj` "… 1 copy" files.
 
@@ -35,8 +33,8 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 
 - **3.2 (rest):** `User.lists` is still `.cascade` — deleting a user can delete whole trip sections. Change to `.nullify` (or clear legacy `PackingList.user`). Developer reset should delete trips + templates and match its copy.
 - **3.3 Orphaned `TripLocation` rows** — new row per destination pick, never deleted; trip delete leaves them. Clean up in save/delete or `.cascade` on `origin`/`destination`.
-- **3.4 Template copy bugs:** `copyItem.list = item.list` wires copies to the source list; `Item.copy` keeps `isPacked` on apply; "Save As Default" can duplicate items and doesn't link source → template.
-- **3.5 One delete function per entity** (`Trip.delete(in:)` cancels notification, prunes collapse state, cleans locations; same for list/user).
+- **3.4 Template copy bugs:** `copyItem.list = item.list` wires copies to the source list; `Item.copy` keeps `isPacked` on apply.
+- **3.5 One delete function per entity** (`Trip.delete(in:)` cancels notification, cleans locations; same for list/user).
 
 ## 4. Dates, status & notifications
 
@@ -87,7 +85,7 @@ Drop dead `#available(iOS 26…)` else-branches (`User.swift`, `ViewModifierUtil
 
 ## 10. Refactors
 
-- **10.1 `PackingEditor`** — `@MainActor @Observable` class in the environment owning add/edit/pending-pack state and actions; collapses the huge parameter lists on `SectionedPackingListView` / `PackingListSection` and duplicated logic in the container. Folds in 5.1, 5.2, 6.6, 11.3.
+- **10.1 `PackingEditor`** — `@MainActor @Observable` class in the environment owning add/edit/pending-pack state and actions; collapses `FocusPackingInput` / `PackingAddFlow` and the add/edit logic in the container. Folds in 5.1, 5.2, 6.6, 11.3.
 - **10.2** Split `PackingListContainerView` (~800 lines); one `enum ActiveSheet` + `.sheet(item:)`.
 - **10.3** `PersistentTextField` calls `becomeFirstResponder` on every update while focused; react to focus transitions only.
 - **10.4** Model API consolidation: one create / copy / save strategy; `Trip.packingProgress` one-pass.

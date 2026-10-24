@@ -32,11 +32,4 @@ enum PackingListContext {
         }
         return false
     }
-
-    var isSingleList: Bool {
-        if case .singleList = self {
-            return true
-        }
-        return false
-    }
 }

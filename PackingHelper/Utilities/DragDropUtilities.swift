@@ -13,7 +13,6 @@ import UniformTypeIdentifiers
 
 extension UTType {
     static let packingItem = UTType(exportedAs: "com.packinghelper.item")
-    static let packingList = UTType(exportedAs: "com.packinghelper.list")
 }
 
 // MARK: - Item Transfer Data
@@ -30,20 +29,5 @@ struct ItemTransferData: Codable, Transferable {
     init(item: Item) {
         self.itemUUID = item.uuid
         self.sourceListUUID = item.list?.uuid
-    }
-}
-
-// MARK: - PackingList Transfer Data
-
-/// Wrapper struct for transferring PackingList references during drag-and-drop
-struct PackingListTransferData: Codable, Transferable {
-    let listUUID: UUID  // Unique identifier for lookup
-
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .packingList)
-    }
-
-    init(list: PackingList) {
-        self.listUUID = list.uuid
     }
 }

@@ -1,56 +1,18 @@
 //
-//  PackingLayoutPrototypes.swift
+//  FocusPackingSupport.swift
 //  PackingHelper
 //
-//  Shared pieces for the trip packing layout prototypes. The layout is picked from the
-//  toolbar in PackingListContainerView; once one wins it replaces SectionedPackingListView
-//  and this file folds into it.
+//  Shared pieces for FocusPackingView: the container's input, item actions, the
+//  Remove Items undo record, and small controls.
 //
 
 import SwiftData
 import SwiftUI
 
-// MARK: - Layout
-
-enum PackingLayout: String, CaseIterable, Identifiable {
-    case classic, reminders, focus, tiles
-
-    static let storageKey = "packingLayoutPrototype"
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .classic: "Classic"
-        case .reminders: "Reminders"
-        case .focus: "Focus"
-        case .tiles: "Tiles"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .classic: "Current collapsible sections"
-        case .reminders: "Mirrors Apple Reminders"
-        case .focus: "One bag at a time, swipe between"
-        case .tiles: "Every item as a tap-to-pack tile"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .classic: "list.bullet.below.rectangle"
-        case .reminders: "checklist"
-        case .focus: "rectangle.stack"
-        case .tiles: "square.grid.2x2"
-        }
-    }
-}
-
 // MARK: - Input
 
 /// Inline add-item state owned by PackingListContainerView (the accessory bar above the
-/// keyboard edits count, packer, and target section for every layout)
+/// keyboard edits count, packer, and target section)
 struct PackingAddFlow {
     let isAdding: Bool
     let targetList: Binding<PackingList?>
@@ -69,7 +31,7 @@ struct PackingAddFlow {
     }
 }
 
-struct PackingPrototypeInput {
+struct FocusPackingInput {
     let trip: Trip
     /// Sections in display order
     let lists: [PackingList]
@@ -105,29 +67,7 @@ struct PackingPrototypeInput {
 // MARK: - Item Actions
 
 @MainActor
-enum PrototypeItemActions {
-    /// Places `item` just before `anchor` (or at the end), renumbering every item in the list.
-    /// Positioning by neighbor keeps hidden items (other packers, packed) where they were.
-    static func move(_ item: Item, before anchor: Item?, in list: PackingList) {
-        var ordered = Item.sorted(list.items ?? [], sortOrder: .byCustomOrder)
-            .filter { $0.persistentModelID != item.persistentModelID }
-        let index = anchor.flatMap { anchor in
-            ordered.firstIndex { $0.persistentModelID == anchor.persistentModelID }
-        } ?? ordered.count
-        ordered.insert(item, at: index)
-        for (order, item) in ordered.enumerated() {
-            item.sortOrder = order
-        }
-    }
-
-    /// `List.onMove` over the visible rows of one section
-    static func move(_ rows: [Item], from source: IndexSet, to destination: Int, in list: PackingList) {
-        guard let from = source.first, rows.indices.contains(from) else { return }
-        let anchor = destination < rows.count ? rows[destination] : nil
-        guard anchor?.persistentModelID != rows[from].persistentModelID else { return }
-        move(rows[from], before: anchor, in: list)
-    }
-
+enum PackingItemActions {
     /// Moves an item to the end of another section
     static func moveToList(_ item: Item, _ list: PackingList) {
         guard item.list?.persistentModelID != list.persistentModelID else { return }
@@ -231,8 +171,8 @@ extension Collection where Element == Item {
 
 // MARK: - Item Details
 
-/// Full item editor for the prototypes: name, count, packer, section, packed, delete
-struct PrototypeItemDetailSheet: View {
+/// Full item editor: name, count, packer, section, packed, delete
+struct ItemDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -313,7 +253,7 @@ struct PrototypeItemDetailSheet: View {
             item.user = user
             item.isPacked = isPacked
             if let list {
-                PrototypeItemActions.moveToList(item, list)
+                PackingItemActions.moveToList(item, list)
             }
         }
         dismiss()

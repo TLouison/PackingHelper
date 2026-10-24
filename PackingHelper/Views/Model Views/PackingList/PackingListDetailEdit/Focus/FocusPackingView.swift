@@ -2,7 +2,7 @@
 //  FocusPackingView.swift
 //  PackingHelper
 //
-//  Prototype: pack one bag at a time. A rail of section chips (with live progress rings)
+//  Trip packing: pack one bag at a time. A rail of section chips (with live progress rings)
 //  sits over a horizontal pager with one full page per section. Big tap-anywhere item cards,
 //  packed items drop into an "In the bag" tray, and finishing a section offers the next one.
 //  The add row always targets the page you're on. Hold a chip and drag to reorder sections;
@@ -32,7 +32,7 @@ private enum FocusPage: Hashable {
 struct FocusPackingView: View {
     @Environment(\.modelContext) private var modelContext
 
-    let input: PackingPrototypeInput
+    let input: FocusPackingInput
 
     /// Leading visible page (mirrors `pagerPosition`; change it with `setPage` so the pager scrolls)
     @State private var currentPage: FocusPage?
@@ -146,7 +146,7 @@ struct FocusPackingView: View {
             }
         }
         .sheet(item: $detailItem) { item in
-            PrototypeItemDetailSheet(item: item, lists: input.lists, users: input.users)
+            ItemDetailSheet(item: item, lists: input.lists, users: input.users)
         }
     }
 
@@ -361,7 +361,7 @@ struct FocusPackingView: View {
 // MARK: - Rail
 
 private struct FocusBagRail: View {
-    let input: PackingPrototypeInput
+    let input: FocusPackingInput
     /// Sections on screen (two in the wide layout); their chips show as selected
     let visibleListIDs: [PersistentIdentifier]
     /// Highlights the All chip while the All page is showing
@@ -643,7 +643,7 @@ private struct ColumnSeparator: View {
 
 /// The last page: swipe past the final section to add another
 private struct FocusAddSectionPage: View {
-    let input: PackingPrototypeInput
+    let input: FocusPackingInput
 
     var body: some View {
         VStack(spacing: 16) {
@@ -686,7 +686,7 @@ private struct FocusAddSectionPage: View {
 
 private struct FocusBagPage: View {
     let list: PackingList
-    let input: PackingPrototypeInput
+    let input: FocusPackingInput
     let pendingPacks: PendingPackTracker
     let nextList: PackingList?
     let onShowDetails: (Item) -> Void
@@ -847,7 +847,7 @@ private struct FocusBagPage: View {
 /// Section actions in the page header's and the All page headers' context menus
 private struct FocusSectionMenu: View {
     let list: PackingList
-    let input: PackingPrototypeInput
+    let input: FocusPackingInput
 
     var body: some View {
         if !input.isRemovingItems {
@@ -868,7 +868,7 @@ private struct FocusSectionItems: View {
 
     let list: PackingList
     let unpacked: [Item]
-    let input: PackingPrototypeInput
+    let input: FocusPackingInput
     let pendingPacks: PendingPackTracker
     let onShowDetails: (Item) -> Void
     /// Off when another page on screen already shows this section's new item row (one text field only)
@@ -885,7 +885,7 @@ private struct FocusSectionItems: View {
                     onToggle: { pendingPacks.toggle(item) },
                     onShowDetails: { onShowDetails(item) },
                     onMove: { target in
-                        withAnimation(.packingSpring) { PrototypeItemActions.moveToList(item, target) }
+                        withAnimation(.packingSpring) { PackingItemActions.moveToList(item, target) }
                     },
                     onDelete: {
                         withAnimation(.packingSpring) { modelContext.delete(item) }
@@ -994,7 +994,7 @@ private struct FocusPackedChips: View {
 
 /// The first page: every section in one scrolling list under pinned name headers, no stats
 private struct FocusAllItemsPage: View {
-    let input: PackingPrototypeInput
+    let input: FocusPackingInput
     /// Sections with their own page beside this one (wide layout); they host the new item row
     let sectionPagesOnScreen: [PersistentIdentifier]
     let pendingPacks: PendingPackTracker

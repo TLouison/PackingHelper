@@ -112,7 +112,7 @@ final class PackingList {
     var appliedFromTemplate: PackingList? = nil
     @Relationship(deleteRule: .nullify, inverse: \PackingList.appliedFromTemplate) var appliedToLists: [PackingList]?
 
-    // Sort order for section ordering in sectioned view
+    // Sort order for section ordering in the packing view
     var sortOrder: Int = 0
 
     // Whether this is a protected default catch-all section (undeletable, name-locked)
@@ -208,11 +208,6 @@ final class PackingList {
             }
         }
     }
-}
-
-extension PackingList {
-    /// Stable key for persisting per-section UI state (e.g. collapsed sections) across launches.
-    var collapseKey: String { uuid.uuidString }
 }
 
 extension PackingList {
@@ -424,12 +419,6 @@ extension PackingList {
             // Assign user to all copied items (not the list itself)
             newList.items?.forEach { $0.user = user }
         }
-        return newList
-    }
-
-    static func copyAsTemplate(_ list: PackingList) -> PackingList {
-        let newList = PackingList._copy(list, template: true)
-        newList.template = true
         return newList
     }
 }

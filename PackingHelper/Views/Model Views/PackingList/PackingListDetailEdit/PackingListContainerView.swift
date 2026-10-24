@@ -4,7 +4,7 @@
 //
 //  Container that renders the packing screen.
 //  Trip context: FocusPackingView (one page per section, swipe between).
-//  Single-list context: inline single-section view (templates/detail).
+//  Single-list context: inline template editor.
 //
 //  Created by Claude on 1/11/26.
 //
@@ -62,16 +62,14 @@ struct PackingListContainerView: View {
     // Single list mode state
     @State private var isShowingListSettings: Bool = false
     @State private var isShowingTemplateInfo: Bool = false
-    @State private var isShowingSaveSuccessful: Bool = false
     @State private var isDeleted: Bool = false
 
-    // Single list mode item editing (trip context manages this inside SectionedPackingListView)
+    // Single list mode item editing (trip context manages this inside FocusPackingView)
     @State private var singleListEditingItemId: PersistentIdentifier? = nil
-    @State private var singleListPendingPacks = PendingPackTracker()
 
     // MARK: - Initializers
 
-    /// Initialize with a single packing list (template or trip list)
+    /// Initialize with a template
     init(packingList: PackingList) {
         self.context = .singleList(packingList)
         self.users = nil
@@ -101,23 +99,9 @@ struct PackingListContainerView: View {
         return users.count > 1
     }
 
-    private var isTemplating: Bool {
-        context.singleList?.template == true
-    }
-
     /// Whether to show the user selector
     private var showUserSelector: Bool {
         context.isTrip && hasMultiplePackers
-    }
-
-    /// Whether to show the summary bar
-    private var showSummaryBar: Bool {
-        if context.isTrip {
-            return true
-        } else if let singleList = context.singleList {
-            return !singleList.template
-        }
-        return false
     }
 
     private var baseView: some View {
@@ -133,7 +117,7 @@ struct PackingListContainerView: View {
             }
         }
         .navigationTitle(title ?? "Packing")
-        .navigationBarTitleDisplayMode(isTemplating ? .large : .inline)
+        .navigationBarTitleDisplayMode(context.isTrip ? .inline : .large)
         .sheet(item: $editingList) { list in
             if let trip = context.trip {
                 PackingListEditView(
@@ -203,9 +187,6 @@ struct PackingListContainerView: View {
 
     var body: some View {
         baseView
-        .alert("List saved as default", isPresented: $isShowingSaveSuccessful) {
-            Button("OK", role: .cancel) {}
-        }
         .alert(
             "Delete \(listToDelete?.name ?? "Section")?",
             isPresented: Binding(get: { listToDelete != nil }, set: { if !$0 { listToDelete = nil } }),
@@ -293,7 +274,7 @@ struct PackingListContainerView: View {
         lists.first(where: { $0.isDefault }) ?? sortedLists.first
     }
 
-    /// Lists in the same order as the sections in `SectionedPackingListView`
+    /// Lists in the same order as the sections in `FocusPackingView`
     private var sortedLists: [PackingList] {
         PackingList.sorted(lists, sortOrder: .byCustomOrder)
     }
@@ -373,12 +354,6 @@ struct PackingListContainerView: View {
             } else if let singleList = context.singleList {
                 singleListView(list: singleList)
             }
-
-            // Single lists only (trips show progress on each page). Hidden when adding
-            // to prevent stacking with the input bar.
-            if showSummaryBar && !isAddingNewItem && !context.isTrip {
-                PackingSummaryBar(packingLists: lists)
-            }
         }
     }
 
@@ -401,8 +376,8 @@ struct PackingListContainerView: View {
 
     // MARK: - Trip Packing
 
-    private func tripPackingInput(trip: Trip) -> PackingPrototypeInput {
-        PackingPrototypeInput(
+    private func tripPackingInput(trip: Trip) -> FocusPackingInput {
+        FocusPackingInput(
             trip: trip,
             lists: sortedLists,
             users: users,
@@ -449,63 +424,19 @@ struct PackingListContainerView: View {
         }
     }
 
-    @ViewBuilder
     private func singleListView(list: PackingList) -> some View {
-        let allItems = Item.sorted(list.items ?? [], sortOrder: .byCustomOrder)
-        let unpackedItems = Item.sorted(
-            singleListPendingPacks.visibleUnpacked(list.items ?? []),
-            sortOrder: .byCustomOrder
-        )
-        let rowItems = isTemplating ? allItems : unpackedItems
+        let items = Item.sorted(list.items ?? [], sortOrder: .byCustomOrder)
 
-        let packedItems = Item.sorted(
-            singleListPendingPacks.settledPacked(list.items ?? []),
-            sortOrder: .byCustomOrder
-        )
-
-        ScrollViewReader { proxy in
-            Group {
-                if horizontalSizeClass == .regular && !isTemplating {
-                    // Regular width (iPhone Duo unfolded, iPad): packed on the left, available on the right
-                    WidePackingColumns {
-                        if packedItems.isEmpty {
-                            NothingPackedView()
-                        } else {
-                            PackedItemsSection(
-                                items: packedItems,
-                                onTogglePacked: { item in singleListPendingPacks.toggle(item) },
-                                onDeleteItem: { item in withAnimation(.packingSpring) { modelContext.delete(item) } },
-                                isCollapsible: false
-                            )
-                        }
-                    } available: {
-                        VStack(spacing: 0) {
-                            singleListAvailableContent(list: list, allItems: allItems, unpackedItems: unpackedItems, rowItems: rowItems)
-                            singleListTapZone
-                        }
-                    }
-                } else {
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            singleListAvailableContent(list: list, allItems: allItems, unpackedItems: unpackedItems, rowItems: rowItems)
-
-                            if !isTemplating && !packedItems.isEmpty {
-                                PackedItemsSection(
-                                    items: packedItems,
-                                    onTogglePacked: { item in singleListPendingPacks.toggle(item) },
-                                    onDeleteItem: { item in withAnimation(.packingSpring) { modelContext.delete(item) } }
-                                )
-                            }
-
-                            singleListTapZone
-                        }
-                        // Template rows already carry their own inset and roomier padding
-                        .padding(.horizontal, isTemplating ? 4 : 16)
-                        .padding(.vertical, isTemplating ? 4 : 16)
-                    }
-                    .scrollDismissesKeyboard(.interactively)
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    singleListContent(list: list, items: items)
+                    singleListTapZone
                 }
+                // Template rows already carry their own inset and roomier padding
+                .padding(4)
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: isAddingNewItem) { _, isAdding in
                 if isAdding {
                     withAnimation { proxy.scrollTo(NewItemRow.scrollID(for: list), anchor: .bottom) }
@@ -523,55 +454,32 @@ struct PackingListContainerView: View {
         }
     }
 
-    /// Item rows, inline new item row, and empty state for a single list
+    /// Item rows, inline new item row, and empty state for a template
     @ViewBuilder
-    private func singleListAvailableContent(list: PackingList, allItems: [Item], unpackedItems: [Item], rowItems: [Item]) -> some View {
-        if isTemplating {
-            ReorderableItemsSection(
-                items: allItems,
-                isTemplating: true,
-                editingItemId: $singleListEditingItemId,
-                onTogglePacked: { _ in },
-                onUpdateItem: updateSingleListItem,
-                onDeleteItem: { item in
-                    withAnimation(.packingSpring) { modelContext.delete(item) }
-                },
-                onReorder: { item, newIndex in
-                    withAnimation(.packingSpring) {
-                        SortOrderManager.reorderItems(in: list, moving: item, to: newIndex)
-                    }
+    private func singleListContent(list: PackingList, items: [Item]) -> some View {
+        ReorderableItemsSection(
+            items: items,
+            editingItemId: $singleListEditingItemId,
+            onUpdateItem: updateSingleListItem,
+            onDeleteItem: { item in
+                withAnimation(.packingSpring) { modelContext.delete(item) }
+            },
+            onReorder: { item, newIndex in
+                withAnimation(.packingSpring) {
+                    SortOrderManager.reorderItems(in: list, moving: item, to: newIndex)
                 }
-            )
-        } else {
-            ReorderableItemsSection(
-                items: unpackedItems,
-                isTemplating: false,
-                editingItemId: $singleListEditingItemId,
-                onTogglePacked: { item in
-                    singleListPendingPacks.toggle(item)
-                },
-                onUpdateItem: updateSingleListItem,
-                onDeleteItem: { item in
-                    withAnimation(.packingSpring) { modelContext.delete(item) }
-                },
-                onReorder: { item, newIndex in
-                    withAnimation(.packingSpring) {
-                        SortOrderManager.reorderItems(in: list, moving: item, to: newIndex)
-                    }
-                }
-            )
-        }
+            }
+        )
 
         if isAddingNewItem {
             NewItemRow(
                 itemName: $newItemName,
                 isFocused: $newItemFieldFocused,
                 itemCount: newItemCount,
-                showsCheckbox: !isTemplating,
                 onSubmitReturn: addNewItemAndContinue,
                 onDeleteEmpty: {
                     // Backspace on the empty new row moves editing up to the last item
-                    if let lastItem = rowItems.last {
+                    if let lastItem = items.last {
                         singleListEditingItemId = lastItem.persistentModelID
                     }
                 }
@@ -579,7 +487,7 @@ struct PackingListContainerView: View {
             .id(NewItemRow.scrollID(for: list))
         }
 
-        if allItems.isEmpty && !isAddingNewItem {
+        if items.isEmpty && !isAddingNewItem {
             EmptyStateView()
                 .padding(.top, 60)
         }
@@ -688,33 +596,18 @@ struct PackingListContainerView: View {
 
     @ToolbarContentBuilder
     private var singleListToolbar: some ToolbarContent {
-        if let singleList = context.singleList {
-            if !singleList.template && !singleList.isDefault {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("Save As Default") {
-                            saveListAsDefault(singleList)
-                        }
-                    } label: {
-                        Label("Save As Default", systemImage: "square.and.arrow.up")
-                    }
-                }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                isShowingTemplateInfo.toggle()
+            } label: {
+                Label("List Info", systemImage: "info.circle")
             }
-            if singleList.template {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isShowingTemplateInfo.toggle()
-                    } label: {
-                        Label("List Info", systemImage: "info.circle")
-                    }
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    isShowingListSettings.toggle()
-                } label: {
-                    Label("List Settings", systemImage: "gear")
-                }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                isShowingListSettings.toggle()
+            } label: {
+                Label("List Settings", systemImage: "gear")
             }
         }
     }
@@ -855,14 +748,6 @@ struct PackingListContainerView: View {
             if singleListEditingItemId == item.persistentModelID {
                 singleListEditingItemId = nil
             }
-        }
-    }
-
-    private func saveListAsDefault(_ list: PackingList) {
-        withAnimation {
-            let newDefaultList = PackingList.copyAsTemplate(list)
-            modelContext.insert(newDefaultList)
-            isShowingSaveSuccessful = true
         }
     }
 }

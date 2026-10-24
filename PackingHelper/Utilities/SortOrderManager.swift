@@ -43,19 +43,6 @@ class SortOrderManager {
         }
     }
 
-    /// Move item to a different list
-    static func moveItem(_ item: Item, to targetList: PackingList, at index: Int) {
-        // Remove from source list
-        item.list?.removeItem(item)
-
-        // Add to target list
-        targetList.addItem(item)
-        item.list = targetList
-
-        // Reorder in target list
-        reorderItems(in: targetList, moving: item, to: index)
-    }
-
     // MARK: - PackingList Order Management
 
     /// Calculate next sort order for a new list
@@ -64,7 +51,7 @@ class SortOrderManager {
         return maxOrder + 1
     }
 
-    /// Reorder sections (PackingLists) in sectioned view
+    /// Reorder sections (PackingLists) in the packing view
     static func reorderLists(_ lists: inout [PackingList], moving list: PackingList, to newIndex: Int) {
         lists.removeAll { $0.persistentModelID == list.persistentModelID }
         let clampedIndex = min(max(0, newIndex), lists.count)
