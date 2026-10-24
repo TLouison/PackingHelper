@@ -111,6 +111,7 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
   - `EditableItemRow`: Inline edit; commits on Return, blur, or disappear; backspace on empty name deletes the item
   - `UnifiedItemRow`: Display item with swipe-to-reveal delete and full-swipe delete
   - `AddItemTapZone`: Blank area at the end of a section/list; tap starts adding there (or finishes adding)
+- **Trip packing** uses `FocusPackingView` (`PackingListDetailEdit/Prototypes/`): a chip rail (tap to jump, hold + drag to reorder, + to create a section or apply a template) over a pager with an All page (every section under name headers), one page per section, and an "Add a Section" page at the end; two pages side by side at ≥700pt width. Gets the container's add flow through `PackingPrototypeInput`. A section title's menu turns on Remove Items (minus buttons on every card, Undo + Done in the toolbar; the container keeps the undo stack as `RemovedItem`s). `RemindersPackingView`, `TilesPackingView`, and `SectionedPackingListView` are currently unused
 - `PendingPackTracker` (in UnifiedPackingListView.swift): checked items stay in place ~1.5s (tap again to undo) before moving to Packed
 
 ### Special Components

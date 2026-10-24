@@ -3,7 +3,7 @@
 //  PackingHelper
 //
 //  Container that renders the packing screen.
-//  Trip context: SectionedPackingListView with filter state.
+//  Trip context: FocusPackingView (one page per section, swipe between).
 //  Single-list context: inline single-section view (templates/detail).
 //
 //  Created by Claude on 1/11/26.
@@ -26,13 +26,16 @@ struct PackingListContainerView: View {
     let title: String?
 
     @State private var editingList: PackingList? = nil
+    @State private var listToDelete: PackingList? = nil
     @State private var showingAddListSheet: Bool = false
     @State private var isApplyingDefaultPackingList: Bool = false
     @State private var isAddingNewItem: Bool = false
     @State private var selectedUser: User?
-    @State private var selectedType: ListType? = nil
-    @State private var showDayOfOnly: Bool = false
-    @State private var isReorderingSections: Bool = false
+
+    // Remove Items mode (trip context): tap a card's minus to delete it right away
+    @State private var isRemovingItems: Bool = false
+    /// Items deleted in Remove Items mode, newest last; Undo puts back the last one
+    @State private var removedItems: [RemovedItem] = []
 
     // AI assistant (trip context only)
     @State private var showingAIAssistant: Bool = false
@@ -125,13 +128,8 @@ struct PackingListContainerView: View {
             packingListView
         }
         .safeAreaInset(edge: .bottom) {
-            if isAddingNewItem && !isReorderingSections {
+            if isAddingNewItem {
                 newItemAccessoryBar
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if isReorderingSections {
-                doneButton
             }
         }
         .navigationTitle(title ?? "Packing")
@@ -141,9 +139,9 @@ struct PackingListContainerView: View {
                 PackingListEditView(
                     packingList: list,
                     trip: trip,
-                    isDeleted: .constant(false)
+                    isDeleted: .constant(false),
+                    fitsContent: true
                 )
-                .presentationDetents([.medium])
             }
         }
         .sheet(isPresented: $showingAddListSheet) {
@@ -153,9 +151,9 @@ struct PackingListContainerView: View {
                     trip: trip,
                     onListCreated: { newList in
                         newItemList = newList
-                    }, isDeleted: .constant(false)
+                    }, isDeleted: .constant(false),
+                    fitsContent: true
                 )
-                .presentationDetents([.medium])
             }
         }
         .sheet(isPresented: $isApplyingDefaultPackingList) {
@@ -208,6 +206,25 @@ struct PackingListContainerView: View {
         .alert("List saved as default", isPresented: $isShowingSaveSuccessful) {
             Button("OK", role: .cancel) {}
         }
+        .alert(
+            "Delete \(listToDelete?.name ?? "Section")?",
+            isPresented: Binding(get: { listToDelete != nil }, set: { if !$0 { listToDelete = nil } }),
+            presenting: listToDelete
+        ) { list in
+            Button("Delete", role: .destructive) {
+                withAnimation(.packingSpring) {
+                    PackingList.delete(list, from: modelContext)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { list in
+            let count = list.items?.count ?? 0
+            if list.appliedFromTemplate != nil {
+                Text("\(count) \(pluralizeString("item", count: count)) will be removed from this trip. The template it was applied from won't change.")
+            } else {
+                Text("\(count) \(pluralizeString("item", count: count)) will be removed from this trip.")
+            }
+        }
         .onChange(of: isDeleted) {
             dismiss()
         }
@@ -224,6 +241,7 @@ struct PackingListContainerView: View {
         .toolbar {
             containerToolbar
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: removedItems.count)
         .onAppear {
             // Only seed on first appearance so returning to this view keeps the user's picks
             if newItemUser == nil {
@@ -340,18 +358,6 @@ struct PackingListContainerView: View {
         .disabled(lists.count <= 1)
     }
 
-    // MARK: - Done Button (Reorder Mode)
-
-    private var doneButton: some View {
-        Button("Done") {
-            isReorderingSections = false
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .padding(.trailing, 16)
-        .padding(.bottom, 16)
-    }
-
     private var packingListView: some View {
         VStack(spacing: 0) {
             // User selector (trip context with multiple packers only)
@@ -362,51 +368,83 @@ struct PackingListContainerView: View {
                 )
             }
 
-            if context.isTrip, let trip = context.trip {
-                SectionedPackingListView(
-                    users: users,
-                    lists: lists,
-                    title: title,
-                    trip: trip,
-                    isAddingNewItem: $isAddingNewItem,
-                    newItemList: $newItemList,
-                    editingList: $editingList,
-                    showingAddListSheet: $showingAddListSheet,
-                    isApplyingDefaultPackingList: $isApplyingDefaultPackingList,
-                    selectedUser: $selectedUser,
-                    selectedType: $selectedType,
-                    showDayOfOnly: $showDayOfOnly,
-                    isReorderingSections: $isReorderingSections,
-                    scrollToPlaceholder: $scrollToPlaceholder,
-                    newItemName: $newItemName,
-                    newItemFieldFocused: $newItemFieldFocused,
-                    newItemCount: newItemCount,
-                    onSubmitNewItem: addNewItemAndContinue,
-                    onStartAddingItem: startAddingNewItem(in:),
-                    onTapEmptyArea: handleTapOnEmptyArea(in:),
-                    isShowingAssistantPanel: isShowingAssistantPanel
-                ) {
-                    if isAssistantPanelMounted {
-                        AIAssistantSheet(
-                            viewModel: assistantViewModel,
-                            trip: trip,
-                            users: users,
-                            targetUser: $newItemUser,
-                            onSubscriptionLapsed: {
-                                closeAssistantPanel()
-                                showingAIPaywall = true
-                            },
-                            onClose: closeAssistantPanel
-                        )
-                    }
-                }
+            if let trip = context.trip {
+                tripPackingView(trip: trip)
             } else if let singleList = context.singleList {
                 singleListView(list: singleList)
             }
 
-            // Summary bar hidden when adding to prevent stacking with input bar
-            if showSummaryBar && !isAddingNewItem {
+            // Single lists only (trips show progress on each page). Hidden when adding
+            // to prevent stacking with the input bar.
+            if showSummaryBar && !isAddingNewItem && !context.isTrip {
                 PackingSummaryBar(packingLists: lists)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func assistantPanel(trip: Trip) -> some View {
+        if isAssistantPanelMounted {
+            AIAssistantSheet(
+                viewModel: assistantViewModel,
+                trip: trip,
+                users: users,
+                targetUser: $newItemUser,
+                onSubscriptionLapsed: {
+                    closeAssistantPanel()
+                    showingAIPaywall = true
+                },
+                onClose: closeAssistantPanel
+            )
+        }
+    }
+
+    // MARK: - Trip Packing
+
+    private func tripPackingInput(trip: Trip) -> PackingPrototypeInput {
+        PackingPrototypeInput(
+            trip: trip,
+            lists: sortedLists,
+            users: users,
+            selectedUser: selectedUser,
+            add: PackingAddFlow(
+                isAdding: isAddingNewItem,
+                targetList: $newItemList,
+                name: $newItemName,
+                isFocused: $newItemFieldFocused,
+                count: newItemCount,
+                submit: addNewItemAndContinue,
+                start: startAddingNewItem(in:),
+                tapEmpty: handleTapOnEmptyArea(in:)
+            ),
+            onEditList: { editingList = $0 },
+            onCreateList: { showingAddListSheet = true },
+            onApplyTemplate: { isApplyingDefaultPackingList = true },
+            onDeleteList: { listToDelete = $0 },
+            isRemovingItems: isRemovingItems,
+            onStartRemovingItems: startRemovingItems,
+            onRemoveItem: removeItem
+        )
+    }
+
+    /// Regular width: the AI panel takes the right half when open
+    @ViewBuilder
+    private func tripPackingView(trip: Trip) -> some View {
+        // One structure for both size classes so FocusPackingView keeps its identity (and the page
+        // it's on) when the Duo unfolds; only the panel beside it is conditional
+        GeometryReader { proxy in
+            HStack(spacing: 0) {
+                FocusPackingView(input: tripPackingInput(trip: trip))
+                    .frame(maxWidth: .infinity)
+
+                if horizontalSizeClass == .regular {
+                    assistantPanel(trip: trip)
+                        .frame(width: isShowingAssistantPanel ? proxy.size.width / 2 : 0)
+                        .clipped()
+                        .overlay(alignment: .leading) { Divider() }
+                        .allowsHitTesting(isShowingAssistantPanel)
+                        .accessibilityHidden(!isShowingAssistantPanel)
+                }
             }
         }
     }
@@ -556,7 +594,9 @@ struct PackingListContainerView: View {
 
     @ToolbarContentBuilder
     private var containerToolbar: some ToolbarContent {
-        if isAddingNewItem {
+        if isRemovingItems {
+            removingItemsToolbar
+        } else if isAddingNewItem {
             addingItemToolbar
         } else if context.isTrip {
             tripToolbar
@@ -570,7 +610,8 @@ struct PackingListContainerView: View {
     /// Primary action lives in the bottom bar; on the folded iPhone Duo the system moves it to the side bar
     @ToolbarContentBuilder
     private var addItemToolbar: some ToolbarContent {
-        if !isReorderingSections {
+        // A trip with no sections has nowhere to put an item: create or apply one first
+        if !(context.isTrip && lists.isEmpty) {
             ToolbarSpacer(placement: .bottomBar)
             ToolbarItem(placement: .bottomBar) {
                 Button("Add Item", systemImage: "plus") {
@@ -585,6 +626,23 @@ struct PackingListContainerView: View {
         ToolbarItem(placement: .confirmationAction) {
             // Title + symbol so the system has a name to show in overflow menus and expanded bars
             Button { finishAddingNewItem() } label: {
+                Label("Done", systemImage: "checkmark")
+                    .fontWeight(.semibold)
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var removingItemsToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button("Undo", systemImage: "arrow.uturn.backward", action: undoRemoveItem)
+                .disabled(removedItems.isEmpty)
+                .accessibilityHint(removedItems.last.map { "Puts back \($0.name)" } ?? "")
+        }
+        ToolbarItem(placement: .confirmationAction) {
+            Button {
+                withAnimation(.packingSpring) { isRemovingItems = false }
+            } label: {
                 Label("Done", systemImage: "checkmark")
                     .fontWeight(.semibold)
             }
@@ -625,33 +683,6 @@ struct PackingListContainerView: View {
                 }
             }
             .accessibilityHint(purchaseManager.hasUnlockedPlus ? "" : "Requires Packing Helper Plus")
-        }
-
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Button {
-                    showingAddListSheet.toggle()
-                } label: {
-                    Label("Create Section", systemImage: "plus")
-                }
-
-                Button {
-                    isApplyingDefaultPackingList.toggle()
-                } label: {
-                    Label("Apply Template", systemImage: "doc.on.doc")
-                }
-
-                Divider()
-
-                Button {
-                    isReorderingSections = true
-                } label: {
-                    Label("Reorder Sections", systemImage: "arrow.up.arrow.down")
-                }
-            } label: {
-                // Ellipsis is reserved for the system overflow menu (iPhone Duo HIG)
-                Label("Sections", systemImage: "list.bullet.rectangle")
-            }
         }
     }
 
@@ -722,6 +753,8 @@ struct PackingListContainerView: View {
 
     /// Shows the inline new item row in `list` (or the current target list) and focuses it
     private func startAddingNewItem(in list: PackingList?) {
+        // Items need a section; with none, the Add a Section page is the way forward
+        guard !(context.isTrip && lists.isEmpty) else { return }
         if let list, list.persistentModelID != newItemList?.persistentModelID {
             // Save anything typed for the previous list before the row moves
             insertNewItem()
@@ -784,6 +817,33 @@ struct PackingListContainerView: View {
 
             newItemName = ""
             newItemCount = 1
+        }
+    }
+
+    // MARK: - Remove Items Actions
+
+    private func startRemovingItems() {
+        if isAddingNewItem {
+            finishAddingNewItem()
+        }
+        withAnimation(.packingSpring) { isRemovingItems = true }
+    }
+
+    private func removeItem(_ item: Item) {
+        if let removed = RemovedItem(item) {
+            removedItems.append(removed)
+        }
+        withAnimation(.packingSpring) { modelContext.delete(item) }
+    }
+
+    /// Puts back the most recently removed item whose section still exists
+    private func undoRemoveItem() {
+        while let removed = removedItems.popLast() {
+            guard !removed.list.isDeleted,
+                  lists.contains(where: { $0.persistentModelID == removed.list.persistentModelID })
+            else { continue }
+            withAnimation(.packingSpring) { removed.restore(in: modelContext) }
+            return
         }
     }
 

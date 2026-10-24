@@ -25,6 +25,11 @@ struct PackingListEditView: View {
 
     @State private var isDeleting: Bool = false
     @Binding var isDeleted: Bool
+
+    /// Sizes the sheet to the form instead of a fixed detent (trip sections are just a name field)
+    var fitsContent: Bool = false
+    /// Form content plus the nav bar, measured for `fitsContent`
+    @State private var fittedHeight: CGFloat?
     
     var formIsValid: Bool {
         let trimmed = listName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -52,6 +57,15 @@ struct PackingListEditView: View {
     }
     
     var body: some View {
+        if fitsContent {
+            // .medium until the form has been measured
+            content.presentationDetents([fittedHeight.map { PresentationDetent.height($0) } ?? .medium])
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         NavigationStack {
             Form {
                 Section("\(self.titleName) Details") {
@@ -70,6 +84,20 @@ struct PackingListEditView: View {
                         UserPickerView(selectedUser: $owner, style: .inline, allowAll: false)
                     }
                 }
+
+                if packingList != nil {
+                    Section {
+                        Button("Delete \(titleName)", role: .destructive) {
+                            isDeleting.toggle()
+                        }
+                    }
+                }
+            }
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                // Top inset is the nav bar; the keyboard's bottom inset is left out so focusing doesn't resize the sheet
+                geometry.contentSize.height + geometry.contentInsets.top
+            } action: { _, height in
+                if fitsContent { fittedHeight = height + 16 }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -91,14 +119,6 @@ struct PackingListEditView: View {
                 }
             }
 
-            if packingList != nil && !(packingList?.isDefault ?? false) {
-                Button("Delete", role: .destructive) {
-                    isDeleting.toggle()
-                }
-                .roundedBox()
-                .shaded()
-                .padding()
-            }
         }
         .onAppear {
             if let packingList {
