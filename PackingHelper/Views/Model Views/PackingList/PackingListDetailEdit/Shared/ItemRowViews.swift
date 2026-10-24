@@ -396,10 +396,38 @@ struct UnifiedItemRow: View {
         }
     }
 
+    @ViewBuilder
     var rowContent: some View {
-        HStack(spacing: 12) {
-            if !isTemplating {
-                Button(action: onTogglePacked) {
+        if isTemplating {
+            HStack(spacing: 12) {
+                TemplateItemMarker()
+
+                Button {
+                    if offset != 0 {
+                        closeSwipe()
+                    } else {
+                        onEdit()
+                    }
+                } label: {
+                    rowLabel
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+
+                if item.count > 1 {
+                    ItemCountBadge(count: item.count)
+                }
+            }
+        } else {
+            // Packing: the whole row toggles packed, not just the circle
+            Button {
+                if offset != 0 {
+                    closeSwipe()
+                } else {
+                    onTogglePacked()
+                }
+            } label: {
+                HStack(spacing: 12) {
                     Image(
                         systemName: item.isPacked
                             ? "checkmark.circle.fill" : "circle"
@@ -407,46 +435,40 @@ struct UnifiedItemRow: View {
                     .font(.title2)
                     .foregroundStyle(item.isPacked ? Color.blue : Color.secondary)
                     .contentTransition(.symbolEffect(.replace))
-                    // Reach ~44pt without spacing the rows further apart
-                    .contentShape(Rectangle().inset(by: -8))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(item.isPacked ? "Mark as unpacked" : "Mark as packed")
-            } else {
-                TemplateItemMarker()
-            }
+                    .accessibilityHidden(true)
 
-            Button {
-                if offset != 0 {
-                    closeSwipe()
-                } else {
-                    onEdit()
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(item.name)
-                        .font(isTemplating ? TemplateItemStyle.font : .body)
-                        .strikethrough(item.isPacked)
-                        .foregroundStyle(item.isPacked ? Color.secondary : Color.primary)
+                    rowLabel
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if canAddToTemplate {
-                        Text("New")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: .capsule)
-                            .transition(.scale.combined(with: .opacity))
-                            .accessibilityLabel("New, not in template")
+                    if item.count > 1 {
+                        ItemCountBadge(count: item.count)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityValue(item.isPacked ? "Packed" : "Not packed")
+            .accessibilityHint(item.isPacked ? "Unpacks the item" : "Packs the item")
+        }
+    }
 
-            if item.count > 1 {
-                ItemCountBadge(count: item.count)
+    private var rowLabel: some View {
+        HStack(spacing: 6) {
+            Text(item.name)
+                .font(isTemplating ? TemplateItemStyle.font : .body)
+                .strikethrough(item.isPacked)
+                .foregroundStyle(item.isPacked ? Color.secondary : Color.primary)
+
+            if canAddToTemplate {
+                Text("New")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quaternary, in: .capsule)
+                    .transition(.scale.combined(with: .opacity))
+                    .accessibilityLabel("New, not in template")
             }
         }
     }
