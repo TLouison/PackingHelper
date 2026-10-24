@@ -47,6 +47,11 @@ private struct UnsplashSearchRequest: Encodable {
     let page: Int
 }
 
+private struct UnsplashRandomRequest: Encodable {
+    let rcAppUserId: String
+    let query: String
+}
+
 private struct UnsplashDownloadRequest: Encodable {
     let rcAppUserId: String
     let downloadLocation: String
@@ -112,6 +117,22 @@ struct UnsplashService {
         let data = try await post("v1/photos/search", body: body)
         do {
             return try JSONDecoder().decode(UnsplashSearchResponse.self, from: data)
+        } catch {
+            throw UnsplashServiceError.decoding(error)
+        }
+    }
+
+    /// One random photo for `query`, or nil when nothing matches.
+    func randomPhoto(query: String) async throws -> UnsplashPhoto? {
+        let body = UnsplashRandomRequest(rcAppUserId: AITripContextBuilder.rcAppUserId, query: query)
+        let data: Data
+        do {
+            data = try await post("v1/photos/random", body: body)
+        } catch UnsplashServiceError.server(404) {
+            return nil
+        }
+        do {
+            return try JSONDecoder().decode(UnsplashPhoto.self, from: data)
         } catch {
             throw UnsplashServiceError.decoding(error)
         }

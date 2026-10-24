@@ -16,6 +16,14 @@ enum CoverPhotoSource: String, Codable {
     case library, unsplash
 }
 
+/// What a new trip shows before the user picks a cover photo. Stored in
+/// `@AppStorage("defaultTripCover")`; only consulted when creating a trip.
+enum DefaultTripCover: String, CaseIterable {
+    /// A random Unsplash photo of the destination, picked in the new-trip form.
+    case photo = "Photo"
+    case map = "Map"
+}
+
 /// Properties needed to render a cover photo, shared by the persisted model and
 /// the edit-time draft so both render through `CoverPhotoImageView`.
 protocol CoverPhotoRepresentable {

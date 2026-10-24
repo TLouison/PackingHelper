@@ -13,6 +13,8 @@ struct CoverPhotoSection: View {
     @Binding var draft: CoverPhotoDraft?
     let destinationName: String?
     let tripName: String
+    /// The new-trip form is fetching a random photo for the destination.
+    var isLoading = false
 
     @Environment(PurchaseManager.self) private var purchaseManager
 
@@ -89,7 +91,7 @@ struct CoverPhotoSection: View {
                 }
             }
             .overlay {
-                if isProcessing {
+                if isProcessing || isLoading {
                     ProgressView()
                 }
             }

@@ -21,6 +21,15 @@ struct TripEditView: View {
     @State private var destinationLocation: TripLocation?
     /// Staged cover photo; written to the trip only on save. nil = destination map.
     @State private var coverPhotoDraft: CoverPhotoDraft?
+    /// Random photo picked for a new trip's destination. Re-picked when the
+    /// destination changes, until the user changes or removes the cover photo.
+    @State private var autoCoverPhoto: CoverPhotoDraft?
+    /// Destination the last pick ran for; `.task` re-runs when the template
+    /// step pops back, which shouldn't re-roll the photo.
+    @State private var autoCoverDestinationID: PersistentIdentifier?
+    @State private var coverPhotoIsUserChosen = false
+    /// Set while a pick is in flight; a superseded pick doesn't clear a newer one's.
+    @State private var coverPhotoFetchID: UUID?
 
     // UI State
     @State private var showingDestinationSearch = false
@@ -40,6 +49,7 @@ struct TripEditView: View {
     @State private var showingTemplateStep = false
 
     @AppStorage("autoCreateDefaultLists") private var autoCreateDefaultLists = false
+    @AppStorage("defaultTripCover") private var defaultTripCover = DefaultTripCover.photo.rawValue
 
     private var isCreating: Bool { trip == nil }
     private var canSave: Bool { destinationLocation != nil }
@@ -157,6 +167,14 @@ struct TripEditView: View {
             }
             .sheet(isPresented: $showingDestinationSearch) {
                 LocationSearchView(location: $destinationLocation, title: "Where to?")
+            }
+            .task(id: destinationLocation?.persistentModelID) {
+                await pickRandomCoverPhoto()
+            }
+            .onChange(of: coverPhotoDraft) { _, newDraft in
+                if newDraft != autoCoverPhoto {
+                    coverPhotoIsUserChosen = true
+                }
             }
             .navigationTitle(isCreating ? "New Trip" : "Edit Trip")
             .navigationBarTitleDisplayMode(.inline)
@@ -326,8 +344,59 @@ struct TripEditView: View {
     // MARK: - Cover Photo Section
     var coverPhotoSection: some View {
         formSection("Cover Photo", footer: "Optional. Shown instead of the map on your trip.") {
-            CoverPhotoSection(draft: $coverPhotoDraft, destinationName: destinationLocation?.name, tripName: tripName)
+            CoverPhotoSection(
+                draft: $coverPhotoDraft,
+                destinationName: destinationLocation?.name,
+                tripName: tripName,
+                isLoading: coverPhotoFetchID != nil
+            )
         }
+    }
+
+    /// New trips only, when Settings → Default Cover is Photo. Searches the
+    /// destination city, then the trip name; a failed or empty search leaves
+    /// the map (dropping a photo picked for a previous destination).
+    private func pickRandomCoverPhoto() async {
+        guard isCreating,
+              defaultTripCover == DefaultTripCover.photo.rawValue,
+              !coverPhotoIsUserChosen,
+              let destination = destinationLocation,
+              destination.persistentModelID != autoCoverDestinationID else { return }
+
+        let fetchID = UUID()
+        coverPhotoFetchID = fetchID
+        defer {
+            if coverPhotoFetchID == fetchID { coverPhotoFetchID = nil }
+        }
+
+        var queries: [String] = []
+        for query in [
+            UnsplashPickerView.initialQuery(forDestination: destination.name),
+            tripName.trimmingCharacters(in: .whitespacesAndNewlines),
+        ] where !query.isEmpty && !queries.contains(query) {
+            queries.append(query)
+        }
+
+        for query in queries {
+            do {
+                guard let photo = try await UnsplashService.shared.randomPhoto(query: query) else { continue }
+                guard !Task.isCancelled, !coverPhotoIsUserChosen else { return }
+                let draft = CoverPhotoDraft(unsplash: photo)
+                autoCoverDestinationID = destination.persistentModelID
+                autoCoverPhoto = draft
+                coverPhotoDraft = draft
+                return
+            } catch {
+                if Task.isCancelled { return }
+                AppLogger.trip.error("Failed to fetch random cover photo: \(error.localizedDescription)")
+                break
+            }
+        }
+
+        guard !Task.isCancelled, !coverPhotoIsUserChosen else { return }
+        autoCoverDestinationID = destination.persistentModelID
+        autoCoverPhoto = nil
+        coverPhotoDraft = nil
     }
 
     // MARK: - Buttons

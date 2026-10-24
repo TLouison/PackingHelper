@@ -98,17 +98,33 @@ struct SettingsView: View {
 /// its own row; extend the footer copy when one needs explaining.
 private struct TripSettingsSection: View {
     @AppStorage("autoCreateDefaultLists") private var autoCreateDefaultLists = false
+    @AppStorage("defaultTripCover") private var defaultTripCover = DefaultTripCover.photo.rawValue
 
     var body: some View {
         Section {
             Toggle(isOn: $autoCreateDefaultLists) {
                 Label("Add Default Section", systemImage: "list.bullet.clipboard")
             }
+
+            Picker(selection: $defaultTripCover) {
+                ForEach(DefaultTripCover.allCases, id: \.self) { cover in
+                    Text(cover.rawValue).tag(cover.rawValue)
+                }
+            } label: {
+                Label("Default Cover", systemImage: "photo")
+            }
         } header: {
             Text("Trips")
         } footer: {
-            Text("New trips start with an empty Default section.")
+            Text(footer)
         }
+    }
+
+    private var footer: String {
+        let cover = defaultTripCover == DefaultTripCover.map.rawValue
+            ? "New trips show the destination map until you choose a photo."
+            : "New trips get a random photo of the destination, which you can change."
+        return "New trips start with an empty Default section. \(cover)"
     }
 }
 
