@@ -67,6 +67,7 @@ Legacy fields above are slated for removal in one schema change (see ROADMAP.md 
 - `@AppStorage` for user preferences (onboarding status, view modes); appearance follows the system by default
 - Navigation uses `NavigationStack` with type-safe `NavigationPath`
 - Don't nest `NavigationStack`s — pushed or sheet content that already has one must not be wrapped in another
+- Empty-state actions use `EmptyStateButton` (`Views/General/`; extra-large glass, filled for the main action) with one or two short sentences of copy
 
 **Focus State Management:**
 - IMPORTANT: When using text fields with keyboards, manage focus at the parent level
@@ -124,6 +125,11 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 - Only fetches for trips within 5 days of start date
 - Use `getTripWeather(for:)` / `getCurrentWeather(for:)` / `getWeatherForecast(for:)` on TripLocation
 
+**Tips (TipKit):**
+- Features are taught in context, not in onboarding. Tips live in `Views/General/PackingTips.swift`; `Tips.configure()` runs in `PackingHelperApp.init`
+- The Focus packing tips (apply template, tap to pack, reorder sections) share one `TipGroup(.firstAvailable)` in `FocusPackingView`, so only one shows at a time; their rules read `@Parameter`s set from the view
+- Developer Menu → "Reset Tips on Next Launch" (the datastore can only be reset before `configure`)
+
 **Notifications:**
 - `NotificationUtilities.swift` wraps UNNotification permission handling
 - Day-of packing notification at 8 AM (hardcoded) on trip start date, gated by `showingNotifications`
@@ -162,7 +168,7 @@ PackingHelper/           # Xcode synchronized folder — new files are added to 
 │   ├── Location/        # MKLocalSearchCompleter location search
 │   ├── Weather/         # WeatherChip
 │   ├── General/         # Shared UI components
-│   ├── Onboarding/      # First launch flow
+│   ├── Onboarding/      # First-launch WelcomeView (creates the first packer; name optional, defaults to "Me")
 │   └── Settings/        # App settings + Developer Menu
 ├── Utilities/           # Cross-cutting concerns (Color, Calendar, Style, Purchase, etc.)
 └── PackingEngine/       # ML categorization

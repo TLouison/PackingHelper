@@ -119,11 +119,11 @@ struct EmptyStateView: View {
                 .font(.system(size: 60))
                 .foregroundStyle(.gray.opacity(0.3))
             
-            Text("You haven't added any items yet!")
+            Text("No Items Yet")
                 .font(.headline)
                 .foregroundStyle(.secondary)
             
-            Text("Tap the + button to add your first item")
+            Text("Tap + to add your first item.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 
 struct DefaultPackingListView: View {
     @Environment(\.modelContext) private var modelContext
@@ -183,7 +184,10 @@ struct DefaultPackingListView: View {
     private var reviewBanner: some View {
         let reviewCount = self.reviewCount
         if reviewCount > 0 {
-            Button { showingReviewSheet = true } label: {
+            Button {
+                SaveToTemplateTip().invalidate(reason: .actionPerformed)
+                showingReviewSheet = true
+            } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "square.and.arrow.down.on.square")
                         .font(.title3)
@@ -211,6 +215,7 @@ struct DefaultPackingListView: View {
                 .shaded()
             }
             .buttonStyle(.plain)
+            .popoverTip(SaveToTemplateTip(), arrowEdge: .bottom)
             .padding(.horizontal)
             .padding(.bottom, 8)
             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -234,17 +239,40 @@ struct DefaultPackingListView: View {
         .transition(.move(edge: .top).combined(with: .opacity))
     }
     
+    @ViewBuilder
     private var emptyState: some View {
-        PackingListEmptyStateView(
-            hasFilters: hasActiveFilters,
-            message: hasActiveFilters ?
-                "Try a different search term" :
-                "Create your first template to get started",
-            actionButtonTitle: hasActiveFilters ?
-                "Clear Search" : "Create Template",
-            onAction: hasActiveFilters ?
-                { searchText = "" } : { showingAddSheet.toggle() }
-        )
+        if hasActiveFilters {
+            PackingListEmptyStateView(
+                hasFilters: true,
+                message: "Try a different search term",
+                actionButtonTitle: "Clear Search",
+                onAction: { searchText = "" }
+            )
+        } else {
+            // No templates yet: teach what they're for here, where they're made.
+            // Pinned to the top (not centered like ContentUnavailableView) so the button sits mid-screen.
+            ScrollView {
+                VStack(spacing: 24) {
+                    TemplateAnimationView()
+
+                    VStack(spacing: 8) {
+                        Text("No Templates Yet")
+                            .font(.title2.bold())
+                        Text("Save the lists you pack every trip, then apply them to fill a new trip in seconds.")
+                            .foregroundStyle(.secondary)
+                    }
+                    .multilineTextAlignment(.center)
+
+                    EmptyStateButton(title: "Create Template", systemImage: "plus") {
+                        showingAddSheet.toggle()
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.top, 16)
+                .frame(maxWidth: .infinity)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
     }
     
     @ToolbarContentBuilder

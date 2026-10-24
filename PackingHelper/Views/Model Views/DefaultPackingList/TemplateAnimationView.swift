@@ -1,7 +1,12 @@
 import SwiftUI
 
+/// Looping demo for the empty Templates tab: pick templates, they drop into the trip.
+/// Drawn on a card with an arrow (not a button) so it reads as an illustration, not live controls.
+/// Reduce Motion shows the still starting frame.
 struct TemplateAnimationView: View {
-    let selectedColor: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let selectedColor = Color.accentColor
 
     // Per-icon state (5 icons)
     @State private var iconScales: [CGFloat] = Array(repeating: 1.0, count: 5)
@@ -14,16 +19,16 @@ struct TemplateAnimationView: View {
     @State private var cursorOffset: CGSize = CGSize(width: -86, height: -61)
     @State private var cursorOpacity: Double = 0
 
-    // Apply button
-    @State private var applyScale: CGFloat = 1.0
-    @State private var applyFlashed: Bool = false
+    // Arrow between the templates and the trip
+    @State private var arrowScale: CGFloat = 1.0
+    @State private var arrowHighlighted: Bool = false
 
     // Trip suitcase
     @State private var tripScale: CGFloat = 1.0
 
     // Layout constants (y offsets relative to ZStack center)
     private let iconsY: CGFloat = -75
-    private let applyY: CGFloat = -10
+    private let arrowY: CGFloat = -10
     private let suitcaseY: CGFloat = 70
 
     private let selectedIndices = [0, 2, 4]
@@ -35,10 +40,6 @@ struct TemplateAnimationView: View {
     // hand.point.up.left.fill: fingertip is near top-left of bounds (~14pt from center)
     private func cursorOffsetForIcon(_ i: Int) -> CGSize {
         CGSize(width: iconX(i) + 14, height: iconsY + 14)
-    }
-
-    private var cursorOffsetForApply: CGSize {
-        CGSize(width: 14, height: applyY + 14)
     }
 
     // Offset to fly icon[i] from its row position to the suitcase
@@ -76,20 +77,16 @@ struct TemplateAnimationView: View {
             try await tapIcon(index: idx)
         }
 
-        // Phase 2: cursor taps Apply button
-        withAnimation(.easeInOut(duration: 0.3)) { cursorOffset = cursorOffsetForApply }
-        try await Task.sleep(for: .seconds(0.35))
-
-        withAnimation(.spring(response: 0.15, dampingFraction: 0.6)) {
-            applyScale = 0.9
-            applyFlashed = true
-        }
-        try await Task.sleep(for: .seconds(0.15))
-        withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) { applyScale = 1.0 }
-        try await Task.sleep(for: .seconds(0.1))
-        withAnimation(.easeOut(duration: 0.15)) { applyFlashed = false }
+        // Phase 2: cursor leaves, arrow pulses toward the trip
         withAnimation(.easeOut(duration: 0.2)) { cursorOpacity = 0 }
-        try await Task.sleep(for: .seconds(0.25))
+        try await Task.sleep(for: .seconds(0.2))
+
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.5)) {
+            arrowScale = 1.3
+            arrowHighlighted = true
+        }
+        try await Task.sleep(for: .seconds(0.2))
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { arrowScale = 1.0 }
 
         // Phase 3: selected templates fly to suitcase
         withAnimation(.easeIn(duration: 0.5)) {
@@ -100,6 +97,7 @@ struct TemplateAnimationView: View {
         }
         try await Task.sleep(for: .seconds(0.35))
 
+        withAnimation(.easeOut(duration: 0.2)) { arrowHighlighted = false }
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { tripScale = 1.08 }
         try await Task.sleep(for: .seconds(0.2))
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { tripScale = 1.0 }
@@ -155,18 +153,12 @@ struct TemplateAnimationView: View {
             }
             .offset(y: iconsY)
 
-            // Apply Templates pill button (decorative)
-            Text("Apply Templates")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(selectedColor)
-                .clipShape(Capsule())
-                .brightness(applyFlashed ? 0.2 : 0)
-                .scaleEffect(applyScale)
-                .offset(y: applyY)
+            // Arrow from the templates to the trip
+            Image(systemName: "arrow.down")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(selectedColor.opacity(arrowHighlighted ? 1 : 0.4))
+                .scaleEffect(arrowScale)
+                .offset(y: arrowY)
 
             // Suitcase (trip destination)
             ZStack {
@@ -188,7 +180,12 @@ struct TemplateAnimationView: View {
                 .offset(cursorOffset)
         }
         .frame(height: 220)
-        .task {
+        .padding(.horizontal, 24)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 24))
+        .accessibilityHidden(true)
+        .task(id: reduceMotion) {
+            guard !reduceMotion else { return }
             while !Task.isCancelled {
                 do { try await runSequence() } catch { break }
             }
@@ -197,6 +194,6 @@ struct TemplateAnimationView: View {
 }
 
 #Preview {
-    TemplateAnimationView(selectedColor: .blue)
+    TemplateAnimationView()
         .padding()
 }

@@ -80,14 +80,16 @@ struct TripDetailPackingView: View {
 
     private var emptyState: some View {
         ContentUnavailableView {
-            Label("No Packing Lists", systemImage: suitcaseIcon)
+            Label("Nothing to Pack Yet", systemImage: suitcaseIcon)
         } description: {
-            Text("You haven't added any packing lists to this trip!")
+            Text("Apply a template or start an empty section.")
         } actions: {
             CreateListMenu(
                 isAddingNewPackingList: $isAddingNewPackingList,
                 isApplyingDefaultPackingList: $isApplyingDefaultPackingList
             )
+            .buttonStyle(.glassProminent)
+            .controlSize(.extraLarge)
         }
     }
 

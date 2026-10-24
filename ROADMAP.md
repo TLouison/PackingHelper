@@ -21,12 +21,13 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 
 **Unused files:** `Users/UserListView.swift` + `UserListRowView.swift`; `Users/Components/UserPickerBaseView.swift`; `Users/UserView.swift`; `TripDetail/Sheets/TripDetailSheet.swift`, `TripSettingsSheet.swift`; `TripDetailPackingGaugeRowView.swift`; `Models/Preferences.swift`; `Preview Content/PreviewContainer.swift`; `Utilities/CacheUtilities.swift` (unless reused for 6.2); `/AIPrompts.xcconfig`.
 - **Decision:** `SubscriptionAwareButton` hardcodes `canPerformAction = true` — wire to `PurchaseManager` or replace with `Button`.
+- **Decision:** `User.defaultLocation` (home base, Settings → Your Profile) has no consumer since `TripEditView` stopped setting `origin`. Bring origin back (prefilled from it, asked on the first trip) or drop both in the §12 schema change.
 
 **Dead code inside live files** (verify no callers first):
 - `Trip.swift`: many unused helpers (`incompleteItemsCount`, `defaultTaskList`, `getLists(for:…)` variants, `create_or_update`, `delete`, `hasMultiplePackers`, `sampleTrip` — a global model that schedules real notifications; switch previews to `.sampleData`).
 - `PackingList.swift`: `filtered(user:)`, `containsMultiplePackers`, sample lists, legacy `createDefaultList`, `removeItem(at:)`.
 - `TripLocation.swift`: `update(...)` ×2, `from(data:)` (force unwrap), `coordinates`, `Codable` + `DefaultLocationInformation`.
-- `TripDetailView`, `TripListRowView`/`TripListScrollView`, onboarding, Shop CTA (copy promises "unlimited trips, templates, share lists"; Plus actually gives AI + Unsplash search/Load More), `UserPickerView`, `PackingEngineCore` result types, `WeatherUtilities.getCurrentTemperatureString`, commented-out previews.
+- `TripDetailView`, `TripListRowView`/`TripListScrollView`, Shop CTA (copy promises "unlimited trips, templates, share lists"; Plus actually gives AI + Unsplash search/Load More), `UserPickerView`, `PackingEngineCore` result types, `WeatherUtilities.getCurrentTemperatureString`, commented-out previews.
 - Check `ProductSuggestionModel.mlproj` "… 1 copy" files.
 
 ## 3. Data integrity ⚠️ some delete-rule changes
@@ -92,7 +93,6 @@ Drop dead `#available(iOS 26…)` else-branches (`User.swift`, `ViewModifierUtil
 - **10.5** Shared `TripBackgroundView` (list row + hero) and `Trip.statusDateText`.
 - **10.6** Shared modifiers: `.groupedCard`, `.deleteConfirmation`, `.editSheetToolbar`, `InfoRow`; move `FlowLayout` out of AI.
 - **10.7** `WorkerClient` shared by AI + Unsplash services.
-- **10.8** Onboarding (589 lines): `OnboardingPage`, `OnboardingStep` enum; `OnboardingViewModel` → `@Observable`; preview uses on-disk container.
 - **10.9** Misc: `UserPickerView` duplication, `UserColorPicker` `.opacity(.infinity)`, inconsistent default hex, `StorageKey` enum, `TripEditView` swipe-dismiss discards changes, `try?` swallowing in cover photo code, AI task routing relies on legacy `PackingList.type`.
 
 ## 11. Performance

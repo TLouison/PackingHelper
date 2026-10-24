@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import RevenueCat
+import TipKit
 
 @main
 struct PackingHelperApp: App {
@@ -39,6 +40,15 @@ struct PackingHelperApp: App {
         Purchases.logLevel = .debug
         #endif
         Purchases.configure(withAPIKey: REVENUECAT_PUBLIC_API_KEY)
+
+        // Feature tips (PackingTips.swift). The datastore can only be reset before configuring.
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "resetTipsOnLaunch") {
+            try? Tips.resetDatastore()
+            UserDefaults.standard.set(false, forKey: "resetTipsOnLaunch")
+        }
+        #endif
+        try? Tips.configure()
 
         // Perform data migration if needed
         if !hasMigratedDayOfLists {

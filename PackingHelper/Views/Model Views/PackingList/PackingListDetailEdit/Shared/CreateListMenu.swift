@@ -19,21 +19,21 @@ struct CreateListMenu: View {
     var body: some View {
         Menu {
             // Create list options
-            Button("Create New List") {
+            Button("New Section", systemImage: "plus") {
                 withAnimation {
                     isAddingNewPackingList.toggle()
                 }
             }
 
             if !defaultLists.isEmpty {
-                Button("Apply Template List") {
+                Button("Apply Template", systemImage: "doc.on.doc") {
                     withAnimation {
                         isApplyingDefaultPackingList.toggle()
                     }
                 }
             }
         } label: {
-            Label("Add List", systemImage: "plus.circle")
+            EmptyStateButtonLabel(title: "Add Section", systemImage: "plus")
         }
     }
 }

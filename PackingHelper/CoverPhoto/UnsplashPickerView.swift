@@ -110,7 +110,7 @@ struct UnsplashPickerView: View {
                 ContentUnavailableView(
                     "No Destination",
                     systemImage: "photo.on.rectangle.angled",
-                    description: Text("Add a destination or trip name to see photos for it, or get Plus to search Unsplash.")
+                    description: Text("Add a destination to see photos, or get Plus to search Unsplash.")
                 )
             }
         } else if let error {
@@ -175,16 +175,13 @@ struct UnsplashPickerView: View {
             Label("No Trip Photos", systemImage: "photo.on.rectangle.angled")
         } description: {
             Text(purchaseManager.isPlusActive
-                ? "We couldn't find any photos related to your trip. Try searching for something else."
-                : "We couldn't find any photos related to your trip. Get Plus to search Unsplash for something else, or choose one from your library.")
+                ? "Nothing matched your trip. Try another search."
+                : "Nothing matched your trip. Get Plus to search Unsplash, or pick one from your library.")
         } actions: {
             if !purchaseManager.isPlusActive {
-                Button {
+                EmptyStateButton(title: "Get Plus to Search", systemImage: "sparkles") {
                     showingPaywall = true
-                } label: {
-                    Label("Get Plus to Search", systemImage: "sparkles")
                 }
-                .buttonStyle(.borderedProminent)
             }
         }
     }

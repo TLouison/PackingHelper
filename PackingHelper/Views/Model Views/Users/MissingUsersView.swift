@@ -12,11 +12,11 @@ struct MissingUsersView: View {
     
     var body: some View {
         ContentUnavailableView {
-            Label("No Packers Found", systemImage: "person.fill")
+            Label("No Packers Yet", systemImage: "person.fill")
         } description: {
-            Text("Add a packer to get started!")
+            Text("Add a packer to start planning trips.")
         } actions: {
-            Button("Add Packer") {
+            EmptyStateButton(title: "Add Packer", systemImage: "person.badge.plus") {
                 showAddPackerSheet.toggle()
             }
         }

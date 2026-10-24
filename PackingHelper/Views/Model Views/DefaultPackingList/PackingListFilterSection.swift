@@ -145,13 +145,10 @@ struct PackingListEmptyStateView: View {
             Button(action: onAction) {
                 Text(actionButtonTitle)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.accentColor)
-                    .clipShape(.rect(cornerRadius: 12))
+                    .frame(maxWidth: 280)
             }
-            .padding(.horizontal, 32)
+            .buttonStyle(.glassProminent)
+            .controlSize(.extraLarge)
         }
         .padding(32)
         .background(Color(.secondarySystemGroupedBackground))

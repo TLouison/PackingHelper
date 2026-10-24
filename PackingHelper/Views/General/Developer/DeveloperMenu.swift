@@ -13,6 +13,7 @@ struct DeveloperMenuView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("resetTipsOnLaunch") private var resetTipsOnLaunch = false
     @Query private var users: [User]
     @State private var featureFlagsExpanded = true
     @State private var featureFlags = FeatureFlags.shared
@@ -36,7 +37,7 @@ struct DeveloperMenuView: View {
                         showingOnboardingPreview = true
                     }
                 } footer: {
-                    Text("Preview the onboarding flow without affecting your data.").font(.subheadline)
+                    Text("Preview the welcome screen without affecting your data.").font(.subheadline)
                 }
 
                 Section {
@@ -52,6 +53,12 @@ struct DeveloperMenuView: View {
                     Text("Resetting onboarding state will wipe out all trips and users. Be sure you want to do this, it cannot be undone.").font(.subheadline)
                 }
                 
+                Section {
+                    Toggle("Reset Tips on Next Launch", isOn: $resetTipsOnLaunch)
+                } footer: {
+                    Text("Shows every feature tip again after you relaunch the app.").font(.subheadline)
+                }
+
                 Section {
                     DisclosureGroup("Feature Flags", isExpanded: $featureFlagsExpanded) {
                         Toggle("Multiple Packers", isOn: $featureFlags.showingMultiplePackers)
@@ -75,7 +82,7 @@ struct DeveloperMenuView: View {
             }
             .navigationTitle("Developer Menu")
             .sheet(isPresented: $showingOnboardingPreview) {
-                OnboardingContainerView(modelContext: modelContext, isPreviewMode: true, onComplete: { showingOnboardingPreview = false })
+                WelcomeView(isPreview: true)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

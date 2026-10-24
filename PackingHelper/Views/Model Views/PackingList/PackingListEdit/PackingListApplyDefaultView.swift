@@ -228,7 +228,7 @@ struct ListSelectionView: View {
                     hasFilters: hasActiveFilters,
                     message: hasActiveFilters ?
                         "Try adjusting your filters" :
-                        "No lists available to select",
+                        "No templates to apply yet.",
                     actionButtonTitle: hasActiveFilters ?
                         "Clear All Filters" : "Done",
                     onAction: hasActiveFilters ?

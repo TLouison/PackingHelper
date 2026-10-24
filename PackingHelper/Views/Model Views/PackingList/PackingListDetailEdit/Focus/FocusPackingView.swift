@@ -15,6 +15,7 @@
 
 import SwiftData
 import SwiftUI
+import TipKit
 import UniformTypeIdentifiers
 
 /// A pager page: everything at once, one section, or the trailing "Add a Section" page
@@ -49,6 +50,22 @@ struct FocusPackingView: View {
     @State private var settlingUntil = Date.distantPast
     @State private var pendingPacks = PendingPackTracker()
     @State private var detailItem: Item?
+    /// One packing tip at a time, the first whose rules pass
+    @State private var tips = TipGroup(.firstAvailable) {
+        ApplyTemplateTip()
+        TapToPackTip()
+        ReorderSectionsTip()
+    }
+
+    /// What the tips' rules look at
+    private var tipState: FocusTipState {
+        let items = input.lists.flatMap { input.items(in: $0) }
+        return FocusTipState(
+            sections: input.lists.count,
+            unpacked: items.count(where: { !$0.isPacked }),
+            packed: items.count(where: \.isPacked)
+        )
+    }
 
     /// Every page in order: All, each section, Add a Section
     private var pages: [FocusPage] {
@@ -88,12 +105,25 @@ struct FocusPackingView: View {
                 visibleListIDs: visibleListIDs,
                 isAllVisible: isAllVisible,
                 isAddPageVisible: isAddPageVisible,
+                currentTip: tips.currentTip,
                 onSelectAll: goToAll,
                 onSelect: goTo,
                 onMove: moveList
             )
 
+            TipView(tips.currentTip as? TapToPackTip)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+
             pager
+        }
+        .onChange(of: tipState, initial: true) { old, state in
+            ApplyTemplateTip.tripHasNoSections = state.sections == 0
+            TapToPackTip.hasUnpackedItems = state.unpacked > 0
+            ReorderSectionsTip.sectionCount = state.sections
+            if state.packed > old.packed {
+                TapToPackTip().invalidate(reason: .actionPerformed)
+            }
         }
         .onAppear {
             if currentPage == nil {
@@ -137,6 +167,7 @@ struct FocusPackingView: View {
         .onChange(of: input.lists.map(\.persistentModelID)) { oldIDs, ids in
             // A section was just created or applied from a template: open it
             if let added = ids.first(where: { !oldIDs.contains($0) }) {
+                ApplyTemplateTip().invalidate(reason: .actionPerformed)
                 withAnimation(.smooth) { setPage(.list(added)) }
                 return
             }
@@ -320,6 +351,7 @@ struct FocusPackingView: View {
         withAnimation(.snappy) {
             SortOrderManager.reorderLists(&lists, moving: list, to: index)
         }
+        ReorderSectionsTip().invalidate(reason: .actionPerformed)
 
         // The pager's pages moved under it; snap back to the page that was showing
         snap(to: page)
@@ -358,6 +390,13 @@ struct FocusPackingView: View {
     }
 }
 
+/// Counts the packing tips' rules depend on
+private struct FocusTipState: Equatable {
+    var sections = 0
+    var unpacked = 0
+    var packed = 0
+}
+
 // MARK: - Rail
 
 private struct FocusBagRail: View {
@@ -368,6 +407,8 @@ private struct FocusBagRail: View {
     let isAllVisible: Bool
     /// Highlights the + like a selected chip while the "Add a Section" page is showing
     let isAddPageVisible: Bool
+    /// The packing tip showing, if it anchors to the rail
+    let currentTip: (any Tip)?
     let onSelectAll: () -> Void
     let onSelect: (PackingList) -> Void
     /// Moves a section to a slot among the other sections
@@ -419,6 +460,7 @@ private struct FocusBagRail: View {
         } action: { _, geometry in
             scrollGeometry = geometry
         }
+        .popoverTip(currentTip as? ReorderSectionsTip, arrowEdge: .top)
         .coordinateSpace(.named(Self.coordinateSpace))
         // One drop target for the whole rail, so gaps, the ends, and past the last chip all work
         .onDrop(
@@ -486,6 +528,7 @@ private struct FocusBagRail: View {
                 .animation(.snappy, value: isAddPageVisible)
         }
         .buttonStyle(.plain)
+        .popoverTip(currentTip as? ApplyTemplateTip, arrowEdge: .top)
         .disabled(input.isRemovingItems)
         .accessibilityLabel("Add Section")
         .accessibilityAddTraits(isAddPageVisible ? .isSelected : [])
@@ -661,19 +704,9 @@ private struct FocusAddSectionPage: View {
                 .multilineTextAlignment(.center)
 
             VStack(spacing: 10) {
-                Button(action: input.onApplyTemplate) {
-                    Label("Apply Template", systemImage: "doc.on.doc")
-                        .frame(maxWidth: 240)
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button(action: input.onCreateList) {
-                    Label("New Section", systemImage: "plus")
-                        .frame(maxWidth: 240)
-                }
-                .buttonStyle(.bordered)
+                EmptyStateButton(title: "Apply Template", systemImage: "doc.on.doc", action: input.onApplyTemplate)
+                EmptyStateButton(title: "New Section", systemImage: "plus", isProminent: false, action: input.onCreateList)
             }
-            .controlSize(.large)
             .padding(.top, 8)
             .disabled(input.isRemovingItems)
         }

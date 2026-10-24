@@ -59,12 +59,12 @@ struct TripListView: View {
         ContentUnavailableView {
             TripType.plane.startLabel(text: "No Upcoming Trips")
         } description: {
-            Text("You've completed all of your trips! Add a new one to start packing.")
+            Text("Every trip is done. Add your next one to start packing.")
         } actions: {
-            Button("Create Trip", systemImage: "folder.badge.plus") {
+            EmptyStateButton(title: "Create Trip", systemImage: "plus") {
                 isShowingAddTripSheet.toggle()
             }
-            Button("View Past Trips", systemImage: "globe.americas.fill") {
+            EmptyStateButton(title: "View Past Trips", systemImage: "globe.americas.fill", isProminent: false) {
                 viewModel.path.append(TripListRoute.pastTrips)
             }
         }
@@ -72,11 +72,11 @@ struct TripListView: View {
     
     var noTripsAddedView: some View {
         ContentUnavailableView {
-            Label("No Trips", systemImage: "airplane")
+            Label("No Trips Yet", systemImage: "airplane.departure")
         } description: {
-            Text("Add a trip to get started with your packing!")
+            Text("Add where and when you're going to start a packing list.")
         } actions: {
-            Button("Create Trip", systemImage: "folder.badge.plus") {
+            EmptyStateButton(title: "Create Trip", systemImage: "plus") {
                 isShowingAddTripSheet.toggle()
             }
         }

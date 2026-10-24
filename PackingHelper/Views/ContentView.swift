@@ -13,8 +13,6 @@ enum AppTab: Hashable {
 }
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var selectedTab: AppTab = .trips
 
@@ -47,7 +45,7 @@ struct ContentView: View {
             get: { !hasCompletedOnboarding },
             set: { _ in }
         )) {
-            OnboardingContainerView(modelContext: modelContext)
+            WelcomeView()
                 .interactiveDismissDisabled()
         }
     }
