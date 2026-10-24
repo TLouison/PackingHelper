@@ -82,7 +82,7 @@ struct TripDetailPackingView: View {
         ContentUnavailableView {
             Label("Nothing to Pack Yet", systemImage: suitcaseIcon)
         } description: {
-            Text("Apply a template or start an empty section.")
+            Text("Apply a template or start an empty list.")
         } actions: {
             CreateListMenu(
                 isAddingNewPackingList: $isAddingNewPackingList,

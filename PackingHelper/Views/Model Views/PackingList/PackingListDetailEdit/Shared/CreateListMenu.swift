@@ -17,23 +17,33 @@ struct CreateListMenu: View {
     ) private var defaultLists: [PackingList]
 
     var body: some View {
-        Menu {
-            // Create list options
-            Button("New Section", systemImage: "plus") {
-                withAnimation {
-                    isAddingNewPackingList.toggle()
-                }
+        // Nothing to apply without templates: skip the menu and create a list straight away
+        if defaultLists.isEmpty {
+            Button(action: addNewList) {
+                label
             }
+        } else {
+            Menu {
+                Button("New List", systemImage: "plus", action: addNewList)
 
-            if !defaultLists.isEmpty {
                 Button("Apply Template", systemImage: "doc.on.doc") {
                     withAnimation {
                         isApplyingDefaultPackingList.toggle()
                     }
                 }
+            } label: {
+                label
             }
-        } label: {
-            EmptyStateButtonLabel(title: "Add Section", systemImage: "plus")
+        }
+    }
+
+    private var label: some View {
+        EmptyStateButtonLabel(title: "Add List", systemImage: "plus")
+    }
+
+    private func addNewList() {
+        withAnimation {
+            isAddingNewPackingList.toggle()
         }
     }
 }
