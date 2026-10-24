@@ -15,7 +15,6 @@ struct CoverPhotoSection: View {
     let tripName: String
 
     @Environment(PurchaseManager.self) private var purchaseManager
-    @State private var featureFlags = FeatureFlags.shared
 
     @State private var libraryItem: PhotosPickerItem?
     @State private var showingLibraryPicker = false
@@ -117,15 +116,13 @@ struct CoverPhotoSection: View {
                 Label("Choose from Library", systemImage: "photo.on.rectangle")
             }
 
-            if featureFlags.showingUnsplashPhotos {
-                Button {
-                    showingUnsplashPicker = true
-                } label: {
-                    if purchaseManager.isPlusActive {
-                        Label("Search Unsplash", systemImage: "magnifyingglass")
-                    } else {
-                        Label("Browse Unsplash", systemImage: "photo.on.rectangle.angled")
-                    }
+            Button {
+                showingUnsplashPicker = true
+            } label: {
+                if purchaseManager.isPlusActive {
+                    Label("Search Unsplash", systemImage: "magnifyingglass")
+                } else {
+                    Label("Browse Unsplash", systemImage: "photo.on.rectangle.angled")
                 }
             }
 

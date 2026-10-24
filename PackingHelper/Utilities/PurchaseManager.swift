@@ -53,6 +53,15 @@ class PurchaseManager {
         }
     }
 
+    /// Restore prior App Store purchases (Settings › Restore Purchases).
+    /// Returns whether Plus is active afterward.
+    @discardableResult
+    func restore() async throws -> Bool {
+        let info = try await Purchases.shared.restorePurchases()
+        apply(info)
+        return isPlusActive
+    }
+
     private func apply(_ info: CustomerInfo) {
         isPlusActive = info.entitlements[Self.entitlementID]?.isActive == true
     }

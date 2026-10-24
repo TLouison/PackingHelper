@@ -134,6 +134,7 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 **Purchase Management (Plus):**
 - `PurchaseManager.swift` + RevenueCat SDK; read `purchaseManager.isPlusActive`
 - Plus gates the AI packing assistant and Unsplash search + Load More (free users get one 25-photo page for their destination, no search bar). There is no trip limit
+- Settings opens with `PlusSettingsSection` (upsell card, or an Active row → Customer Center); trip preferences go in its `TripSettingsSection`
 - AI and Unsplash go through a Cloudflare Worker (`WORKER_URL`), which verifies the RevenueCat entitlement server-side
 
 **AI Assistant:**
@@ -143,7 +144,8 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 ### Feature Flags
 
 Runtime `UserDefaults`-backed toggles on `FeatureFlags.shared` (`FeatureFlags.swift`), switched in the Developer Menu (Settings, DEBUG builds only):
-- `showingMultiplePackers`, `showingSubscription`, `showingNotifications`, `showingPackingEngine`, `showingProfilePictures`, `showingUnsplashPhotos`, `showingRecommendations` (unused)
+- `showingMultiplePackers`, `showingNotifications`, `showingPackingEngine`, `showingProfilePictures`
+- Flags are all off in Release builds (the menu is `#if DEBUG`), so a feature ships only once its flag is removed
 
 ### File Organization
 

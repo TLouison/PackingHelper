@@ -28,7 +28,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 - `TripLocation.swift`: `update(...)` ×2, `from(data:)` (force unwrap), `coordinates`, `Codable` + `DefaultLocationInformation`.
 - `UnifiedPackingListView.swift`: `UnpackedItemsSection`, `NoListSelectedView`. `showDayOfOnly` / `selectedType` bindings are never set by any UI — remove or build the filter.
 - `PackingListContainerView` single-list path is template-only — drop non-template branches.
-- `SettingsView`, `TripDetailView`, `TripListRowView`/`TripListScrollView`, onboarding, Shop CTA (copy promises "unlimited trips, templates, share lists"; Plus actually gives AI + Unsplash search/Load More), `UserPickerView`, `PackingEngineCore` result types, `WeatherUtilities.getCurrentTemperatureString`, commented-out previews.
+- `TripDetailView`, `TripListRowView`/`TripListScrollView`, onboarding, Shop CTA (copy promises "unlimited trips, templates, share lists"; Plus actually gives AI + Unsplash search/Load More), `UserPickerView`, `PackingEngineCore` result types, `WeatherUtilities.getCurrentTemperatureString`, commented-out previews.
 - Check `ProductSuggestionModel.mlproj` "… 1 copy" files.
 
 ## 3. Data integrity ⚠️ some delete-rule changes
@@ -41,8 +41,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 ## 4. Dates, status & notifications
 
 - **4.1** Trip dates keep creation time-of-day; `.departing`/`.returning` use `Date.now == startDate` (unreachable). Normalize to start of day on save; use `Calendar.isDateInToday`. `TripListView` predicates capture `now` once — refresh on scene active.
-- **4.2** Day-of notification (behind `showingNotifications`): scheduled in `Trip.init` before lists exist, never rescheduled/cancelled, random ID, hardcoded 8 AM. Build a `TripNotificationScheduler` with stable id `dayOf-<uuid>`, awaited auth, `notificationTime` setting, `rescheduleAll` on foreground.
-- **4.3** Settings that do nothing: `notificationTime`, `packerType`.
+- **4.2** Day-of notification (behind `showingNotifications`): scheduled in `Trip.init` before lists exist, never rescheduled/cancelled, random ID, hardcoded 8 AM. Build a `TripNotificationScheduler` with stable id `dayOf-<uuid>`, awaited auth, `notificationTime` setting (re-add its Settings picker to the Trips section), `rescheduleAll` on foreground.
 - **4.4** "Duration" is nights in some places, days in others; `countAsDays` gives 0 on day trips. Define `nights` and `days = nights + 1`.
 - **4.5** Forecast labels off by a day for far time zones; window can skip day one / overrun trip end; weather doesn't refresh after editing destination/dates. Store `TripLocation.timeZoneIdentifier`, `.task(id:)`.
 - **4.6** Forecast hardcodes °F; chip uses locale.
@@ -76,7 +75,6 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 - **7.7** One unknown `category` fails the whole reply — lenient decoding.
 - **7.8** Plus state under two names (`isPlusActive`, `hasUnlockedPlus`).
 - **7.9** Initial `customerInfo()` can overwrite a fresher refresh.
-- **7.10 Decision:** AI/Unsplash paywall entry points ignore `showingSubscription`.
 
 ## 8. Security & release
 
