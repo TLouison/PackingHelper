@@ -272,7 +272,12 @@ struct PackingListContainerView: View {
     }
 
     private var fallbackNewItemList: PackingList? {
-        lists.first(where: { $0.isDefault }) ?? lists.first
+        lists.first(where: { $0.isDefault }) ?? sortedLists.first
+    }
+
+    /// Lists in the same order as the sections in `SectionedPackingListView`
+    private var sortedLists: [PackingList] {
+        PackingList.sorted(lists, sortOrder: .byCustomOrder)
     }
 
     // MARK: - New Item Accessory Bar
@@ -305,7 +310,7 @@ struct PackingListContainerView: View {
 
     private var listPickerMenu: some View {
         Menu {
-            ForEach(lists, id: \.id) { list in
+            ForEach(sortedLists, id: \.id) { list in
                 Button {
                     newItemList = list
                 } label: {
@@ -330,6 +335,8 @@ struct PackingListContainerView: View {
             .padding(.vertical, 8)
             .opaqueGlassCapsule()
         }
+        // Menus opening upward from the bottom reverse their items by default; keep section order
+        .menuOrder(.fixed)
         .disabled(lists.count <= 1)
     }
 

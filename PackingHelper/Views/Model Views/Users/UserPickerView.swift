@@ -37,14 +37,17 @@ struct UserPickerView: View {
     }
     
     private var filteredUsers: [User] {
+        let candidates: [User]
         if let trip {
-            return users.filter { user in
+            candidates = users.filter { user in
                 trip.lists?.contains { list in
                     list.user == user
                 } ?? false
             }
+        } else {
+            candidates = users
         }
-        return users
+        return candidates.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
     
     var body: some View {
@@ -118,6 +121,8 @@ struct UserPickerView: View {
             .background(.thinMaterial)
             .clipShape(Capsule())
         }
+        // Menus opening upward from the bottom reverse their items by default; keep A–Z top to bottom
+        .menuOrder(.fixed)
     }
     
     private var inlinePicker: some View {

@@ -42,7 +42,7 @@ struct SettingsView: View {
     @AppStorage("packerType") private var packerType = PackerType.nightBefore.rawValue
     @AppStorage("defaultLocation") private var defaultLocationData: Data = (try? JSONEncoder().encode(TripLocation.sampleOrigin)) ?? Data()
     @AppStorage("notificationTime") private var notificationMinutes = 480
-    @AppStorage("autoCreateDefaultLists") private var autoCreateDefaultLists = true
+    @AppStorage("autoCreateDefaultLists") private var autoCreateDefaultLists = false
 
     @State private var selectedTime = Date()
     #if DEBUG
@@ -140,12 +140,12 @@ struct SettingsView: View {
 
                 Section {
                     Toggle(isOn: $autoCreateDefaultLists) {
-                        Label("Auto-create default lists", systemImage: "list.bullet.clipboard")
+                        Label("Auto-create default list", systemImage: "list.bullet.clipboard")
                     }
                 } header: {
                     Text("Trip Defaults")
                 } footer: {
-                    Text("When enabled, new trips will automatically include empty default packing and task lists.")
+                    Text("When enabled, new trips will automatically include an empty Default section.")
                 }
                 
                 if FeatureFlags.shared.showingNotifications {
@@ -228,7 +228,7 @@ extension UserDefaults {
     }
 
     var autoCreateDefaultLists: Bool {
-        object(forKey: "autoCreateDefaultLists") == nil ? true : bool(forKey: "autoCreateDefaultLists")
+        bool(forKey: "autoCreateDefaultLists")
     }
 }
 
