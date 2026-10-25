@@ -2,7 +2,7 @@
 //  PlusStatusView.swift
 //  PackingHelper
 //
-//  "Your Plus", pushed from Settings for subscribers: the plan and its state (renewing,
+//  "Packing Helper Plus", pushed from Settings for subscribers: the plan and its state (renewing,
 //  trial, cancelled, billing issue, lifetime), what's included, and subscription actions.
 //  Uses Apple's own sheets for managing and refunds; Customer Center stays behind Contact
 //  Support for troubleshooting.
@@ -69,7 +69,7 @@ struct PlusStatusView: View {
                 Button("Contact Support") { showingCustomerCenter = true }
             }
         }
-        .navigationTitle("Your Plus")
+        .navigationTitle("Packing Helper Plus")
         .navigationBarTitleDisplayMode(.inline)
         .manageSubscriptionsSheet(isPresented: $showingManageSubscriptions)
         .presentCustomerCenter(isPresented: $showingCustomerCenter)

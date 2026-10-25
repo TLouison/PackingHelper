@@ -3,7 +3,7 @@
 //  PackingHelper
 //
 //  Top of Settings: a hero upsell card for free users, or a slim status row
-//  that opens the Your Plus screen for subscribers.
+//  that opens the Plus status screen for subscribers.
 //
 
 import SwiftUI
@@ -53,7 +53,7 @@ struct PlusSettingsSection: View {
         return false
     }
 
-    /// Short state for the row; the Your Plus screen has the details
+    /// Short state for the row; the Plus status screen has the details
     private var statusText: String {
         switch PlusState(purchaseManager.plusEntitlement) {
         case .renewing, .inactive: "Active"

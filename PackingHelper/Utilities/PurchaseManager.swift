@@ -26,7 +26,7 @@ class PurchaseManager {
     static let entitlementID = "PackingHelperPlus"
 
     private(set) var isPlusActive = false
-    /// The Plus entitlement's details (plan, renewal, trial, billing issue) for the Your Plus screen
+    /// The Plus entitlement's details (plan, renewal, trial, billing issue) for the Plus status screen
     private(set) var plusEntitlement: EntitlementInfo?
 
     private var observer: Task<Void, Never>?
