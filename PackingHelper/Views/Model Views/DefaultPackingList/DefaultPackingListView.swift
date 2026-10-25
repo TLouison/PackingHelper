@@ -128,6 +128,8 @@ struct DefaultPackingListView: View {
             .safeAreaInset(edge: .bottom) { reviewBanner }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Template Lists")
+            // Large title level with the + button, matching the Trips tab
+            .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar { listToolbar }
             .navigationDestination(item: $selectedList) { list in
                 PackingListContainerView(packingList: list)

@@ -133,7 +133,8 @@ struct TripListView: View {
         NavigationStack(path: $viewModel.path) {
             listView
             .navigationTitle(viewTitle)
-            .navigationBarTitleDisplayMode(.large)
+            // Large title level with the toolbar buttons instead of on its own row below them
+            .toolbarTitleDisplayMode(.inlineLarge)
             .navigationDestination(for: Trip.self) { trip in
                 TripDetailView(trip: trip)
             }
