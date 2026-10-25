@@ -15,7 +15,7 @@ struct ApplyTemplateTip: Tip {
     @Parameter static var tripHasNoSections: Bool = false
 
     var title: Text { Text("Start with a Template") }
-    var message: Text? { Text("Tap + to apply a template you pack every trip, or make a new section.") }
+    var message: Text? { Text("Tap + to apply a template you pack every trip, or make a new list.") }
     var image: Image? { Image(systemName: "doc.on.doc") }
 
     /// Popovers closed by tapping outside aren't invalidated, so cap it at one showing
@@ -30,8 +30,8 @@ struct ApplyTemplateTip: Tip {
 struct ReorderSectionsTip: Tip {
     @Parameter static var sectionCount: Int = 0
 
-    var title: Text { Text("Reorder Sections") }
-    var message: Text? { Text("Hold a section and drag it to change the order.") }
+    var title: Text { Text("Reorder Lists") }
+    var message: Text? { Text("Hold a list and drag it to change the order.") }
     var image: Image? { Image(systemName: "hand.draw") }
 
     /// Popovers closed by tapping outside aren't invalidated, so cap it at one showing

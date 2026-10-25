@@ -208,7 +208,7 @@ struct ItemDetailSheet: View {
 
                 Section {
                     if lists.count > 1 {
-                        Picker("Section", selection: $list) {
+                        Picker("List", selection: $list) {
                             ForEach(lists) { list in
                                 Text(list.name).tag(Optional(list))
                             }

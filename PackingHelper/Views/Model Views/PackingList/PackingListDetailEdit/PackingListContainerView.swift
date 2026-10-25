@@ -188,7 +188,7 @@ struct PackingListContainerView: View {
     var body: some View {
         baseView
         .alert(
-            "Delete \(listToDelete?.name ?? "Section")?",
+            "Delete \(listToDelete?.name ?? "List")?",
             isPresented: Binding(get: { listToDelete != nil }, set: { if !$0 { listToDelete = nil } }),
             presenting: listToDelete
         ) { list in

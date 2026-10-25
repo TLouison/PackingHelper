@@ -4,9 +4,9 @@
 //
 //  Trip packing: pack one bag at a time. A rail of section chips (with live progress rings)
 //  sits over a horizontal pager with one full page per section. Big tap-anywhere item cards,
-//  packed items drop into an "In the bag" tray, and finishing a section offers the next one.
+//  packed items drop into a "Packed" tray, and finishing a section offers the next one.
 //  The add row always targets the page you're on. Hold a chip and drag to reorder sections;
-//  the rail's + creates a section or applies a template, as does the "Add a Section" page at the
+//  the rail's + creates a section or applies a template, as does the "Add a List" page at the
 //  end. The rail's first chip, All, opens a page listing every section's items under name
 //  headers. Wide layouts show two pages side by side (swipe moves one at a time).
 //  A section title's menu turns on Remove Items: minus buttons replace the checkboxes (packed
@@ -18,7 +18,7 @@ import SwiftUI
 import TipKit
 import UniformTypeIdentifiers
 
-/// A pager page: everything at once, one section, or the trailing "Add a Section" page
+/// A pager page: everything at once, one section, or the trailing "Add a List" page
 private enum FocusPage: Hashable {
     case all
     case list(PersistentIdentifier)
@@ -139,7 +139,7 @@ struct FocusPackingView: View {
             }
         }
         .onChange(of: input.add.isAdding) { _, isAdding in
-            // The bottom bar's + from the "Add a Section" page: bring the target section back on screen
+            // The bottom bar's + from the "Add a List" page: bring the target section back on screen
             if isAdding, let id = input.add.targetList.wrappedValue?.persistentModelID,
                !listIDsOnScreen.contains(id) {
                 withAnimation(.smooth) { setPage(.list(id)) }
@@ -380,7 +380,7 @@ private struct FocusBagRail: View {
     let visibleListIDs: [PersistentIdentifier]
     /// Highlights the All chip while the All page is showing
     let isAllVisible: Bool
-    /// Highlights the + like a selected chip while the "Add a Section" page is showing
+    /// Highlights the + like a selected chip while the "Add a List" page is showing
     let isAddPageVisible: Bool
     /// The packing tip showing, if it anchors to the rail
     let currentTip: (any Tip)?
@@ -477,7 +477,7 @@ private struct FocusBagRail: View {
         .modifier(ChipReorderDrag(list: list, isEnabled: !input.isRemovingItems, draggingList: $draggingList) { label })
         .accessibilityHint(input.isRemovingItems ? "" : "Hold and drag to reorder")
         .accessibilityActions {
-            Button("Edit Section") { input.onEditList(list) }
+            Button("Edit List") { input.onEditList(list) }
             if let index = index(of: list) {
                 if index > 0 {
                     Button("Move Left") { onMove(list, index - 1) }
@@ -492,7 +492,7 @@ private struct FocusBagRail: View {
     private var addSectionMenu: some View {
         Menu {
             Button("Apply Template", systemImage: "doc.on.doc", action: input.onApplyTemplate)
-            Button("New Section", systemImage: "plus", action: input.onCreateList)
+            Button("New List", systemImage: "plus", action: input.onCreateList)
         } label: {
             Image(systemName: "plus")
                 .font(.subheadline.weight(.semibold))
@@ -505,7 +505,7 @@ private struct FocusBagRail: View {
         .buttonStyle(.plain)
         .popoverTip(currentTip as? ApplyTemplateTip, arrowEdge: .top)
         .disabled(input.isRemovingItems)
-        .accessibilityLabel("Add Section")
+        .accessibilityLabel("Add List")
         .accessibilityAddTraits(isAddPageVisible ? .isSelected : [])
     }
 
@@ -670,17 +670,17 @@ private struct FocusAddSectionPage: View {
                 .foregroundStyle(.tertiary)
                 .accessibilityHidden(true)
 
-            Text("Add a Section")
+            Text("Add a List")
                 .font(.title2.bold())
 
-            Text("Bring in one of your templates, or start an empty section.")
+            Text("Bring in one of your templates, or start an empty list.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
             VStack(spacing: 10) {
                 EmptyStateButton(title: "Apply Template", systemImage: "doc.on.doc", action: input.onApplyTemplate)
-                EmptyStateButton(title: "New Section", systemImage: "plus", isProminent: false, action: input.onCreateList)
+                EmptyStateButton(title: "New List", systemImage: "plus", isProminent: false, action: input.onCreateList)
             }
             .padding(.top, 8)
             .disabled(input.isRemovingItems)
@@ -728,7 +728,7 @@ private struct FocusBagPage: View {
 
                     if !packed.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Label("In the bag · \(packed.count)", systemImage: "suitcase.rolling.fill")
+                            Label("Packed · \(packed.count)", systemImage: "suitcase.rolling.fill")
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(.secondary)
                                 .contentTransition(.numericText())
@@ -815,7 +815,7 @@ private struct FocusBagPage: View {
     }
 
     private func statusText(packed: Int, total: Int, isComplete: Bool) -> String {
-        if total == 0 { return "Nothing in this bag yet" }
+        if total == 0 { return "Nothing in this list yet" }
         if isComplete { return "All \(total) packed" }
         return "\(total - packed) to go · \(packed) of \(total) packed"
     }
@@ -839,7 +839,7 @@ private struct FocusBagPage: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
             } else {
-                Text("Every bag is packed. Ready to go!")
+                Text("Everything is packed. Ready to go!")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -861,12 +861,12 @@ private struct FocusSectionMenu: View {
         if !input.isRemovingItems {
             Button("New Item", systemImage: "plus") { input.add.start(list) }
         }
-        Button("Edit Section", systemImage: "pencil") { input.onEditList(list) }
+        Button("Edit List", systemImage: "pencil") { input.onEditList(list) }
         if !input.isRemovingItems {
             Button("Remove Items", systemImage: "minus.circle", action: input.onStartRemovingItems)
         }
         Divider()
-        Button("Delete Section", systemImage: "trash", role: .destructive) { input.onDeleteList(list) }
+        Button("Delete List", systemImage: "trash", role: .destructive) { input.onDeleteList(list) }
     }
 }
 

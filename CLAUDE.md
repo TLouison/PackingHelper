@@ -28,6 +28,7 @@ The app uses SwiftData with six models. All models have a `uuid`; use it (not `p
 - Status calculation based on dates: `.upcoming`, `.departing`, `.active`, `.returning`, `.complete`
 
 **PackingList** (a section of a trip, or a template)
+- User-facing copy calls a trip's sections **lists** ("New List", "Edit List"), never "section" or "bag"; packed items sit under **Packed**. Code still says section in names and comments
 - Properties: `name`, `template`, `isDefault`, `sortOrder`, `countAsDays`; legacy `type`, `isDayOf`
 - Belongs-to: `trip` (Trip); `user` (User) — owner for templates; legacy on trip lists
 - Has-many: `items` (Item, cascade delete)
@@ -104,7 +105,7 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 - `PackingListContainerView`: Hosts trip packing and single-template editing (the single-list path is template-only)
   - Provides shared toolbar, user selector, AI assistant sheet/panel
   - Manages global add state (accessory bar above the keyboard) and the Remove Items undo stack
-- **Trip packing** uses `FocusPackingView` (`PackingListDetailEdit/Focus/`): a chip rail (tap to jump, hold + drag to reorder, + to create a section or apply a template) over a pager with an All page (every section under name headers), one page per section, and an "Add a Section" page at the end; two pages side by side at ≥700pt width. Gets the container's add flow through `FocusPackingInput` (`FocusPackingSupport.swift`, which also holds `PackingItemActions`, `RemovedItem`, `ItemDetailSheet`, `PackCheckbox`, `TileFlowLayout`). A section title's menu turns on Remove Items (minus buttons on every card, Undo + Done in the toolbar; the container keeps the undo stack as `RemovedItem`s)
+- **Trip packing** uses `FocusPackingView` (`PackingListDetailEdit/Focus/`): a chip rail (tap to jump, hold + drag to reorder, + to create a section or apply a template) over a pager with an All page (every section under name headers), one page per section, and an "Add a List" page at the end; two pages side by side at ≥700pt width. Gets the container's add flow through `FocusPackingInput` (`FocusPackingSupport.swift`, which also holds `PackingItemActions`, `RemovedItem`, `ItemDetailSheet`, `PackCheckbox`, `TileFlowLayout`). A section title's menu turns on Remove Items (minus buttons on every card, Undo + Done in the toolbar; the container keeps the undo stack as `RemovedItem`s)
 - **Template editing** uses `Shared/ItemRowViews.swift` + `ReorderableItemsSection` (Reminders-style editing, drag to reorder):
   - `NewItemRow`: Inline add row; Return saves and keeps the row open, Return on empty or blur closes it (typed text is saved). Count lives in the container's accessory bar above the keyboard. `NewItemRow.scrollID(for:)` is also the scroll target for Focus's add row
   - `EditableItemRow`: Inline edit; commits on Return, blur, or disappear; backspace on empty name deletes the item

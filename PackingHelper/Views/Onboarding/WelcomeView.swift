@@ -35,8 +35,8 @@ struct WelcomeView: View {
                     )
                     WelcomeFeatureRow(
                         systemImage: "checklist",
-                        title: "Pack Section by Section",
-                        detail: "Split your packing into sections and tap items off as they go in the bag."
+                        title: "Pack List by List",
+                        detail: "Split your packing into lists and tap items off as you pack them."
                     )
                     WelcomeFeatureRow(
                         systemImage: "doc.on.doc",

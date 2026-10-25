@@ -49,7 +49,7 @@ struct PackingListEditView: View {
     var titleName: String {
         switch (isTemplate) {
             case true: return "Template"
-            case false: return "Section"
+            case false: return "List"
         }
     }
     
@@ -136,8 +136,8 @@ struct PackingListEditView: View {
                 owner = packingList?.user ?? users.first
             }
         }
-        .alert("Delete \(packingList?.name ?? "section")?", isPresented: $isDeleting) {
-            Button("Yes, delete \(packingList?.name ?? "section")", role: .destructive) {
+        .alert("Delete \(packingList?.name ?? "list")?", isPresented: $isDeleting) {
+            Button("Yes, delete \(packingList?.name ?? "list")", role: .destructive) {
                 if let packingList {
                     delete(packingList)
                 }
@@ -145,7 +145,7 @@ struct PackingListEditView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             if packingList?.appliedFromTemplate != nil {
-                Text("This section will be removed from your trip. The template it was applied from will not be deleted.")
+                Text("This list will be removed from your trip. The template it was applied from will not be deleted.")
             }
         }
     }
@@ -184,7 +184,7 @@ struct PackingListEditView: View {
 #Preview(traits: .sampleData) {
     PackingListEditView(isDeleted: .constant(false))
         .previewDevice(PreviewDevice(rawValue: "iPhone 14"))
-        .previewDisplayName("New Section")
+        .previewDisplayName("New List")
 }
 
 @available(iOS 18.0, *)
@@ -192,5 +192,5 @@ struct PackingListEditView: View {
     @Previewable @Query var lists: [PackingList]
     PackingListEditView(packingList: lists.first, isTemplate: true, isDeleted: .constant(false))
         .previewDevice(PreviewDevice(rawValue: "iPhone 14 Pro Max"))
-        .previewDisplayName("Edit Section")
+        .previewDisplayName("Edit Template")
 }
