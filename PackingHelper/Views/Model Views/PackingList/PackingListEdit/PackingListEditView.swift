@@ -27,7 +27,7 @@ struct PackingListEditView: View {
     @State private var isDeleting: Bool = false
     @Binding var isDeleted: Bool
 
-    /// Sizes the sheet to the form instead of a fixed detent (trip sections are just a name field)
+    /// Sizes the sheet to the form instead of a fixed detent (it's just a name field, plus owner and delete)
     var fitsContent: Bool = false
     /// Form content plus the nav bar, measured for `fitsContent`
     @State private var fittedHeight: CGFloat?
@@ -71,25 +71,23 @@ struct PackingListEditView: View {
             Form {
                 Section("\(self.titleName) Details") {
                     if packingList?.isDefault ?? false {
-                        HStack {
-                            Text("Name")
-                            Spacer()
-                            Text(listName)
-                                .foregroundStyle(.secondary)
-                        }
+                        LabeledContent("Name", value: listName)
                     } else {
-                        TextField("\(self.titleName) Name", text: $listName)
-                            .focused($isNameFocused)
-                            .submitLabel(.done)
-                            .onSubmit(saveAndDismiss)
-                            .task {
-                                // New lists and templates start typing right away. Focus once the
-                                // sheet has finished presenting; setting it in onAppear is dropped
-                                // because the Form's row isn't in the hierarchy yet.
-                                guard packingList == nil else { return }
-                                try? await Task.sleep(for: .milliseconds(350))
-                                isNameFocused = true
-                            }
+                        LabeledContent("Name") {
+                            TextField("\(self.titleName) Name", text: $listName)
+                                .multilineTextAlignment(.trailing)
+                                .focused($isNameFocused)
+                                .submitLabel(.done)
+                                .onSubmit(saveAndDismiss)
+                                .task {
+                                    // New lists and templates start typing right away. Focus once the
+                                    // sheet has finished presenting; setting it in onAppear is dropped
+                                    // because the Form's row isn't in the hierarchy yet.
+                                    guard packingList == nil else { return }
+                                    try? await Task.sleep(for: .milliseconds(350))
+                                    isNameFocused = true
+                                }
+                        }
                     }
 
                     if isTemplate && users.count > 1 {

@@ -48,6 +48,8 @@ struct TripDetailCustomSectionView<Header: View, Content: View>: View {
 extension EnvironmentValues {
     /// Set by the fixed (non-scrolling) wide layouts so trip detail cards stretch to the height they're given
     @Entry var tripDetailCardFillsHeight: Bool = false
+    /// Columns of list rows in the packing card; the wide portrait layout gives it the full width
+    @Entry var tripDetailPackingColumns: Int = 1
 }
 
 /// Stacks rows top-down and drops the ones that don't fit the proposed height, instead of scrolling or squashing.

@@ -62,9 +62,9 @@ struct DefaultPackingListView: View {
                     // Open the new template right away (pushed, or in the detail column when wide)
                     selectedList = newList
                 },
-                isDeleted: .constant(false)
+                isDeleted: .constant(false),
+                fitsContent: true
             )
-            .presentationDetents([.height(200)])
         }
         .sheet(isPresented: $showingReviewSheet) {
             TemplateReviewTripsSheet()

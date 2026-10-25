@@ -26,6 +26,8 @@ final class TripLocation: Codable, Equatable {
     var created: Date = Date.now
     
     @Transient var weather: TripWeather = TripWeather(currentWeather: nil, dailyForecast: nil)
+    /// Trip dates `weather` was fetched for; other dates (or an edited trip) need a new fetch
+    @Transient var weatherTripDates: DateInterval? = nil
     var weatherLastFetched: Date = Date.distantPast
     
     init(name: String, latitude: Double, longitude: Double) {
@@ -153,7 +155,9 @@ extension TripLocation {
         // relaunch it's empty even though `weatherLastFetched` persisted — only treat it as a hit if it has data.
         AppLogger.weather.debug("Checking weather cache. Last fetched: \(self.weatherLastFetched), \(self.weatherLastFetched.distance(to: .now)) seconds ago")
         let hasCachedWeather = weather.currentWeather != nil || weather.dailyForecast != nil
-        if hasCachedWeather && weatherLastFetched.distance(to: .now) < SECONDS_IN_MINUTE * MINUTES_IN_HOUR {
+        let tripDates = DateInterval(start: trip.startDate, end: max(trip.startDate, trip.endDate))
+        if hasCachedWeather && weatherTripDates == tripDates
+            && weatherLastFetched.distance(to: .now) < SECONDS_IN_MINUTE * MINUTES_IN_HOUR {
             return self.weather
         }
 
@@ -194,6 +198,7 @@ extension TripLocation {
         // Mutate on MainActor
         await MainActor.run {
             self.weatherLastFetched = Date.now
+            self.weatherTripDates = tripDates
             self.weather = newWeather
         }
 

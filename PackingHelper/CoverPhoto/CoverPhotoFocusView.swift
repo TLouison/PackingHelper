@@ -2,9 +2,10 @@
 //  CoverPhotoFocusView.swift
 //  PackingHelper
 //
-//  Lets the user frame a cover photo. Two fixed outlines show roughly what the
-//  trip card and the trip page will crop to; the photo moves (drag) and zooms
-//  (pinch) underneath them. Shown after every pick and from "Adjust Focus".
+//  Lets the user frame a cover photo. One fixed outline shows the area both the
+//  trip card and the trip page keep, so whatever is inside it shows everywhere;
+//  the photo moves (drag) and zooms (pinch) underneath it. Shown after every pick
+//  and from "Adjust Focus".
 //  Expects to be inside a NavigationStack.
 //
 
@@ -23,7 +24,7 @@ struct CoverPhotoFocusView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Drag and pinch the photo to frame it.")
+            Text("Drag and pinch the photo. Everything inside the frame shows on your trip.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -98,28 +99,23 @@ struct CoverPhotoFocusView: View {
         }
     }
 
-    /// Dims everything outside the two crops and outlines each one.
+    /// Dims everything outside the area both crops keep and outlines it. The two crops are
+    /// centered, so their overlap is the narrower width by the shorter height.
     private func frameOverlay(_ layout: FramingLayout) -> some View {
-        ZStack(alignment: .topLeading) {
+        let frame = layout.frameRect
+
+        return ZStack(alignment: .topLeading) {
             Color.black.opacity(0.55)
                 .mask {
                     ZStack(alignment: .topLeading) {
                         Rectangle()
-                        cutout(layout.heroFrame)
-                        cutout(layout.cardFrame)
+                        cutout(frame)
                     }
                     .compositingGroup()
                 }
 
-            outline(layout.heroFrame, style: StrokeStyle(lineWidth: 2))
+            outline(frame, style: StrokeStyle(lineWidth: 2))
                 .foregroundStyle(.white)
-            outline(layout.cardFrame, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                .foregroundStyle(.yellow)
-
-            frameLabel("Trip Page", color: .white)
-                .position(x: layout.heroFrame.minX + 40, y: layout.heroFrame.minY + 16)
-            frameLabel("Card", color: .yellow)
-                .position(x: layout.cardFrame.midX, y: layout.cardFrame.maxY - 16)
         }
     }
 
@@ -136,15 +132,6 @@ struct CoverPhotoFocusView: View {
             .frame(width: rect.width, height: rect.height)
             .offset(x: rect.minX, y: rect.minY)
             .shadow(color: .black.opacity(0.4), radius: 2)
-    }
-
-    private func frameLabel(_ title: String, color: Color) -> some View {
-        Text(title)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.black)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color, in: Capsule())
     }
 
     private var framingControls: some View {
@@ -302,15 +289,18 @@ struct FramingLayout {
         CGSize(width: baseImageSize.width * zoom, height: baseImageSize.height * zoom)
     }
 
-    /// Area both frames cover; the photo must always fill it.
-    private var coveredRect: CGRect { heroFrame.union(cardFrame) }
+    /// Area both crops keep (the outlined frame); the photo must always fill it.
+    /// Only this, not the wider crop: each surface clamps its own crop when drawn
+    /// (`FocalPointImage`), so the frame can reach the photo's edges and the
+    /// wider crop still contains it.
+    var frameRect: CGRect { heroFrame.intersection(cardFrame) }
 
-    /// Top-left of the photo so `focus` sits at the frames' center, limited so
-    /// the photo never pulls away from a frame edge.
+    /// Top-left of the photo so `focus` sits at the frame's center, limited so
+    /// the photo never pulls away from the frame's edge.
     func imageOrigin(focus: UnitPoint) -> CGPoint {
         let size = imageSize
         let center = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
-        let rect = coveredRect
+        let rect = frameRect
         let x = center.x - focus.x * size.width
         let y = center.y - focus.y * size.height
         return CGPoint(

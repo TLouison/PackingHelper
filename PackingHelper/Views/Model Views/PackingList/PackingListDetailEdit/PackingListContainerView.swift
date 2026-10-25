@@ -150,7 +150,8 @@ struct PackingListContainerView: View {
                 PackingListEditView(
                     packingList: singleList,
                     isTemplate: singleList.template,
-                    isDeleted: $isDeleted
+                    isDeleted: $isDeleted,
+                    fitsContent: true
                 )
             }
         }

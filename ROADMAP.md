@@ -42,7 +42,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 - **4.1** Trip dates keep creation time-of-day; `.departing`/`.returning` use `Date.now == startDate` (unreachable). Normalize to start of day on save; use `Calendar.isDateInToday`. `TripListView` predicates capture `now` once — refresh on scene active.
 - **4.2** Day-of notification (behind `showingNotifications`): scheduled in `Trip.init` before lists exist, never rescheduled/cancelled, random ID, hardcoded 8 AM. Build a `TripNotificationScheduler` with stable id `dayOf-<uuid>`, awaited auth, `notificationTime` setting (re-add its Settings picker to the Trips section), `rescheduleAll` on foreground.
 - **4.4** "Duration" is nights in some places, days in others; `countAsDays` gives 0 on day trips. Define `nights` and `days = nights + 1`.
-- **4.5** Forecast labels off by a day for far time zones; window can skip day one / overrun trip end; weather doesn't refresh after editing destination/dates. Store `TripLocation.timeZoneIdentifier`, `.task(id:)`.
+- **4.5** Forecast labels off by a day for far time zones; window can skip day one / overrun trip end. Store `TripLocation.timeZoneIdentifier`, `.task(id:)`.
 - **4.6** Forecast hardcodes °F; chip uses locale.
 
 ## 5. Item creation, ordering & counts
@@ -82,7 +82,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 
 ## 9. iOS 26 cleanup
 
-Drop dead `#available(iOS 26…)` else-branches (`User.swift`, `ViewModifierUtilities.swift`, `WeatherChip.swift`), inline `glassEffectIfAvailable()`, remove `@available(iOS 18…)` annotations.
+Drop dead `#available(iOS 26…)` else-branches (`User.swift`, `ViewModifierUtilities.swift`), inline `glassEffectIfAvailable()`, remove `@available(iOS 18…)` annotations.
 
 ## 10. Refactors
 

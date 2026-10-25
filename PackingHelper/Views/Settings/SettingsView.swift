@@ -99,6 +99,7 @@ struct SettingsView: View {
 private struct TripSettingsSection: View {
     @AppStorage("autoCreateDefaultLists") private var autoCreateDefaultLists = false
     @AppStorage("defaultTripCover") private var defaultTripCover = DefaultTripCover.photo.rawValue
+    @AppStorage(PackingStartPage.storageKey) private var packingStartPage = PackingStartPage.firstList.rawValue
 
     var body: some View {
         Section {
@@ -121,6 +122,20 @@ private struct TripSettingsSection: View {
             }
         } footer: {
             Text(coverFooter)
+        }
+
+        Section {
+            Picker(selection: $packingStartPage) {
+                ForEach(PackingStartPage.allCases, id: \.self) { page in
+                    Text(page.rawValue).tag(page.rawValue)
+                }
+            } label: {
+                Label("Open Packing On", systemImage: "rectangle.stack")
+            }
+        } footer: {
+            Text(packingStartPage == PackingStartPage.all.rawValue
+                ? "Packing opens on every item from all your lists."
+                : "Packing opens on your first list.")
         }
     }
 

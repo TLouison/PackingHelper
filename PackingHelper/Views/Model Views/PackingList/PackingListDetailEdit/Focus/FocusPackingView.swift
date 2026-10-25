@@ -35,6 +35,8 @@ struct FocusPackingView: View {
 
     let input: FocusPackingInput
 
+    @AppStorage(PackingStartPage.storageKey) private var startPage = PackingStartPage.firstList.rawValue
+
     /// Leading visible page (mirrors `pagerPosition`; change it with `setPage` so the pager scrolls)
     @State private var currentPage: FocusPage?
     /// Drives the pager. Unlike `scrollPosition(id:)`, `scrollTo(id:)` scrolls even when the
@@ -108,6 +110,11 @@ struct FocusPackingView: View {
         }
         .onAppear {
             if currentPage == nil {
+                // All fills the whole width on its own, so it skips the two-column setup
+                if startPage == PackingStartPage.all.rawValue && !input.lists.isEmpty {
+                    snap(to: .all, afterResize: true)
+                    return
+                }
                 let listID = input.add.targetList.wrappedValue?.persistentModelID
                     ?? input.lists.first?.persistentModelID
                 let focus = listID.map(FocusPage.list) ?? .addSection

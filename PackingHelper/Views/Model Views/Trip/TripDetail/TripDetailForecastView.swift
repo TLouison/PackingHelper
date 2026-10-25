@@ -23,11 +23,45 @@ struct TripDetailForecastView: View {
         return nil
     }
     
+    /// Forecasts are only fetched this close to departure (`TripLocation.canGetWeatherForecast`)
+    private static let forecastLeadDays = 5
+
+    /// When the forecast becomes available, if the trip is still too far out for one
+    private var forecastOpensDate: Date? {
+        forecast == nil ? Self.forecastOpensDate(for: trip) : nil
+    }
+
+    private static func forecastOpensDate(for trip: Trip) -> Date? {
+        guard !trip.complete, trip.destination != nil,
+              let opens = Calendar.current.date(byAdding: .day, value: -forecastLeadDays, to: trip.startDate),
+              opens > .now
+        else { return nil }
+        return opens
+    }
+
+    /// Whether the section draws anything (a forecast or the pending card), so layouts can
+    /// give its space to a neighbor when it doesn't
+    static func isShown(for trip: Trip, weather: TripWeather?) -> Bool {
+        weather?.dailyForecast != nil || forecastOpensDate(for: trip) != nil
+    }
+
     var body: some View {
         Group {
             if let forecast {
                 TripDetailSectionView(title: "Forecast") {
                     Grid {
+                        // Weekday on the first day only; the rest follow from it
+                        GridRow {
+                            Text("")
+                            Text("")
+                            ForEach(Array(forecast.enumerated()), id: \.element.date) { index, weather in
+                                Text(index == 0 ? weather.date.formatted(.dateTime.weekday(.abbreviated)) : "")
+                                    .font(.caption2.weight(.semibold))
+                                    .textCase(.uppercase)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
                         GridRow {
                             Text("\(trip.startDate.formatted(.dateTime.month()))")
                             Text("") // Hack because EmptyView does not work in cells
@@ -81,7 +115,33 @@ struct TripDetailForecastView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .transition(.move(edge: .bottom))
+            } else if let forecastOpensDate {
+                TripDetailSectionView(title: "Forecast") {
+                    pendingForecast(opens: forecastOpensDate)
+                }
             }
         }
+    }
+
+    /// Too far out for a forecast: say when it will show instead of hiding the section
+    private func pendingForecast(opens: Date) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.title)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Forecast opens \(opens.formatted(.dateTime.month(.abbreviated).day()))")
+                    .font(.headline)
+                Text("Weather shows up \(Self.forecastLeadDays) days before you leave for \(trip.destination?.name ?? "your trip").")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
     }
 }

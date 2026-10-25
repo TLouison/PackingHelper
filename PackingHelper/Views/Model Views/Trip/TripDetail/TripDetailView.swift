@@ -8,6 +8,7 @@
 import SwiftUI
 import MapKit
 import WeatherKit
+import SwiftData
 
 struct RoundedModifier: ViewModifier {
     let corner: CGFloat
@@ -86,7 +87,8 @@ struct TripDetailView: View {
             .sheet(isPresented: $isApplyingDefaultPackingList) {
                 PackingListApplyDefaultView(trip: trip)
             }
-            .task {
+            // Refetch when the destination or dates are edited (e.g. moved past the forecast window)
+            .task(id: WeatherRequest(trip: trip)) {
                 tripWeather = await trip.destination?.getTripWeather(for: trip)
             }
             .onChange(of: isDeleted) {
@@ -172,18 +174,23 @@ struct TripDetailView: View {
         }
     }
 
-    /// Wide hero on top, packing and info side by side (equal height) underneath
+    /// Wide hero on top, then packing across the full width (lists in two columns), then
+    /// forecast and info side by side (equal height). The forecast only needs half the width.
     private var portraitLayout: some View {
         VStack(spacing: 20) {
             heroView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .frame(minHeight: 240)
 
-            forecastSection
+            packingSection
+                .environment(\.tripDetailPackingColumns, 2)
 
             HStack(alignment: .top, spacing: 20) {
-                packingSection
-                    .frame(maxWidth: .infinity)
+                // Info takes the whole row when there's no forecast to show
+                if TripDetailForecastView.isShown(for: trip, weather: tripWeather) {
+                    forecastSection
+                        .frame(maxWidth: .infinity)
+                }
                 infoSection
                     .frame(maxWidth: .infinity)
             }
@@ -224,5 +231,18 @@ struct TripDetailView: View {
             TripDetailPhotoCreditView(photo: coverPhoto)
                 .padding(.top, -8)
         }
+    }
+}
+
+/// What the trip's weather depends on; a change means the fetched weather is stale
+private struct WeatherRequest: Hashable {
+    let destination: PersistentIdentifier?
+    let startDate: Date
+    let endDate: Date
+
+    init(trip: Trip) {
+        destination = trip.destination?.persistentModelID
+        startDate = trip.startDate
+        endDate = trip.endDate
     }
 }

@@ -9,6 +9,16 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - Start Page
+
+/// Which page trip packing opens on (Settings → Trips)
+enum PackingStartPage: String, CaseIterable {
+    static let storageKey = "packingStartPage"
+
+    case all = "All Items"
+    case firstList = "First List"
+}
+
 // MARK: - Input
 
 /// Inline add-item state owned by PackingListContainerView (the accessory bar above the

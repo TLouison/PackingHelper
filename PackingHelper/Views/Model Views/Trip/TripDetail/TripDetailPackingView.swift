@@ -13,6 +13,8 @@ import SwiftData
 struct TripDetailPackingView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.tripDetailCardFillsHeight) private var fillsHeight
+    /// Columns of list rows; 2 when the card spans a wide layout
+    @Environment(\.tripDetailPackingColumns) private var columns
 
     let trip: Trip
 
@@ -22,8 +24,9 @@ struct TripDetailPackingView: View {
     @State private var isShowingTemplateReview = false
     @State private var featureFlags = FeatureFlags.shared
 
-    /// Caps the section breakdown so the card stays a summary (and the no-scroll wide layouts stay on screen)
-    private let sectionLimit = 4
+    /// Caps the section breakdown so the card stays a summary (and the no-scroll wide layouts stay on
+    /// screen): 4 rows, in as many columns as the card has
+    private var sectionLimit: Int { 4 * max(columns, 1) }
 
     private var sections: [PackingList] {
         PackingList.sorted(trip.lists ?? [], sortOrder: .byCustomOrder)
@@ -127,8 +130,17 @@ struct TripDetailPackingView: View {
 
             if !visibleSections.isEmpty {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
-                    ForEach(visibleSections) { list in
-                        sectionRow(list)
+                    // Filled row by row, so the list order reads left to right
+                    ForEach(sectionRows, id: \.first?.persistentModelID) { row in
+                        GridRow {
+                            ForEach(Array(row.enumerated()), id: \.element.persistentModelID) { index, list in
+                                if index > 0 {
+                                    // Gutter between columns
+                                    Color.clear.frame(width: 12, height: 1)
+                                }
+                                sectionCells(list)
+                            }
+                        }
                     }
                 }
 
@@ -190,25 +202,36 @@ struct TripDetailPackingView: View {
         .font(.subheadline)
     }
 
-    private func sectionRow(_ list: PackingList) -> some View {
+    /// Visible lists split into grid rows of `columns`
+    private var sectionRows: [[PackingList]] {
+        let lists = visibleSections
+        let size = max(columns, 1)
+        return stride(from: 0, to: lists.count, by: size).map {
+            Array(lists[$0..<min($0 + size, lists.count)])
+        }
+    }
+
+    /// One list's name, bar, and count: three grid cells, so names and bars line up per column
+    @ViewBuilder
+    private func sectionCells(_ list: PackingList) -> some View {
         let packed = list.completeItems.count
         let total = list.totalItems
+        let label = "\(list.name), \(packed) of \(total) packed"
 
-        return GridRow {
-            Text(list.name)
-                .font(.subheadline)
-                .lineLimit(1)
+        Text(list.name)
+            .font(.subheadline)
+            .lineLimit(1)
+            .accessibilityLabel(label)
 
-            ProgressView(value: Double(packed), total: Double(total))
-                .tint(packed == total ? .green : .accent)
+        ProgressView(value: Double(packed), total: Double(total))
+            .tint(packed == total ? .green : .accent)
+            .accessibilityHidden(true)
 
-            Text("\(packed)/\(total)")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .gridColumnAlignment(.trailing)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(list.name), \(packed) of \(total) packed")
+        Text("\(packed)/\(total)")
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .gridColumnAlignment(.trailing)
+            .accessibilityHidden(true)
     }
 
     private func headline(packed: Int, total: Int) -> LocalizedStringKey {
