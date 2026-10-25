@@ -68,11 +68,6 @@ struct TripEditView: View {
         return trimmed.isEmpty ? (destinationLocation?.name ?? "Trip") : trimmed
     }
 
-    /// New trips can't end in the past; existing trips keep their full range.
-    private var earliestReturnDate: Date {
-        isCreating ? max(startDate, Calendar.current.startOfDay(for: .now)) : startDate
-    }
-
     /// The picker only sets the day, so a new trip returning today could carry a
     /// time that's already passed and land straight in Past Trips. Push it to the
     /// end of today instead.
@@ -82,10 +77,6 @@ struct TripEditView: View {
             byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)
         ) ?? .now
         return startOfTomorrow.addingTimeInterval(-1)
-    }
-
-    private var nights: Int {
-        Calendar.current.numberOfDaysBetween(startDate, and: endDate)
     }
 
     /// The fields a person can edit, reduced to cheap comparable values
@@ -259,48 +250,12 @@ struct TripEditView: View {
     // MARK: - Dates Section
     var datesSection: some View {
         formSection("When") {
-            VStack(spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Depart")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        DatePicker("Depart", selection: $startDate, displayedComponents: .date)
-                            .labelsHidden()
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "arrow.right")
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Return")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        DatePicker("Return", selection: $endDate, in: earliestReturnDate..., displayedComponents: .date)
-                            .labelsHidden()
-                    }
-                }
-
-                Text(nights == 0 ? "Day trip" : nights == 1 ? "1 night" : "\(nights) nights")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .contentTransition(.numericText())
-                    .animation(.snappy, value: nights)
-            }
-            .padding()
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(.rect(cornerRadius: 15))
-        }
-        .onChange(of: startDate) { oldStart, newStart in
-            // Keep the trip length when departure moves past the return date
-            if endDate < newStart {
-                endDate = newStart.addingTimeInterval(max(endDate.timeIntervalSince(oldStart), 0))
-            }
+            TripDateRangePicker(
+                startDate: $startDate,
+                endDate: $endDate,
+                // New trips can't be in the past; existing trips keep their full range
+                earliestDay: isCreating ? Calendar.current.startOfDay(for: .now) : nil
+            )
         }
     }
 
