@@ -17,15 +17,13 @@ struct TemplateReviewTripRow: View {
     var onOpen: (() -> Void)? = nil
 
     var body: some View {
-        let itemCount = trip.templateCandidateCount
-
         HStack(spacing: 12) {
             Button(action: onOpen ?? onReview) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(trip.name)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                    Text("^[\(itemCount) new item](inflect: true) to review")
+                    Text("\(trip.templateReviewSummary) to review")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

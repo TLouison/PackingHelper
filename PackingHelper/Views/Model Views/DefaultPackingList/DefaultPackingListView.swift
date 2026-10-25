@@ -201,7 +201,7 @@ struct DefaultPackingListView: View {
                         Text("Items to Review")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
-                        Text("^[\(reviewCount) past trip](inflect: true) with items to save to templates")
+                        Text("^[\(reviewCount) past trip](inflect: true) with new items or lists to save")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

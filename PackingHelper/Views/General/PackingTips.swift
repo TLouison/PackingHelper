@@ -45,7 +45,7 @@ struct ReorderSectionsTip: Tip {
 /// On the Templates tab's review banner (only shown when past trips have items to save)
 struct SaveToTemplateTip: Tip {
     var title: Text { Text("Keep What You Added") }
-    var message: Text? { Text("Items you added on past trips can be saved back to their templates for next time.") }
+    var message: Text? { Text("Items and lists you added on past trips can be saved to your templates for next time.") }
     var image: Image? { Image(systemName: "square.and.arrow.down.on.square") }
 
     /// Popovers closed by tapping outside aren't invalidated, so cap it at one showing

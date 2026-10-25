@@ -869,6 +869,10 @@ private struct FocusSectionMenu: View {
             Button("New Item", systemImage: "plus") { input.add.start(list) }
         }
         Button("Edit List", systemImage: "pencil") { input.onEditList(list) }
+        // Lists made on the trip; ones from a template save back through trip review instead
+        if list.isNewTemplateCandidate && !input.isRemovingItems {
+            Button("Save as Template", systemImage: "plus.square.on.square") { input.onSaveAsTemplate(list) }
+        }
         if !input.isRemovingItems {
             Button("Remove Items", systemImage: "minus.circle", action: input.onStartRemovingItems)
         }

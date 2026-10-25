@@ -478,6 +478,48 @@ extension PackingList {
             }
     }
 
+    /// A trip list made on the trip (not applied from a template) that could be saved as a new
+    /// template. The Default list is left out ("Default" can't be a template name), as are empty lists.
+    var isNewTemplateCandidate: Bool {
+        !template && appliedFromTemplate == nil && !isDefault && !(items ?? []).isEmpty
+    }
+
+    /// Whether a template with this name already exists (saving anyway makes a second one)
+    static func templateNameExists(_ name: String, in templates: [PackingList]) -> Bool {
+        let key = name.itemMatchKey
+        return !key.isEmpty && templates.contains { $0.template && $0.name.itemMatchKey == key }
+    }
+
+    /// Saves this trip list as a new template: item names and counts only (unpacked, no packer).
+    /// Links this list to it, so later additions show up in trip review like any template's.
+    @discardableResult
+    func saveAsNewTemplate(named name: String, owner: User?, in context: ModelContext) -> PackingList {
+        let template = PackingList(
+            template: true,
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            countAsDays: false
+        )
+        context.insert(template)
+        template.user = owner
+
+        let sourceItems = Item.sorted(items ?? [], sortOrder: .byCustomOrder)
+        for (order, item) in sourceItems.enumerated() {
+            let templateItem = Item(
+                name: item.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                category: item.category,
+                count: item.count,
+                isPacked: false,
+                sortOrder: order
+            )
+            context.insert(templateItem)
+            templateItem.list = template
+        }
+
+        appliedFromTemplate = template
+        AppLogger.packingList.info("Saved trip list \(self.name) as new template \(template.name)")
+        return template
+    }
+
     /// Adds one item per candidate to the template this section was applied from
     func saveToTemplate(_ candidates: [TemplateCandidate], in context: ModelContext) {
         guard let source = appliedFromTemplate else { return }

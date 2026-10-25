@@ -137,9 +137,9 @@ struct TripListRowView: View {
         .shaded()
         .overlay(alignment: .topTrailing) {
             if trip.showsTemplateReviewCard {
-                UnreadBadge(count: trip.templateCandidateCount)
+                UnreadBadge(count: trip.templateReviewCount)
                     .offset(x: 6, y: -6)
-                    .accessibilityLabel("^[\(trip.templateCandidateCount) item](inflect: true) to review")
+                    .accessibilityLabel("\(trip.templateReviewSummary) to review")
             }
         }
     }

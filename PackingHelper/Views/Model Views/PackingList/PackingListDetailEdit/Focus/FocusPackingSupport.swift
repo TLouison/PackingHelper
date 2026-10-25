@@ -54,6 +54,8 @@ struct FocusPackingInput {
     let onApplyTemplate: () -> Void
     /// Asks for confirmation, then deletes the section
     let onDeleteList: (PackingList) -> Void
+    /// Asks for a name, then saves a list made on the trip as a new template
+    let onSaveAsTemplate: (PackingList) -> Void
     /// Remove Items mode: cards swap their checkbox for a remove button; packing and adding are off
     let isRemovingItems: Bool
     let onStartRemovingItems: () -> Void

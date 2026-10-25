@@ -85,7 +85,7 @@ struct TripListScrollView: View {
         }
         // Presented from outside the scroll content so the summary card doesn't own the sheet
         .sheet(item: $reviewingTrip) { trip in
-            TemplateUpdateSheet(sections: trip.templateCandidateSections) {
+            TemplateUpdateSheet(trip: trip) {
                 trip.templateReviewDismissed = true
             }
         }

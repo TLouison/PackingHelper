@@ -75,7 +75,7 @@ struct TripDetailPackingView: View {
         }
         // Owned here (not by the card) so hiding the card after saving doesn't tear down the sheet
         .sheet(isPresented: $isShowingTemplateReview) {
-            TemplateUpdateSheet(sections: trip.templateCandidateSections) {
+            TemplateUpdateSheet(trip: trip) {
                 trip.templateReviewDismissed = true
             }
         }

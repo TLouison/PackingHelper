@@ -35,12 +35,12 @@ struct TemplateReviewTripsSheet: View {
                     ContentUnavailableView(
                         "Templates Are Up to Date",
                         systemImage: "checkmark.circle",
-                        description: Text("Items you add on future trips will show up here once those trips end.")
+                        description: Text("Items and lists you add on future trips will show up here once those trips end.")
                     )
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Save items you added on past trips back to their templates.")
+                            Text("Save what you added on past trips to your templates, or keep new lists as templates.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .padding(.bottom, 8)
@@ -69,7 +69,7 @@ struct TemplateReviewTripsSheet: View {
             }
         }
         .sheet(item: $reviewingTrip) { trip in
-            TemplateUpdateSheet(sections: trip.templateCandidateSections) {
+            TemplateUpdateSheet(trip: trip) {
                 trip.templateReviewDismissed = true
             }
         }

@@ -32,7 +32,7 @@ The app uses SwiftData with six models. All models have a `uuid`; use it (not `p
 - Properties: `name`, `template`, `isDefault`, `sortOrder`, `countAsDays`; legacy `type`, `isDayOf`
 - Belongs-to: `trip` (Trip); `user` (User) — owner for templates; legacy on trip lists
 - Has-many: `items` (Item, cascade delete)
-- Self-referencing: `appliedFromTemplate` / `appliedToLists` (nullify) for the template system. Applying a template snapshots its items; trip items can be saved back to templates
+- Self-referencing: `appliedFromTemplate` / `appliedToLists` (nullify) for the template system. Applying a template snapshots its items; trip items can be saved back to templates, and lists made on a trip (not Default) can be saved as new templates (`saveAsNewTemplate`, which links the list) from the list menu or the end-of-trip review (`TemplateUpdateSheet`)
 
 **Item**
 - Properties: `name`, `count`, `isPacked`, `sortOrder`, `category`; legacy `type`, `isDayOf`, `unifiedSortOrder`

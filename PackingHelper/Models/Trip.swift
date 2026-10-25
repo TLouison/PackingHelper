@@ -280,8 +280,30 @@ extension Trip {
         listsFromTemplates.reduce(0) { $0 + $1.templateCandidates.count }
     }
 
+    /// Lists made on this trip that could be saved as new templates, in section order
+    var newTemplateCandidateLists: [PackingList] {
+        PackingList.sorted(lists ?? [], sortOrder: .byCustomOrder)
+            .filter(\.isNewTemplateCandidate)
+    }
+
     var showsTemplateReviewCard: Bool {
-        status == .complete && !templateReviewDismissed && templateCandidateCount > 0
+        status == .complete && !templateReviewDismissed
+            && (templateCandidateCount > 0 || !newTemplateCandidateLists.isEmpty)
+    }
+
+    /// Items plus new lists waiting in trip review, for badges
+    var templateReviewCount: Int {
+        templateCandidateCount + newTemplateCandidateLists.count
+    }
+
+    /// "3 new items and 1 new list", for the review prompts
+    var templateReviewSummary: String {
+        let itemCount = templateCandidateCount
+        let listCount = newTemplateCandidateLists.count
+        var parts: [String] = []
+        if itemCount > 0 { parts.append(itemCount == 1 ? "1 new item" : "\(itemCount) new items") }
+        if listCount > 0 { parts.append(listCount == 1 ? "1 new list" : "\(listCount) new lists") }
+        return parts.joined(separator: " and ")
     }
 
     // MARK: Item counts — item-based (replaces list-type-filtered overloads)

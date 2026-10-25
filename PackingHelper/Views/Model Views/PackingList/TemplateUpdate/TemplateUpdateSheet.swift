@@ -2,8 +2,9 @@
 //  TemplateUpdateSheet.swift
 //  PackingHelper
 //
-//  Review trip items that aren't in their section's template and save the chosen ones back.
-//  Paged by packer (template owner) so each person's templates are reviewed on their own.
+//  End-of-trip review: save items added to template lists back into their templates, and save
+//  lists made on the trip as new templates. Existing templates are paged by packer (template
+//  owner); new templates show once, on the last page.
 //
 
 import SwiftUI
@@ -79,36 +80,46 @@ private struct CandidateSelection: Hashable {
 
 // MARK: - Sheet
 
+/// End-of-trip review, in two clearly separate blocks: items added to lists that came from a
+/// template (saved back into that template), and lists made on the trip (saved as new templates).
 struct TemplateUpdateSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    /// Trip sections to review (one for the section menu, all candidate sections for the post-trip card)
-    let sections: [PackingList]
+    let trip: Trip
     var onSaved: (() -> Void)? = nil
+
+    @Query(sort: \User.created) private var users: [User]
+    @Query(filter: #Predicate<PackingList> { $0.template }) private var templates: [PackingList]
 
     @State private var featureFlags = FeatureFlags.shared
     @State private var pages: [TemplateReviewPage] = []
+    @State private var newTemplateLists: [PackingList] = []
     @State private var path: [Int] = []
     @State private var selection: Set<CandidateSelection> = []
+    @State private var newTemplateSelection: Set<PersistentIdentifier> = []
     @State private var saveCount = 0
+
+    private var hasSelection: Bool {
+        !selection.isEmpty || !newTemplateSelection.isEmpty
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
             Group {
-                if let firstPage = pages.first {
-                    pageView(firstPage, index: 0)
-                } else {
+                if pages.isEmpty {
                     ContentUnavailableView(
                         "Templates Are Up to Date",
                         systemImage: "checkmark.circle",
-                        description: Text("Every item on this trip is already in its template.")
+                        description: Text("Every item on this trip is already in a template.")
                     )
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Close") { dismiss() }
                         }
                     }
+                } else {
+                    pageView(pages[0], index: 0)
                 }
             }
             .navigationDestination(for: Int.self) { index in
@@ -117,9 +128,13 @@ struct TemplateUpdateSheet: View {
         }
         .sensoryFeedback(.success, trigger: saveCount)
         .onAppear {
-            // Snapshot candidates so the list doesn't shift while reviewing; save re-validates
-            if pages.isEmpty {
-                pages = TemplateReviewPage.pages(for: sections)
+            // Snapshot candidates so the lists don't shift while reviewing; save re-validates
+            guard pages.isEmpty else { return }
+            newTemplateLists = trip.newTemplateCandidateLists
+            pages = TemplateReviewPage.pages(for: trip.templateCandidateSections)
+            // Only new lists: one page that holds just the new templates block
+            if pages.isEmpty && !newTemplateLists.isEmpty {
+                pages = [TemplateReviewPage(packer: nil, sections: [])]
             }
         }
     }
@@ -129,28 +144,23 @@ struct TemplateUpdateSheet: View {
     private func pageView(_ page: TemplateReviewPage, index: Int) -> some View {
         let isLastPage = index == pages.count - 1
 
-        return List {
-            // A header rather than a row: rows clip to their rounded shape, which cut into the text
-            Section {
-            } header: {
-                pageHeader(page)
-                    .textCase(nil)
-            }
-
-            ForEach(page.sections) { section in
-                Section {
-                    ForEach(section.candidates) { candidate in
-                        candidateRow(candidate, in: section)
-                    }
-                } header: {
-                    Text("\(section.templateName) Template")
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if !page.sections.isEmpty {
+                    updateBlock(page)
+                }
+                // Once, on the last page (pages split existing templates by packer)
+                if isLastPage && !newTemplateLists.isEmpty {
+                    newTemplatesBlock
                 }
             }
+            .padding()
         }
+        .background(Color(.systemGroupedBackground))
         .safeAreaBar(edge: .bottom) {
             if isLastPage {
-                // Pinned so it stays visible however long the list is
-                Text("Selected items are added to their templates with a count of 1. Your other trips won't change.")
+                // Pinned so it stays visible however long the page is
+                Text(footer(updatesTemplates: pages.contains { !$0.sections.isEmpty }))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -159,7 +169,7 @@ struct TemplateUpdateSheet: View {
                     .padding(.vertical, 8)
             }
         }
-        .navigationTitle(pages.count > 1 ? "\(index + 1) of \(pages.count)" : "Update Templates")
+        .navigationTitle(pages.count > 1 ? "\(index + 1) of \(pages.count)" : "Review Trip")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -167,78 +177,200 @@ struct TemplateUpdateSheet: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 if isLastPage {
-                    Button(selection.isEmpty ? "Skip" : "Add \(selection.count) to Templates", action: save)
+                    Button(hasSelection ? "Save" : "Skip", action: save)
                         .fontWeight(.semibold)
                 } else {
                     Button("Next") { path.append(index + 1) }
                 }
             }
-            ToolbarItem(placement: .bottomBar) {
-                selectAllButton(for: page)
+            if !page.sections.isEmpty {
+                ToolbarItem(placement: .bottomBar) {
+                    selectAllButton(for: page)
+                }
             }
         }
     }
 
-    private func pageHeader(_ page: TemplateReviewPage) -> some View {
-        // With a single packer, their name and avatar add nothing
-        let showsPacker = featureFlags.showingMultiplePackers
+    private func footer(updatesTemplates: Bool) -> String {
+        var sentences: [String] = []
+        if updatesTemplates {
+            sentences.append("Selected items are added to their templates with a count of 1.")
+        }
+        if !newTemplateLists.isEmpty {
+            sentences.append("New templates keep each item's count.")
+        }
+        sentences.append("Your other trips won't change.")
+        return sentences.joined(separator: " ")
+    }
 
-        return HStack(spacing: 12) {
-            if let packer = page.packer {
-                if showsPacker {
-                    // profileView is fixed at 60pt
-                    packer.profileView
-                        .scaleEffect(2 / 3)
-                        .frame(width: 40, height: 40)
+    // MARK: Update Existing Templates
+
+    private func updateBlock(_ page: TemplateReviewPage) -> some View {
+        // With a single packer, their name adds nothing
+        let packerName = featureFlags.showingMultiplePackers ? page.packer?.name : nil
+
+        return VStack(alignment: .leading, spacing: 12) {
+            blockHeader(
+                title: packerName.map { "Update \($0)'s Templates" } ?? "Update Your Templates",
+                detail: "Items you added on this trip. Selected ones go back into their template.",
+                systemImage: "arrow.triangle.2.circlepath",
+                tint: .accentColor
+            )
+
+            ForEach(page.sections) { section in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(section.templateName)
+                        .font(.caption.weight(.semibold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+
+                    rowGroup {
+                        ForEach(section.candidates) { candidate in
+                            candidateRow(candidate, in: section)
+                        }
+                    }
                 }
-            } else {
-                Image(systemName: "person.2.circle.fill")
-                    .resizable()
-                    .frame(width: 40, height: 40)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(page.packer != nil && !showsPacker ? "New Items" : page.title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                Text("Choose items to add to these templates for future trips.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
     }
 
     private func candidateRow(_ candidate: TemplateCandidate, in section: TemplateReviewSection) -> some View {
         let id = CandidateSelection(list: section.id, key: candidate.key)
         let isSelected = selection.contains(id)
 
-        return Button {
+        return selectableRow(isSelected: isSelected, tint: .accentColor) {
             if isSelected {
                 selection.remove(id)
             } else {
                 selection.insert(id)
             }
         } label: {
-            // Single line so the name lines up with the selection circle
+            Text(candidate.displayItem.name)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 8)
+            if !candidate.displayItem.category.isEmpty {
+                Text(candidate.displayItem.category)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // MARK: Save New Templates
+
+    /// Set apart with green (creating something) and an outline, so it doesn't read as more of the above
+    private var newTemplatesBlock: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            blockHeader(
+                title: "Save New Templates",
+                detail: "Lists you made on this trip. Saved ones become templates you can apply to future trips.",
+                systemImage: "plus.square.on.square",
+                tint: .green
+            )
+
+            rowGroup {
+                ForEach(newTemplateLists) { list in
+                    newTemplateRow(list)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color.green.opacity(0.5), lineWidth: 1)
+        }
+    }
+
+    private func newTemplateRow(_ list: PackingList) -> some View {
+        let id = list.persistentModelID
+        let isSelected = newTemplateSelection.contains(id)
+        let itemCount = list.items?.count ?? 0
+        let nameTaken = PackingList.templateNameExists(list.name, in: templates)
+
+        return selectableRow(isSelected: isSelected, tint: .green) {
+            if isSelected {
+                newTemplateSelection.remove(id)
+            } else {
+                newTemplateSelection.insert(id)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(list.name)
+                    .foregroundStyle(.primary)
+                Group {
+                    if nameTaken {
+                        Text("^[\(itemCount) item](inflect: true) · You already have a template named \(list.name)")
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text("^[\(itemCount) item](inflect: true)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    // MARK: Shared Pieces
+
+    private func blockHeader(title: String, detail: String, systemImage: String, tint: Color) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 32, height: 32)
+                .background(tint.opacity(0.18), in: .rect(cornerRadius: 8))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// Rows in one rounded group with separators, like a list section
+    private func rowGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            Group(subviews: content()) { subviews in
+                ForEach(Array(subviews.enumerated()), id: \.offset) { index, subview in
+                    subview
+                    if index < subviews.count - 1 {
+                        Divider().padding(.leading, 44)
+                    }
+                }
+            }
+        }
+        .background(Color(.tertiarySystemGroupedBackground), in: .rect(cornerRadius: 10))
+    }
+
+    private func selectableRow<Label: View>(
+        isSelected: Bool,
+        tint: Color,
+        action: @escaping () -> Void,
+        @ViewBuilder label: () -> Label
+    ) -> some View {
+        Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                    .foregroundStyle(isSelected ? tint : .secondary)
                     .contentTransition(.symbolEffect(.replace))
-
-                Text(candidate.displayItem.name)
-                    .foregroundStyle(.primary)
-
-                Spacer(minLength: 8)
-
-                if !candidate.displayItem.category.isEmpty {
-                    Text(candidate.displayItem.category)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                label()
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -252,7 +384,7 @@ struct TemplateUpdateSheet: View {
         })
         let allSelected = pageIDs.isSubset(of: selection)
 
-        return Button(allSelected ? "Deselect All" : "Select All") {
+        return Button(allSelected ? "Deselect All Items" : "Select All Items") {
             if allSelected {
                 selection.subtract(pageIDs)
             } else {
@@ -272,9 +404,14 @@ struct TemplateUpdateSheet: View {
                 section.list.saveToTemplate(chosen, in: modelContext)
             }
         }
+        // Re-checked so a list that was linked meanwhile isn't saved twice
+        for list in newTemplateLists
+        where newTemplateSelection.contains(list.persistentModelID) && list.isNewTemplateCandidate {
+            list.saveAsNewTemplate(named: list.name, owner: users.first, in: modelContext)
+        }
         try? modelContext.save()
 
-        if !selection.isEmpty {
+        if hasSelection {
             saveCount += 1
         }
         onSaved?()
@@ -289,8 +426,6 @@ struct TemplateReviewCard: View {
     let trip: Trip
     let onReview: () -> Void
 
-    private var itemCount: Int { trip.templateCandidateCount }
-
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "square.and.arrow.down.on.square")
@@ -298,7 +433,7 @@ struct TemplateReviewCard: View {
                 .foregroundStyle(Color.accentColor)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("You added ^[\(itemCount) item](inflect: true) that \(itemCount == 1 ? "isn't" : "aren't") in your templates.")
+                Text("This trip has \(trip.templateReviewSummary) to review for your templates.")
                     .font(.subheadline)
 
                 Button("Review", action: onReview)

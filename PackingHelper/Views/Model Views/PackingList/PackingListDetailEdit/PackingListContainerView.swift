@@ -27,6 +27,12 @@ struct PackingListContainerView: View {
 
     @State private var editingList: PackingList? = nil
     @State private var listToDelete: PackingList? = nil
+    /// Trip list being saved as a new template (name asked in an alert)
+    @State private var listToSaveAsTemplate: PackingList?
+    @State private var newTemplateName = ""
+    @State private var savedTemplateCount = 0
+    @Query(sort: \User.created) private var allUsers: [User]
+    @Query(filter: #Predicate<PackingList> { $0.template }) private var templates: [PackingList]
     @State private var showingAddListSheet: Bool = false
     @State private var isApplyingDefaultPackingList: Bool = false
     @State private var isAddingNewItem: Bool = false
@@ -207,6 +213,23 @@ struct PackingListContainerView: View {
                 Text("\(count) \(pluralizeString("item", count: count)) will be removed from this trip.")
             }
         }
+        .alert(
+            "Save as Template",
+            isPresented: Binding(get: { listToSaveAsTemplate != nil }, set: { if !$0 { listToSaveAsTemplate = nil } }),
+            presenting: listToSaveAsTemplate
+        ) { list in
+            TextField("Template Name", text: $newTemplateName)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") { saveAsTemplate(list) }
+                .disabled(newTemplateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: { _ in
+            if PackingList.templateNameExists(newTemplateName, in: templates) {
+                Text("Saves this list's items and counts so you can apply them to future trips.\n\nYou already have a template named \(newTemplateName). Saving makes a second one.")
+            } else {
+                Text("Saves this list's items and counts so you can apply them to future trips.")
+            }
+        }
+        .sensoryFeedback(.success, trigger: savedTemplateCount)
         .onChange(of: isDeleted) {
             dismiss()
         }
@@ -397,6 +420,10 @@ struct PackingListContainerView: View {
             onCreateList: { showingAddListSheet = true },
             onApplyTemplate: { isApplyingDefaultPackingList = true },
             onDeleteList: { listToDelete = $0 },
+            onSaveAsTemplate: { list in
+                newTemplateName = list.name
+                listToSaveAsTemplate = list
+            },
             isRemovingItems: isRemovingItems,
             onStartRemovingItems: startRemovingItems,
             onRemoveItem: removeItem
@@ -664,6 +691,15 @@ struct PackingListContainerView: View {
     }
 
     /// Reminders-style: tapping blank space finishes the current entry, or starts a new one
+    /// Copies the list's names and counts into a new template and links the list to it
+    private func saveAsTemplate(_ list: PackingList) {
+        let name = newTemplateName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, list.isNewTemplateCandidate else { return }
+        list.saveAsNewTemplate(named: name, owner: allUsers.first, in: modelContext)
+        try? modelContext.save()
+        savedTemplateCount += 1
+    }
+
     private func handleTapOnEmptyArea(in list: PackingList?) {
         if isAddingNewItem {
             finishAddingNewItem()
