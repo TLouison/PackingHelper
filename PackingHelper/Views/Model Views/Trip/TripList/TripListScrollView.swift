@@ -27,6 +27,10 @@ struct TripListScrollView: View {
     var showsPastTripsSummary: Bool = false
     /// Completed trips; when present, a trailing card opens them
     var pastTrips: [Trip] = []
+    /// Changes to scroll back to the first card (upcoming trips are sorted soonest first)
+    var scrollToStart: Int = 0
+
+    @State private var scrollPosition = ScrollPosition()
     
     //    var shouldShowCTA: Bool {
     //        !purchaseManager.hasUnlockedPlus && canShowCTA && trips.count >= Trip.maxFreeTrips
@@ -71,6 +75,13 @@ struct TripListScrollView: View {
             proxy.size.width > proxy.size.height
         } action: { isLandscape in
             self.isLandscape = isLandscape
+        }
+        .onChange(of: scrollToStart) {
+            // The grid scrolls vertically; the pager and shelf scroll sideways
+            let edge: Edge = horizontalSizeClass == .regular && !isLandscape ? .top : .leading
+            withAnimation(.smooth) {
+                scrollPosition.scrollTo(edge: edge)
+            }
         }
         // Presented from outside the scroll content so the summary card doesn't own the sheet
         .sheet(item: $reviewingTrip) { trip in
@@ -136,6 +147,7 @@ extension TripListScrollView {
         }
         .contentMargins(.horizontal, 24, for: .scrollContent)
         .scrollTargetBehavior(.paging)
+        .scrollPosition($scrollPosition)
     }
 
     private var gridLayout: some View {
@@ -171,6 +183,7 @@ extension TripListScrollView {
             .padding(.vertical)
         }
         .contentMargins(.horizontal, 16, for: .scrollContent)
+        .scrollPosition($scrollPosition)
     }
 
     /// Landscape: one row of tall cards, each the full height of the screen, scrolling sideways
@@ -207,6 +220,7 @@ extension TripListScrollView {
         .contentMargins(16, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned)
         .scrollIndicators(.hidden)
+        .scrollPosition($scrollPosition)
     }
 
     private func tripCard(_ trip: Trip, index: Int, isFeatured: Bool = false) -> some View {

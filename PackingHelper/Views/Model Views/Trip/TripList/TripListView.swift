@@ -21,6 +21,11 @@ enum TripListRoute: Hashable {
 struct TripListView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = TripsViewModel()
+
+    /// Changes each time the Trips tab is tapped while selected
+    var reselections: Int = 0
+    /// Bumped to scroll the list back to the soonest trip
+    @State private var scrollToSoonestTrip = 0
     
     @State private var isShowingAddTripSheet: Bool = false
     @State private var isShowingSettings: Bool = false
@@ -85,7 +90,7 @@ struct TripListView: View {
     @ViewBuilder
     func tripList() -> some View {
         if !upcomingTrips.isEmpty {
-            TripListScrollView(path: $viewModel.path, trips: upcomingTrips, canShowCTA: true, pastTrips: completedTrips)
+            TripListScrollView(path: $viewModel.path, trips: upcomingTrips, canShowCTA: true, pastTrips: completedTrips, scrollToStart: scrollToSoonestTrip)
         } else if !completedTrips.isEmpty {
             allTripsCompletedView
                 .navigationTitle("Trips")
@@ -158,6 +163,14 @@ struct TripListView: View {
         }
         .readsVerticalToolbar($isShowingVerticalToolbar)
         .environment(viewModel)
+        .onChange(of: reselections) {
+            // Like other apps' tabs: back out to the list first, then a second tap scrolls it
+            if viewModel.path.isEmpty {
+                scrollToSoonestTrip += 1
+            } else {
+                viewModel.path = NavigationPath()
+            }
+        }
     }
     
     func openNewlyCreatedTrip() {

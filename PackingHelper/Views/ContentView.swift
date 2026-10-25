@@ -15,6 +15,8 @@ enum AppTab: Hashable {
 struct ContentView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var selectedTab: AppTab = .trips
+    /// Bumped when the Trips tab is tapped while already selected
+    @State private var tripsTabReselections = 0
 
     private static var now: Date { Date.now }
     @Query(filter: #Predicate<Trip> { $0.endDate <= now }) private var completedTrips: [Trip]
@@ -25,9 +27,9 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: tabSelection) {
             Tab("Trips", systemImage: "airplane.departure", value: AppTab.trips) {
-                TripListView()
+                TripListView(reselections: tripsTabReselections)
             }
 
             Tab("Templates", systemImage: suitcaseIcon, value: AppTab.templates) {
@@ -47,6 +49,20 @@ struct ContentView: View {
         )) {
             WelcomeView()
                 .interactiveDismissDisabled()
+        }
+    }
+}
+
+extension ContentView {
+    /// The tab bar sets the selection again when the current tab is tapped; catch that for Trips
+    private var tabSelection: Binding<AppTab> {
+        Binding {
+            selectedTab
+        } set: { tab in
+            if tab == selectedTab && tab == .trips {
+                tripsTabReselections += 1
+            }
+            selectedTab = tab
         }
     }
 }
