@@ -140,7 +140,7 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 - `PurchaseManager.swift` + RevenueCat SDK; read `purchaseManager.isPlusActive`
 - Plus gates the AI packing assistant and Unsplash search + Load More (free users get one 25-photo page for their destination, no search bar). There is no trip limit
 - New trips auto-pick a random Unsplash cover photo in `TripEditView` (Worker `/v1/photos/random`, not gated) unless Settings → Default Cover (`defaultTripCover`) is Map
-- Settings opens with `PlusSettingsSection` (upsell card, or an Active row → Customer Center); trip preferences go in its `TripSettingsSection`
+- Settings opens with `PlusSettingsSection` (upsell card, or a status row → `PlusStatusView`, "Your Plus": plan state from `PurchaseManager.plusEntitlement`, Apple manage/refund sheets, Customer Center behind Contact Support); trip preferences go in its `TripSettingsSection`
 - AI and Unsplash go through a Cloudflare Worker (`WORKER_URL`), which verifies the RevenueCat entitlement server-side
 
 **AI Assistant:**

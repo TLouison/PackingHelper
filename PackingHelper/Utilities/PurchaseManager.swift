@@ -26,6 +26,8 @@ class PurchaseManager {
     static let entitlementID = "PackingHelperPlus"
 
     private(set) var isPlusActive = false
+    /// The Plus entitlement's details (plan, renewal, trial, billing issue) for the Your Plus screen
+    private(set) var plusEntitlement: EntitlementInfo?
 
     private var observer: Task<Void, Never>?
 
@@ -62,8 +64,21 @@ class PurchaseManager {
         return isPlusActive
     }
 
+    /// Opens Apple's refund request sheet for the Plus purchase
+    func requestRefund() async throws -> RefundRequestStatus {
+        try await Purchases.shared.beginRefundRequest(forEntitlement: Self.entitlementID)
+    }
+
+    /// The App Store product behind Plus, for its price and billing period
+    func plusProduct() async -> StoreProduct? {
+        guard let id = plusEntitlement?.productIdentifier else { return nil }
+        return await Purchases.shared.products([id]).first
+    }
+
     private func apply(_ info: CustomerInfo) {
-        isPlusActive = info.entitlements[Self.entitlementID]?.isActive == true
+        let entitlement = info.entitlements[Self.entitlementID]
+        isPlusActive = entitlement?.isActive == true
+        plusEntitlement = entitlement
     }
 }
 

@@ -2,18 +2,16 @@
 //  PlusSettingsSection.swift
 //  PackingHelper
 //
-//  Top of Settings: a hero upsell card for free users, or a slim "Active" row
-//  that opens RevenueCat's Customer Center for subscribers.
+//  Top of Settings: a hero upsell card for free users, or a slim status row
+//  that opens the Your Plus screen for subscribers.
 //
 
 import SwiftUI
-import RevenueCatUI
 
 struct PlusSettingsSection: View {
     @Environment(PurchaseManager.self) private var purchaseManager
 
     @State private var showingPaywall = false
-    @State private var showingCustomerCenter = false
 
     var body: some View {
         Section {
@@ -29,31 +27,42 @@ struct PlusSettingsSection: View {
         .sheet(isPresented: $showingPaywall) {
             PlusPaywallView()
         }
-        .presentCustomerCenter(isPresented: $showingCustomerCenter)
     }
 
     private var activeRow: some View {
-        Button {
-            showingCustomerCenter = true
+        NavigationLink {
+            PlusStatusView()
         } label: {
-            HStack {
+            LabeledContent {
+                Text(statusText)
+                    .foregroundStyle(isBillingIssue ? .orange : .secondary)
+            } label: {
                 Label {
                     Text("Packing Helper Plus")
-                        .foregroundStyle(.primary)
                 } icon: {
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundStyle(defaultLinearGradient)
                 }
-                Spacer()
-                Text("Active")
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
             }
         }
-        .accessibilityHint("Manage your subscription")
+        .accessibilityHint("Shows your plan and subscription options")
+    }
+
+    private var isBillingIssue: Bool {
+        if case .billingIssue = PlusState(purchaseManager.plusEntitlement) { return true }
+        return false
+    }
+
+    /// Short state for the row; the Your Plus screen has the details
+    private var statusText: String {
+        switch PlusState(purchaseManager.plusEntitlement) {
+        case .renewing, .inactive: "Active"
+        case .trial: "Trial"
+        case .lifetime: "Lifetime"
+        case .billingIssue: "Billing Issue"
+        case .cancelled(let ends):
+            ends.map { "Ends \($0.formatted(.dateTime.month(.abbreviated).day()))" } ?? "Ending"
+        }
     }
 }
 
