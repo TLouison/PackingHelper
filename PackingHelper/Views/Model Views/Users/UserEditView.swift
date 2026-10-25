@@ -74,9 +74,9 @@ struct UserEditView: View {
                             Spacer()
                         }
                     } header: {
-                        Text("Favorite Color")
+                        Text("Icon Color")
                     } footer: {
-                        Text("Set the color of your user icon to your favorite color!")
+                        Text("Used for your icon on items you're packing.")
                     }
 
                     Section {

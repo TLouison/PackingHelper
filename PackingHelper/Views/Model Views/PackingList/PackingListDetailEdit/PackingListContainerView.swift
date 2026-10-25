@@ -490,6 +490,9 @@ struct PackingListContainerView: View {
         if items.isEmpty && !isAddingNewItem {
             EmptyStateView()
                 .padding(.top, 60)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture { handleTapOnEmptyArea(in: nil) }
         }
     }
 

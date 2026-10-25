@@ -130,11 +130,12 @@ struct TemplateUpdateSheet: View {
         let isLastPage = index == pages.count - 1
 
         return List {
+            // A header rather than a row: rows clip to their rounded shape, which cut into the text
             Section {
+            } header: {
                 pageHeader(page)
+                    .textCase(nil)
             }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
 
             ForEach(page.sections) { section in
                 Section {
@@ -149,7 +150,7 @@ struct TemplateUpdateSheet: View {
         .safeAreaBar(edge: .bottom) {
             if isLastPage {
                 // Pinned so it stays visible however long the list is
-                Text("Added items start with a count of 1. Trips that already use these templates aren't changed.")
+                Text("Selected items are added to their templates with a count of 1. Your other trips won't change.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -200,6 +201,7 @@ struct TemplateUpdateSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(page.packer != nil && !showsPacker ? "New Items" : page.title)
                     .font(.headline)
+                    .foregroundStyle(.primary)
                 Text("Choose items to add to these templates for future trips.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

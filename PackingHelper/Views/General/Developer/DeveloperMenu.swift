@@ -76,7 +76,7 @@ struct DeveloperMenuView: View {
                     }
                     if let user = users.first {
                         LabeledContent("User Name") { Text(user.name) }
-                        LabeledContent("Favorite Color") { Text(user.colorHex) }
+                        LabeledContent("Icon Color") { Text(user.colorHex) }
                     }
                 }
             }

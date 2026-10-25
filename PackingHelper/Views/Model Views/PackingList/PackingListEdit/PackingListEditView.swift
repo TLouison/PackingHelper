@@ -21,6 +21,7 @@ struct PackingListEditView: View {
     @Query(sort: \User.created) private var users: [User]
 
     @State private var listName = ""
+    @FocusState private var isNameFocused: Bool
     @State private var owner: User?
 
     @State private var isDeleting: Bool = false
@@ -78,6 +79,17 @@ struct PackingListEditView: View {
                         }
                     } else {
                         TextField("\(self.titleName) Name", text: $listName)
+                            .focused($isNameFocused)
+                            .submitLabel(.done)
+                            .onSubmit(saveAndDismiss)
+                            .task {
+                                // New lists and templates start typing right away. Focus once the
+                                // sheet has finished presenting; setting it in onAppear is dropped
+                                // because the Form's row isn't in the hierarchy yet.
+                                guard packingList == nil else { return }
+                                try? await Task.sleep(for: .milliseconds(350))
+                                isNameFocused = true
+                            }
                     }
 
                     if isTemplate && users.count > 1 {
@@ -105,12 +117,8 @@ struct PackingListEditView: View {
                     Text(titleString)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        withAnimation {
-                            save()
-                            dismiss()
-                        }
-                    }.disabled(!formIsValid)
+                    Button("Save", action: saveAndDismiss)
+                        .disabled(!formIsValid)
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", role: .cancel) {
@@ -142,6 +150,15 @@ struct PackingListEditView: View {
         }
     }
     
+    private func saveAndDismiss() {
+        guard formIsValid else { return }
+        isNameFocused = false
+        withAnimation {
+            save()
+            dismiss()
+        }
+    }
+
     func save() {
         let newList = PackingList.save(
             packingList,

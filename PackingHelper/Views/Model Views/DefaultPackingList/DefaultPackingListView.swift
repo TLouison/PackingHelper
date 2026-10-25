@@ -26,6 +26,7 @@ struct DefaultPackingListView: View {
     @State private var searchText = ""
     @State private var showingAddSheet = false
     @State private var showingSearch = false
+    @FocusState private var isSearchFocused: Bool
     /// Shared by both layouts so the open template survives a compact ↔ regular switch
     /// (e.g. folding/unfolding the Duo): sidebar selection when wide, pushed list when compact.
     @State private var selectedList: PackingList?
@@ -58,10 +59,8 @@ struct DefaultPackingListView: View {
             PackingListEditView(
                 isTemplate: true,
                 onListCreated: { newList in
-                    // Wide layout: open the new template in the detail column right away
-                    if horizontalSizeClass == .regular {
-                        selectedList = newList
-                    }
+                    // Open the new template right away (pushed, or in the detail column when wide)
+                    selectedList = newList
                 },
                 isDeleted: .constant(false)
             )
@@ -87,22 +86,26 @@ struct DefaultPackingListView: View {
                     searchBar
                 }
                 
-                if filteredLists.isEmpty {
-                    emptyState
-                        .frame(maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(filteredLists) { list in
-                                PackingListCard(list: list) {
-                                    selectedList = list
+                Group {
+                    if filteredLists.isEmpty {
+                        emptyState
+                            .frame(maxHeight: .infinity)
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 8) {
+                                ForEach(filteredLists) { list in
+                                    PackingListCard(list: list) {
+                                        selectedList = list
+                                    }
                                 }
                             }
+                            .padding(.horizontal)
+                            .padding(.top)
                         }
-                        .padding(.horizontal)
-                        .padding(.top)
                     }
                 }
+                // Tapping anywhere below the search bar ends searching
+                .simultaneousGesture(TapGesture().onEnded { isSearchFocused = false })
             }
             .safeAreaInset(edge: .bottom) { reviewBanner }
             .background(Color(.systemGroupedBackground))
@@ -127,6 +130,7 @@ struct DefaultPackingListView: View {
                     TemplateSidebarRow(list: list)
                         .tag(list)
                 }
+                .simultaneousGesture(TapGesture().onEnded { isSearchFocused = false })
                 .overlay {
                     if filteredLists.isEmpty && hasActiveFilters {
                         ContentUnavailableView.search(text: searchText)
@@ -228,6 +232,8 @@ struct DefaultPackingListView: View {
                 .foregroundStyle(.secondary)
             TextField("Search templates...", text: $searchText)
                 .textFieldStyle(.plain)
+                .focused($isSearchFocused)
+                .submitLabel(.search)
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
@@ -237,6 +243,20 @@ struct DefaultPackingListView: View {
         .padding(12)
         .background(Color(.secondarySystemGroupedBackground))
         .transition(.move(edge: .top).combined(with: .opacity))
+        .onAppear { isSearchFocused = true }
+        .onChange(of: isSearchFocused) { _, isFocused in
+            // Tapping away from an empty search closes it; a typed search stays as a filter
+            if !isFocused && searchText.isEmpty {
+                setSearchShowing(false)
+            }
+        }
+    }
+
+    private func setSearchShowing(_ isShowing: Bool) {
+        withAnimation(.spring(response: 0.3)) {
+            showingSearch = isShowing
+            if !isShowing { searchText = "" }
+        }
     }
     
     @ViewBuilder
@@ -280,15 +300,13 @@ struct DefaultPackingListView: View {
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
                 Button {
-                    withAnimation(.spring(response: 0.3)) {
-                        showingSearch.toggle()
-                        if !showingSearch { searchText = "" }
-                    }
+                    setSearchShowing(!showingSearch)
                 } label: {
                     Image(systemName: "magnifyingglass\(hasActiveFilters ? ".circle.fill" : "")")
                         .fontWeight(.semibold)
-                        .foregroundStyle(hasActiveFilters ? .accent : .primary)
+                        .foregroundStyle(showingSearch ? .accent : .primary)
                 }
+                .accessibilityLabel(showingSearch ? "Close Search" : "Search Templates")
                 
                 Button { showingAddSheet.toggle() } label: {
                     Image(systemName: "plus").fontWeight(.semibold)

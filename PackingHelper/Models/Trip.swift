@@ -75,8 +75,8 @@ enum TripAccomodation: Codable, CaseIterable {
 
     var name: String {
         switch self {
-        case .family: "Family"
-        case .friend: "Friend"
+        case .family: "With Family"
+        case .friend: "With Friends"
         case .hotel: "Hotel"
         case .rental: "Rental"
         }
@@ -344,6 +344,10 @@ extension Trip {
     func addList(_ list: PackingList) {
         if self.lists == nil {
             self.lists = []
+        }
+        // New sections go last; the Default section keeps its -1 so it stays first
+        if !list.isDefault {
+            list.sortOrder = SortOrderManager.nextListSortOrder(in: self.lists!)
         }
         self.lists!.append(list)
     }

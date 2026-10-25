@@ -32,8 +32,6 @@ struct TripDetailInfoView: View {
                 } else if trip.daysUntilReturn > 0 {
                     infoRow("Days Until Return", Text("\(trip.daysUntilReturn) days"))
                 }
-                
-                infoRow("Added On", Text("\(trip.createdDate.formatted(date: .abbreviated, time: .omitted))"))
             }
         }
     }

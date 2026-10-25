@@ -49,7 +49,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 
 - **5.1** Drag-reorder lands in the wrong spot when visible ≠ stored items (packer filter, pending checks). Position by neighbor ("insert before X"), renumber all items.
 - **5.2** Main add flow never ML-categorizes (`Item.create` has no callers). One `Item.create(...)` used by the container and AI paths.
-- **5.3** New sections all get `sortOrder` 0; `SortOrderManager.nextListSortOrder` unused; template-applied lists lose `isDayOf`/`type`; list menus unsorted.
+- **5.3** Template-applied lists lose `isDayOf`/`type`; list menus unsorted.
 - **5.4** Progress counts disagree (rows vs `count`, ignore user filter).
 - **5.5** Template "Last Updated" never changes on edit/delete.
 - **5.6** Section `.draggable` active outside reorder mode.

@@ -319,7 +319,7 @@ struct TripEditView: View {
 
     // MARK: - Accommodation Section
     var accommodationSection: some View {
-        formSection("Staying at") {
+        formSection("Where you'll stay") {
             FlowLayout(spacing: 10) {
                 ForEach(TripAccomodation.allCases, id: \.self) { accom in
                     chip(accom.name, icon: Image(systemName: accommodationIcon(for: accom)), isSelected: tripAccomodation == accom) {

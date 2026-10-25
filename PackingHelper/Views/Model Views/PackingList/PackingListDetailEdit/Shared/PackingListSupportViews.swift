@@ -123,7 +123,7 @@ struct EmptyStateView: View {
                 .font(.headline)
                 .foregroundStyle(.secondary)
             
-            Text("Tap + to add your first item.")
+            Text("Tap anywhere to add your first item.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

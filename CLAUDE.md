@@ -127,7 +127,7 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 
 **Tips (TipKit):**
 - Features are taught in context, not in onboarding. Tips live in `Views/General/PackingTips.swift`; `Tips.configure()` runs in `PackingHelperApp.init`
-- The Focus packing tips (apply template, tap to pack, reorder sections) share one `TipGroup(.firstAvailable)` in `FocusPackingView`, so only one shows at a time; their rules read `@Parameter`s set from the view
+- The Focus packing tips (apply template, reorder sections) share one `TipGroup(.firstAvailable)` in `FocusPackingView`, so only one shows at a time; their rules read `@Parameter`s set from the view
 - Developer Menu → "Reset Tips on Next Launch" (the datastore can only be reset before `configure`)
 
 **Notifications:**

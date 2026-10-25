@@ -25,7 +25,7 @@ struct TemplateReviewTripRow: View {
                     Text(trip.name)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                    Text("^[\(itemCount) item](inflect: true) not in your templates")
+                    Text("^[\(itemCount) new item](inflect: true) to review")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

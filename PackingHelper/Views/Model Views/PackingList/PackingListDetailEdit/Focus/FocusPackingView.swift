@@ -53,18 +53,7 @@ struct FocusPackingView: View {
     /// One packing tip at a time, the first whose rules pass
     @State private var tips = TipGroup(.firstAvailable) {
         ApplyTemplateTip()
-        TapToPackTip()
         ReorderSectionsTip()
-    }
-
-    /// What the tips' rules look at
-    private var tipState: FocusTipState {
-        let items = input.lists.flatMap { input.items(in: $0) }
-        return FocusTipState(
-            sections: input.lists.count,
-            unpacked: items.count(where: { !$0.isPacked }),
-            packed: items.count(where: \.isPacked)
-        )
     }
 
     /// Every page in order: All, each section, Add a Section
@@ -111,19 +100,11 @@ struct FocusPackingView: View {
                 onMove: moveList
             )
 
-            TipView(tips.currentTip as? TapToPackTip)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-
             pager
         }
-        .onChange(of: tipState, initial: true) { old, state in
-            ApplyTemplateTip.tripHasNoSections = state.sections == 0
-            TapToPackTip.hasUnpackedItems = state.unpacked > 0
-            ReorderSectionsTip.sectionCount = state.sections
-            if state.packed > old.packed {
-                TapToPackTip().invalidate(reason: .actionPerformed)
-            }
+        .onChange(of: input.lists.count, initial: true) { _, sectionCount in
+            ApplyTemplateTip.tripHasNoSections = sectionCount == 0
+            ReorderSectionsTip.sectionCount = sectionCount
         }
         .onAppear {
             if currentPage == nil {
@@ -391,12 +372,6 @@ struct FocusPackingView: View {
 }
 
 /// Counts the packing tips' rules depend on
-private struct FocusTipState: Equatable {
-    var sections = 0
-    var unpacked = 0
-    var packed = 0
-}
-
 // MARK: - Rail
 
 private struct FocusBagRail: View {

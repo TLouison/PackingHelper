@@ -41,7 +41,7 @@ struct LocationSearchView: View {
             .searchable(
                 text: $completer.query,
                 placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "City, landmark, or address"
+                prompt: "City or country"
             )
             .searchFocused($isSearchFocused)
             // Keep the nav bar (and its Cancel button) visible while the search is active,
@@ -75,7 +75,7 @@ struct LocationSearchView: View {
             ContentUnavailableView(
                 "Find a Place",
                 systemImage: "map",
-                description: Text("Search for a city, landmark, or address.")
+                description: Text("Search for a city, region, or country.")
             )
         } else if completer.suggestions.isEmpty && !completer.isSearching {
             ContentUnavailableView.search(text: trimmed)
@@ -183,7 +183,11 @@ final class LocationCompleter: NSObject, MKLocalSearchCompleterDelegate {
     override init() {
         super.init()
         completer.delegate = self
-        completer.resultTypes = [.address, .pointOfInterest]
+        // Trips go to places, not addresses: only cities, regions, and countries
+        completer.resultTypes = .address
+        completer.addressFilter = MKAddressFilter(
+            including: [.locality, .subAdministrativeArea, .administrativeArea, .country]
+        )
     }
 
     private func updateQuery() {
