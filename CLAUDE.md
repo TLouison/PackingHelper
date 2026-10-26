@@ -20,7 +20,7 @@ Other commands (e.g. `git`, file inspection, search) are fine to run.
 The app uses SwiftData with six models. All models have a `uuid`; use it (not `persistentModelID.hashValue`, which is reseeded every launch) for any key that must survive relaunch.
 
 **Trip** (root entity)
-- Properties: `name`, `startDate`, `endDate`, `type` (plane/car/train/boat/ferry), `accomodation`
+- Properties: `name`, `startDate`, `endDate`, `types` (plane/car/train/boat/ferry; multi-select, `primaryType` is the icon), `accomodations` (multi-select)
 - Has-many: `lists` (PackingList, cascade delete)
 - Has-one: `origin`, `destination` (TripLocation), `coverPhoto` (TripCoverPhoto, cascade delete)
 - Extensions provide rich computed properties: `.status`, `.packers`, `.totalItems`, `.packedItems`

@@ -31,8 +31,8 @@ enum AITripContextBuilder {
             startDate: dayFormatter.string(from: trip.startDate),
             endDate: dayFormatter.string(from: trip.endDate),
             durationDays: max(trip.duration, 1),
-            tripType: trip.type.name.lowercased(),
-            accommodation: trip.accomodation.name.lowercased(),
+            tripType: trip.typesName.lowercased(),
+            accommodation: trip.accomodationsName.lowercased(),
             packerCount: max(trip.packers.count, 1),
             existingItems: existingItemNames(for: trip, targetUser: targetUser),
             weather: await weatherContext(for: trip)

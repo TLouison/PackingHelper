@@ -16,8 +16,8 @@ struct TripEditView: View {
     @State private var tripName: String = ""
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date().addingTimeInterval(86400 * 5) // 5 days later
-    @State private var tripType: TripType = .plane
-    @State private var tripAccomodation: TripAccomodation = .hotel
+    @State private var tripTypes: [TripType] = [.plane]
+    @State private var tripAccomodations: [TripAccomodation] = [.hotel]
     @State private var destinationLocation: TripLocation?
     /// Staged cover photo; written to the trip only on save. nil = destination map.
     @State private var coverPhotoDraft: CoverPhotoDraft?
@@ -84,8 +84,8 @@ struct TripEditView: View {
         var name: String
         var startDay: Date
         var endDay: Date
-        var type: TripType
-        var accomodation: TripAccomodation
+        var types: [TripType]
+        var accomodations: [TripAccomodation]
         var destinationID: PersistentIdentifier?
         var coverPhotoID: UUID?
         var coverFraming: [Double]
@@ -98,8 +98,8 @@ struct TripEditView: View {
             name: tripName,
             startDay: calendar.startOfDay(for: startDate),
             endDay: calendar.startOfDay(for: endDate),
-            type: tripType,
-            accomodation: tripAccomodation,
+            types: tripTypes,
+            accomodations: tripAccomodations,
             destinationID: destinationLocation?.persistentModelID,
             coverPhotoID: coverPhotoDraft?.uuid,
             coverFraming: coverPhotoDraft.map { [$0.focalX, $0.focalY, $0.zoom] } ?? [],
@@ -123,8 +123,8 @@ struct TripEditView: View {
             _tripName = State(initialValue: trip.name)
             _startDate = State(initialValue: trip.startDate)
             _endDate = State(initialValue: trip.endDate)
-            _tripType = State(initialValue: trip.type)
-            _tripAccomodation = State(initialValue: trip.accomodation)
+            _tripTypes = State(initialValue: trip.types)
+            _tripAccomodations = State(initialValue: trip.accomodations)
             _destinationLocation = State(initialValue: trip.destination)
             _coverPhotoDraft = State(initialValue: trip.coverPhoto.map { CoverPhotoDraft($0) })
         }
@@ -264,8 +264,8 @@ struct TripEditView: View {
         formSection("Getting there") {
             FlowLayout(spacing: 10) {
                 ForEach(TripType.allCases, id: \.self) { type in
-                    chip(type.name, icon: type.startIcon, isSelected: tripType == type) {
-                        tripType = type
+                    chip(type.name, icon: type.startIcon, isSelected: tripTypes.contains(type)) {
+                        toggle(type, in: &tripTypes)
                     }
                 }
             }
@@ -277,8 +277,8 @@ struct TripEditView: View {
         formSection("Where you'll stay") {
             FlowLayout(spacing: 10) {
                 ForEach(TripAccomodation.allCases, id: \.self) { accom in
-                    chip(accom.name, icon: Image(systemName: accommodationIcon(for: accom)), isSelected: tripAccomodation == accom) {
-                        tripAccomodation = accom
+                    chip(accom.name, icon: Image(systemName: accommodationIcon(for: accom)), isSelected: tripAccomodations.contains(accom)) {
+                        toggle(accom, in: &tripAccomodations)
                     }
                 }
             }
@@ -484,6 +484,17 @@ struct TripEditView: View {
     }
 
     // MARK: - Helper Methods
+    /// Adds or removes a chip's value, keeping `allCases` order (the first is the
+    /// trip's icon). The last selected value can't be removed.
+    private func toggle<Value: CaseIterable & Equatable>(_ value: Value, in selection: inout [Value]) {
+        if let index = selection.firstIndex(of: value) {
+            guard selection.count > 1 else { return }
+            selection.remove(at: index)
+        } else {
+            selection = Value.allCases.filter { selection.contains($0) || $0 == value }
+        }
+    }
+
     func accommodationIcon(for accom: TripAccomodation) -> String {
         switch accom {
         case .hotel:
@@ -510,9 +521,9 @@ struct TripEditView: View {
             existingTrip.name = resolvedName
             existingTrip.startDate = startDate
             existingTrip.endDate = endDate
-            existingTrip.type = tripType
+            existingTrip.types = tripTypes
             existingTrip.destination = destination
-            existingTrip.accomodation = tripAccomodation
+            existingTrip.accomodations = tripAccomodations
             existingTrip.applyCoverPhoto(coverPhotoDraft, in: modelContext)
         } else {
             // Create new trip
@@ -520,10 +531,10 @@ struct TripEditView: View {
                 name: resolvedName,
                 startDate: startDate,
                 endDate: resolvedEndDate,
-                type: tripType,
+                types: tripTypes,
                 origin: nil,
                 destination: destination,
-                accomodation: tripAccomodation
+                accomodations: tripAccomodations
             )
             modelContext.insert(newTrip)
             newTrip.applyCoverPhoto(coverPhotoDraft, in: modelContext)

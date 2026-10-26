@@ -166,7 +166,7 @@ struct TripListRowView: View {
         Label {
             Text("Next Trip")
         } icon: {
-            trip.type.startIcon
+            trip.primaryType.startIcon
         }
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(.white)

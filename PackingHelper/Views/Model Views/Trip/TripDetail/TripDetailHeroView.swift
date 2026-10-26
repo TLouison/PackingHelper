@@ -122,15 +122,15 @@ struct TripDetailHeroView: View {
         let endDateString = trip.endDate.formatted(date: .abbreviated, time: .omitted)
 
         if calendar.isDateInToday(trip.startDate) {
-            Label { Text("Departing today!") } icon: { trip.type.startIcon }
+            Label { Text("Departing today!") } icon: { trip.primaryType.startIcon }
         } else if now < trip.startDate {
-            Label { Text("Departing on \(beginDateString)") } icon: { trip.type.startIcon }
+            Label { Text("Departing on \(beginDateString)") } icon: { trip.primaryType.startIcon }
         } else if calendar.isDateInToday(trip.endDate) {
-            Label { Text("Returning today") } icon: { trip.type.endIcon }
+            Label { Text("Returning today") } icon: { trip.primaryType.endIcon }
         } else if now < trip.endDate {
-            Label { Text("Returning on \(endDateString)") } icon: { trip.type.endIcon }
+            Label { Text("Returning on \(endDateString)") } icon: { trip.primaryType.endIcon }
         } else {
-            Label { Text("Returned on \(endDateString)") } icon: { trip.type.endIcon }
+            Label { Text("Returned on \(endDateString)") } icon: { trip.primaryType.endIcon }
         }
     }
 }

@@ -39,19 +39,19 @@ extension PreviewTrait where T == Preview.ViewTraits {
         TripLocation(name: "New York City", latitude: 40.7128, longitude: -74.0060),
         TripLocation(name: "Miami", latitude: 25.7617, longitude: -80.1918)
     ]
-    let springBreakTrip = Trip(name: "Spring Break", startDate: Date.distantPast, endDate: Date.distantPast.advanced(by: SECONDS_IN_DAY), type: .plane, origin: springBreakLocations[0], destination: springBreakLocations[1], accomodation: .rental)
+    let springBreakTrip = Trip(name: "Spring Break", startDate: Date.distantPast, endDate: Date.distantPast.advanced(by: SECONDS_IN_DAY), types: [.plane], origin: springBreakLocations[0], destination: springBreakLocations[1], accomodations: [.rental])
     
     let familyVisitLocations = [
         TripLocation(name: "New York City", latitude: 40.7128, longitude: -74.0060),
         TripLocation(name: "Jersey City", latitude: 40.7178, longitude: -74.0431)
     ]
-    let familyVisitTrip = Trip(name: "Family Visit", startDate: Date.distantPast, endDate: Date.distantFuture, type: .car, origin: familyVisitLocations[0], destination: familyVisitLocations[1], accomodation: .rental)
+    let familyVisitTrip = Trip(name: "Family Visit", startDate: Date.distantPast, endDate: Date.distantFuture, types: [.car], origin: familyVisitLocations[0], destination: familyVisitLocations[1], accomodations: [.rental])
     
     let workTripLocations = [
         TripLocation(name: "New York City", latitude: 40.7128, longitude: -74.0060),
         TripLocation(name: "Amsterdam", latitude: 52.3676, longitude: 4.9041)
     ]
-    let workTrip = Trip(name: "Work Trip", startDate: Date.distantFuture.advanced(by: -SECONDS_IN_DAY), endDate: Date.distantFuture, type: .car, origin: workTripLocations[0], destination: workTripLocations[1], accomodation: .hotel)
+    let workTrip = Trip(name: "Work Trip", startDate: Date.distantFuture.advanced(by: -SECONDS_IN_DAY), endDate: Date.distantFuture, types: [.car], origin: workTripLocations[0], destination: workTripLocations[1], accomodations: [.hotel])
     
     // Packing List Creation (sections — user is on items, not lists)
     let springBreakBeachwear = PackingList(template: false, name: "Beachwear", countAsDays: true)

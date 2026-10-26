@@ -118,7 +118,7 @@ private struct RecentTripRow: View {
     var body: some View {
         Button(action: onOpen) {
             HStack(spacing: 12) {
-                trip.type.endIcon
+                trip.primaryType.endIcon
                     .font(.title3)
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 28)

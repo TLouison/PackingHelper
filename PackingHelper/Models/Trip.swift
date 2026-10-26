@@ -101,8 +101,10 @@ final class Trip {
     var endDate: Date = Date.now.advanced(by: SECONDS_IN_DAY)
     var createdDate: Date = Date.now
 
-    var type: TripType = TripType.plane
-    var accomodation: TripAccomodation = TripAccomodation.hotel
+    /// How the trip gets there; several allowed, kept in `allCases` order
+    var types: [TripType] = [TripType.plane]
+    /// Where the trip stays; several allowed, kept in `allCases` order
+    var accomodations: [TripAccomodation] = [TripAccomodation.hotel]
 
     var dayOfNotificationUUID: String?
 
@@ -111,7 +113,7 @@ final class Trip {
 
     static let maxFreeTrips: Int = 3
 
-    init(name: String, startDate: Date, endDate: Date, type: TripType, origin: TripLocation?, destination: TripLocation, accomodation: TripAccomodation) {
+    init(name: String, startDate: Date, endDate: Date, types: [TripType], origin: TripLocation?, destination: TripLocation, accomodations: [TripAccomodation]) {
         self.createdDate = Date.now
 
         self.name = name
@@ -119,8 +121,8 @@ final class Trip {
         self.startDate = startDate
         self.endDate = endDate
 
-        self.type = type
-        self.accomodation = accomodation
+        self.types = types
+        self.accomodations = accomodations
 
         self.origin = origin
         self.destination = destination
@@ -135,10 +137,10 @@ final class Trip {
         name: String,
         startDate: Date,
         endDate: Date,
-        tripType: TripType,
+        types: [TripType],
         origin: TripLocation,
         destination: TripLocation,
-        accomodation: TripAccomodation,
+        accomodations: [TripAccomodation],
         in context: ModelContext
     ) -> Trip {
         if let trip {
@@ -147,8 +149,8 @@ final class Trip {
             trip.startDate = startDate
             trip.endDate = endDate
 
-            trip.type = tripType
-            trip.accomodation = accomodation
+            trip.types = types
+            trip.accomodations = accomodations
 
             trip.origin = origin
             trip.destination = destination
@@ -158,10 +160,10 @@ final class Trip {
                 name: name,
                 startDate: startDate,
                 endDate: endDate,
-                type: tripType,
+                types: types,
                 origin: origin,
                 destination: destination,
-                accomodation: accomodation
+                accomodations: accomodations
             )
             context.insert(newTrip)
             return newTrip
@@ -204,15 +206,28 @@ extension Trip {
         }
     }
 
+    /// The transport whose icon stands for the trip: the first selected, plane if none
+    var primaryType: TripType {
+        types.first ?? .plane
+    }
+
+    /// Selected transport names, e.g. "Plane, Car"
+    var typesName: String {
+        types.isEmpty ? TripType.plane.name : types.map(\.name).joined(separator: ", ")
+    }
+
+    /// Selected accommodation names, e.g. "Hotel, With Family"
+    var accomodationsName: String {
+        accomodations.map(\.name).joined(separator: ", ")
+    }
+
     @ViewBuilder
     func getTypeLabel() -> some View {
         switch self.status {
-        case .upcoming, .departing:
-            self.type.startLabel(text: "\(self.type.name)")
         case .returning, .complete:
-            self.type.endLabel(text: "\(self.type.name)")
+            primaryType.endLabel(text: typesName)
         default:
-            self.type.startLabel(text: "\(self.type.name)")
+            primaryType.startLabel(text: typesName)
         }
     }
 }
@@ -422,7 +437,7 @@ extension Trip {
 }
 
 extension Trip {
-    static var sampleTrip = Trip(name: "Anniversary Trip", startDate: Date(), endDate: Date.now.addingTimeInterval(86400), type: .plane, origin: TripLocation.sampleOrigin, destination: TripLocation.sampleDestination, accomodation: .hotel)
+    static var sampleTrip = Trip(name: "Anniversary Trip", startDate: Date(), endDate: Date.now.addingTimeInterval(86400), types: [.plane], origin: TripLocation.sampleOrigin, destination: TripLocation.sampleDestination, accomodations: [.hotel])
 }
 
 /// Notification Code

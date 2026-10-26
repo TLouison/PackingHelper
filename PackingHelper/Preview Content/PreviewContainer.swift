@@ -22,7 +22,7 @@ let previewContainer: ModelContainer = {
             let destination = TripLocation.sampleDestination
             context.insert(origin)
             context.insert(destination)
-            context.insert(Trip(name: "NYC", startDate: Date.now, endDate: Date.now, type: .plane, origin: origin, destination: destination, accomodation: .hotel))
+            context.insert(Trip(name: "NYC", startDate: Date.now, endDate: Date.now, types: [.plane], origin: origin, destination: destination, accomodations: [.hotel]))
         }
         return container
     } catch {
