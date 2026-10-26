@@ -14,7 +14,6 @@ import TipKit
 struct PackingHelperApp: App {
     @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
     @AppStorage("hasLaunchedBefore") private var hasLaunchedBefore = false
-    @AppStorage("hasMigratedDayOfLists") private var hasMigratedDayOfLists = false
     @AppStorage("hasMigratedSortOrders") private var hasMigratedSortOrders = false
     @AppStorage("hasMigratedDefaultLists") private var hasMigratedDefaultLists = false
     @AppStorage("hasMigratedPackingModelV2") private var hasMigratedPackingModelV2 = false
@@ -51,10 +50,6 @@ struct PackingHelperApp: App {
         try? Tips.configure()
 
         // Perform data migration if needed
-        if !hasMigratedDayOfLists {
-            migrateDayOfLists()
-        }
-
         if !hasMigratedSortOrders {
             migrateSortOrders()
         }
@@ -93,26 +88,6 @@ struct PackingHelperApp: App {
         hasAssignedTemplateOwners = true
     }
 
-    private func migrateDayOfLists() {
-        let context = modelContainer.mainContext
-
-        // Fetch all lists that were typed as dayOf
-        // Since we changed the enum, we need to check the raw stored value
-        let descriptor = FetchDescriptor<PackingList>()
-        if let lists = try? context.fetch(descriptor) {
-            for list in lists {
-                // If the stored type was "Day-of", convert to packing with isDayOf = true
-                if list.typeString == "Day-of" {
-                    list.type = .packing
-                    list.isDayOf = true
-                }
-            }
-            try? context.save()
-        }
-
-        hasMigratedDayOfLists = true
-    }
-
     private func migrateSortOrders() {
         let context = modelContainer.mainContext
 
@@ -149,15 +124,11 @@ struct PackingHelperApp: App {
             let listsByTrip = Dictionary(grouping: lists) { $0.trip?.persistentModelID }
 
             for (_, tripLists) in listsByTrip {
-                // Further group by type and isDayOf
-                let grouped = Dictionary(grouping: tripLists) { "\($0.type.rawValue)-\($0.isDayOf)" }
-                for (_, typeLists) in grouped {
-                    for (index, list) in typeLists.enumerated() {
-                        list.sortOrder = index
-                        // Generate UUID if missing (for existing lists)
-                        if list.uuid.uuidString == "00000000-0000-0000-0000-000000000000" {
-                            list.uuid = UUID()
-                        }
+                for (index, list) in tripLists.enumerated() {
+                    list.sortOrder = index
+                    // Generate UUID if missing (for existing lists)
+                    if list.uuid.uuidString == "00000000-0000-0000-0000-000000000000" {
+                        list.uuid = UUID()
                     }
                 }
             }
@@ -167,7 +138,7 @@ struct PackingHelperApp: App {
         hasMigratedSortOrders = true
     }
 
-    // Stamps list-level type/user/isDayOf onto each item, collapses to a single
+    // Stamps the list-level user onto each item, collapses to a single
     // default section per trip, and uses unifiedSortOrder as the canonical order.
     private func migratePackingModelV2() {
         let context = modelContainer.mainContext
@@ -178,12 +149,10 @@ struct PackingHelperApp: App {
             return
         }
 
-        // Stamp list-level attributes onto items
+        // Stamp the list-level user onto items
         for list in lists {
             guard let items = list.items else { continue }
             for item in items {
-                item.type = list.type
-                item.isDayOf = list.isDayOf
                 item.user = list.user
                 // Use the old unified sort order as the new single sort order if it was set
                 if item.unifiedSortOrder > 0 {
@@ -199,8 +168,8 @@ struct PackingHelperApp: App {
                 let defaultLists = (trip.lists ?? []).filter { $0.isDefault }
                 guard !defaultLists.isEmpty else { continue }
 
-                // Prefer the packing default as the survivor; demote all others
-                let survivor = defaultLists.first(where: { $0.type == .packing }) ?? defaultLists[0]
+                // Keep the first; demote all others
+                let survivor = defaultLists[0]
                 for list in defaultLists where list.persistentModelID != survivor.persistentModelID {
                     list.isDefault = false
                 }

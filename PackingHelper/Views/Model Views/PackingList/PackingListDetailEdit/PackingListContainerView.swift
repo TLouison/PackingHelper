@@ -340,7 +340,7 @@ struct PackingListContainerView: View {
                     if list.id == newItemList?.id {
                         Label(list.name, systemImage: "checkmark")
                     } else {
-                        Text(list.name)
+                        ListMenuLabel(list: list)
                     }
                 }
             }
@@ -740,9 +740,7 @@ struct PackingListContainerView: View {
                 category: "",
                 count: newItemCount,
                 isPacked: false,
-                sortOrder: SortOrderManager.nextSortOrder(for: list),
-                type: .packing,
-                isDayOf: false
+                sortOrder: SortOrderManager.nextSortOrder(for: list)
             )
             newItem.user = context.isTrip ? newItemUser : nil
             modelContext.insert(newItem)

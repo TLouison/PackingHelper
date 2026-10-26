@@ -297,9 +297,12 @@ private struct TemplateSidebarRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 12) {
-                Text(match == nil ? AttributedString(list.name) : TemplateSearchResult.highlighted(list.name, query: query))
-                    .fontWeight(.medium)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    ListKindGlyph(list: list)
+                    Text(match == nil ? AttributedString(list.name) : TemplateSearchResult.highlighted(list.name, query: query))
+                }
+                .fontWeight(.medium)
+                .lineLimit(1)
 
                 Spacer()
 
@@ -413,10 +416,13 @@ private struct TemplateSearchResultCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(TemplateSearchResult.highlighted(list.name, query: query))
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        ListKindGlyph(list: list)
+                        Text(TemplateSearchResult.highlighted(list.name, query: query))
+                    }
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
                     Text(subtitle(match))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -485,7 +491,7 @@ struct PackingListCard: View {
 
     private var content: some View {
         HStack(spacing: 12) {
-            Text(list.name)
+            ListNameLabel(list: list)
                 .font(.title3)
                 .fontWeight(.semibold)
                 .lineLimit(1)

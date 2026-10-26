@@ -40,7 +40,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 ## 4. Dates, status & notifications
 
 - **4.1** Trip dates keep creation time-of-day; `.departing`/`.returning` use `Date.now == startDate` (unreachable). Normalize to start of day on save; use `Calendar.isDateInToday`. `TripListView` predicates capture `now` once — refresh on scene active.
-- **4.2** Day-of notification (behind `showingNotifications`): scheduled in `Trip.init` before lists exist, never rescheduled/cancelled, random ID, hardcoded 8 AM. Build a `TripNotificationScheduler` with stable id `dayOf-<uuid>`, awaited auth, `notificationTime` setting (re-add its Settings picker to the Trips section), `rescheduleAll` on foreground.
+- **4.2** Day-of notification (behind `showingNotifications`): scheduled in `Trip.init` before lists exist, never rescheduled/cancelled, random ID, hardcoded 8 AM. Build a `TripNotificationScheduler` with stable id `dayOf-<uuid>`, awaited auth, `notificationTime` setting (re-add its Settings picker to the Trips section), `rescheduleAll` on foreground. The body should list what's in the trip's day-of lists (`trip.sortedLists(of: .dayOf)`) and skip trips with nothing left.
 - **4.4** "Duration" is nights in some places, days in others; `countAsDays` gives 0 on day trips. Define `nights` and `days = nights + 1`.
 - **4.5** Forecast labels off by a day for far time zones; window can skip day one / overrun trip end. Store `TripLocation.timeZoneIdentifier`, `.task(id:)`.
 - **4.6** Forecast hardcodes °F; chip uses locale.
@@ -49,7 +49,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 
 - **5.1** Drag-reorder lands in the wrong spot when visible ≠ stored items (packer filter, pending checks). Position by neighbor ("insert before X"), renumber all items.
 - **5.2** Main add flow never ML-categorizes (`Item.create` has no callers). One `Item.create(...)` used by the container and AI paths.
-- **5.3** Template-applied lists lose `isDayOf`/`type`; list menus unsorted.
+- **5.3** List menus unsorted.
 - **5.4** Progress counts disagree (rows vs `count`, ignore user filter).
 - **5.5** Template "Last Updated" never changes on edit/delete.
 - **5.6** Section `.draggable` active outside reorder mode.
@@ -93,7 +93,7 @@ Drop dead `#available(iOS 26…)` else-branches (`User.swift`, `ViewModifierUtil
 - **10.5** Shared `TripBackgroundView` (list row + hero) and `Trip.statusDateText`.
 - **10.6** Shared modifiers: `.groupedCard`, `.deleteConfirmation`, `.editSheetToolbar`, `InfoRow`; move `FlowLayout` out of AI.
 - **10.7** `WorkerClient` shared by AI + Unsplash services.
-- **10.9** Misc: `UserPickerView` duplication, `UserColorPicker` `.opacity(.infinity)`, inconsistent default hex, `StorageKey` enum, `TripEditView` swipe-dismiss discards changes, `try?` swallowing in cover photo code, AI task routing relies on legacy `PackingList.type`.
+- **10.9** Misc: `UserPickerView` duplication, `UserColorPicker` `.opacity(.infinity)`, inconsistent default hex, `StorageKey` enum, `TripEditView` swipe-dismiss discards changes, `try?` swallowing in cover photo code.
 
 ## 11. Performance
 
@@ -108,9 +108,9 @@ Drop dead `#available(iOS 26…)` else-branches (`User.swift`, `ViewModifierUtil
 
 ## 12. Schema cleanup ⚠️ one change, do last
 
-- Remove legacy `PackingList.type`, `.user`, `.isDayOf` (`countAsDays`?), `Item.unifiedSortOrder`, `User.lists`.
+- Remove legacy `PackingList.user` (trip lists only), `countAsDays`?, `Item.unifiedSortOrder`, `User.lists`.
 - `Item.category` written, never read. `Trip.dayOfNotificationUUID` written, never read.
-- **Decision:** no UI creates task items, day-of items, or `countAsDays` templates (only AI makes tasks). Build UI or remove those paths.
+- No UI creates `countAsDays` templates. Build UI or remove.
 
 ## Docs
 

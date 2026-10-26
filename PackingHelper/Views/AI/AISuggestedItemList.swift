@@ -162,7 +162,7 @@ struct AISuggestedItemList: View {
     private func listButtons(_ action: @escaping (PackingList) -> Void) -> some View {
         Section("Add to") {
             ForEach(lists, id: \.id) { list in
-                Button(list.name) { action(list) }
+                Button { action(list) } label: { ListMenuLabel(list: list) }
             }
         }
     }

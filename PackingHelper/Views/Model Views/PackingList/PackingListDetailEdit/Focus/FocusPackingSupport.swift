@@ -183,7 +183,7 @@ extension Collection where Element == Item {
 
 // MARK: - Item Details
 
-/// Full item editor: name, count, packer, section, packed, delete
+/// Full item editor: name, count, packer, section, packed/done, delete
 struct ItemDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -215,14 +215,14 @@ struct ItemDetailSheet: View {
                 Section {
                     TextField("Item", text: $name)
                     Stepper("Count: \(count)", value: $count, in: 1...99)
-                    Toggle("Packed", isOn: $isPacked)
+                    Toggle((list?.kind ?? .packing).checkedWord, isOn: $isPacked)
                 }
 
                 Section {
                     if lists.count > 1 {
                         Picker("List", selection: $list) {
                             ForEach(lists) { list in
-                                Text(list.name).tag(Optional(list))
+                                ListMenuLabel(list: list).tag(Optional(list))
                             }
                         }
                     }

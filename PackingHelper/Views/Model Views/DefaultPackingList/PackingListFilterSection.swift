@@ -11,7 +11,7 @@ import SwiftUI
 
 struct PackingListFilterSection: View {
     @Binding var searchText: String
-    @Binding var selectedListType: ListType?
+    @Binding var selectedListKind: ListKind?
     @Binding var selectedUser: User?
     let users: [User]
     let showUserFilter: Bool
@@ -103,14 +103,14 @@ struct PackingListFilterSection: View {
             
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
-                    ForEach(ListType.allCases, id: \.self) { type in
+                    ForEach(ListKind.allCases) { kind in
                         FilterChip(
-                            isSelected: selectedListType == type,
-                            label: type.rawValue,
-                            icon: Image(systemName: type.icon),
+                            isSelected: selectedListKind == kind,
+                            label: kind.name,
+                            icon: kind.image,
                             action: {
                                 withAnimation {
-                                    selectedListType = selectedListType == type ? nil : type
+                                    selectedListKind = selectedListKind == kind ? nil : kind
                                 }
                             }
                         )

@@ -135,23 +135,29 @@ final class AIAssistantViewModel {
             category: suggestion.category.rawValue.capitalized,
             count: max(suggestion.count, 1),
             isPacked: false,
-            sortOrder: SortOrderManager.nextSortOrder(for: list),
-            type: suggestion.kind.listType,
-            isDayOf: false
+            sortOrder: SortOrderManager.nextSortOrder(for: list)
         )
         item.user = targetUser
         modelContext.insert(item)
         list.addItem(item)
     }
 
-    /// Task suggestions go to a task-type list if the trip has one; everything
-    /// else (and the fallback) goes to the trip's default list.
+    /// Task suggestions go to the trip's first everyday (not day-of) Tasks list, made on
+    /// first use if there isn't one; everything else goes to the trip's default list.
     private func destinationList(for suggestion: AISuggestedItem) -> PackingList? {
         guard let trip else { return nil }
-        if suggestion.kind == .task, let taskList = trip.getLists(for: .task).first {
-            return taskList
+        if suggestion.kind == .task {
+            return trip.sortedLists(of: .tasks).first { !$0.isDayOf } ?? makeTasksList(for: trip)
         }
         return trip.defaultPackingList ?? trip.lists?.first
+    }
+
+    private func makeTasksList(for trip: Trip) -> PackingList? {
+        guard let modelContext else { return nil }
+        let list = PackingList(kind: .tasks, template: false, name: "Tasks", countAsDays: false)
+        modelContext.insert(list)
+        trip.addList(list)
+        return list
     }
 
     private func markAdded(_ name: String, in entryID: UUID) {

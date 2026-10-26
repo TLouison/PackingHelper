@@ -21,13 +21,15 @@ struct PackingListEditView: View {
     @Query(sort: \User.created) private var users: [User]
 
     @State private var listName = ""
+    @State private var kind: ListKind = .packing
+    @State private var isDayOf = false
     @FocusState private var isNameFocused: Bool
     @State private var owner: User?
 
     @State private var isDeleting: Bool = false
     @Binding var isDeleted: Bool
 
-    /// Sizes the sheet to the form instead of a fixed detent (it's just a name field, plus owner and delete)
+    /// Sizes the sheet to the form instead of a fixed detent (name and type, plus owner and delete)
     var fitsContent: Bool = false
     /// Form content plus the nav bar, measured for `fitsContent`
     @State private var fittedHeight: CGFloat?
@@ -69,7 +71,7 @@ struct PackingListEditView: View {
     private var content: some View {
         NavigationStack {
             Form {
-                Section("\(self.titleName) Details") {
+                Section {
                     if packingList?.isDefault ?? false {
                         LabeledContent("Name", value: listName)
                     } else {
@@ -90,8 +92,26 @@ struct PackingListEditView: View {
                         }
                     }
 
+                    // The Default list is always an everyday packing list
+                    if !(packingList?.isDefault ?? false) {
+                        Picker("Type", selection: $kind) {
+                            ForEach(ListKind.allCases) { kind in
+                                Text(kind.name).tag(kind)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Toggle("Day Of", isOn: $isDayOf)
+                    }
+
                     if isTemplate && users.count > 1 {
                         UserPickerView(selectedUser: $owner, style: .inline, allowAll: false)
+                    }
+                } header: {
+                    Text("\(self.titleName) Details")
+                } footer: {
+                    if !(packingList?.isDefault ?? false) {
+                        Text("Day Of lists hold what you can't do or pack ahead. They stay at the end of your lists.")
                     }
                 }
 
@@ -129,6 +149,8 @@ struct PackingListEditView: View {
         .onAppear {
             if let packingList {
                 listName = packingList.name
+                kind = packingList.kind
+                isDayOf = packingList.isDayOf
             }
             if isTemplate {
                 owner = packingList?.user ?? users.first
@@ -162,6 +184,8 @@ struct PackingListEditView: View {
             packingList,
             name: listName,
             template: isTemplate,
+            kind: kind,
+            isDayOf: isDayOf,
             owner: isTemplate ? (owner ?? users.first) : nil,
             in: modelContext,
             for: trip

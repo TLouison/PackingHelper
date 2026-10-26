@@ -37,6 +37,12 @@ struct TripDetailPackingView: View {
         Array(sections.prefix(sectionLimit))
     }
 
+    /// Unchecked items in day-of lists, counted on the day the trip leaves
+    private var dayOfItemsLeft: Int {
+        guard Calendar.current.isDateInToday(trip.startDate) else { return 0 }
+        return trip.dayOfLists.reduce(0) { $0 + $1.incompleteItems.count }
+    }
+
     /// Unpacked items in packing-list order, shown under the sections when the card has spare height
     private var upNextItems: [Item] {
         sections.flatMap { list in
@@ -128,6 +134,16 @@ struct TripDetailPackingView: View {
                     .foregroundStyle(.tertiary)
             }
 
+            if dayOfItemsLeft > 0 {
+                Label {
+                    Text("^[\(dayOfItemsLeft) thing](inflect: true) left for today")
+                } icon: {
+                    Image(suitcaseDayOfIcon)
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            }
+
             if !visibleSections.isEmpty {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
                     // Filled row by row, so the list order reads left to right
@@ -216,9 +232,9 @@ struct TripDetailPackingView: View {
     private func sectionCells(_ list: PackingList) -> some View {
         let packed = list.completeItems.count
         let total = list.totalItems
-        let label = "\(list.name), \(packed) of \(total) packed"
+        let label = "\(list.name), \(packed) of \(total) \(list.kind.checkedWord.lowercased())"
 
-        Text(list.name)
+        ListNameLabel(list: list)
             .font(.subheadline)
             .lineLimit(1)
             .accessibilityLabel(label)

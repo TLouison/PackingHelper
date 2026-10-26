@@ -469,6 +469,8 @@ private struct FocusBagRail: View {
         let items = input.items(in: list)
         let label = FocusBagChip(
             name: list.name,
+            kind: list.kind,
+            isDayOf: list.isDayOf,
             packed: items.filter(\.isPacked).count,
             total: items.count,
             isSelected: visibleListIDs.contains(list.persistentModelID)
@@ -603,6 +605,8 @@ private struct ChipReorderDropDelegate: DropDelegate {
 
 private struct FocusBagChip: View {
     let name: String
+    var kind: ListKind = .packing
+    var isDayOf = false
     /// nil for the All chip, which shows no progress
     var packed: Int? = nil
     var total: Int = 0
@@ -627,7 +631,7 @@ private struct FocusBagChip: View {
                 .frame(width: 18, height: 18)
             }
 
-            Text(name)
+            ListNameLabel(name: name, kind: kind, isDayOf: isDayOf)
                 .fontWeight(.semibold)
                 .lineLimit(1)
 
@@ -646,9 +650,16 @@ private struct FocusBagChip: View {
         .animation(.snappy, value: packed)
         .animation(.snappy, value: isSelected)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(name)
-        .accessibilityValue(packed.map { isComplete ? "All packed" : "\(total - $0) left to pack" } ?? "")
+        .accessibilityLabel(kind.glyph(isDayOf: isDayOf) == nil ? name : "\(name), \(kind.displayName(isDayOf: isDayOf))")
+        .accessibilityValue(packed.map { accessibilityProgress(packed: $0) } ?? "")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func accessibilityProgress(packed: Int) -> String {
+        if kind == .packing {
+            return isComplete ? "All packed" : "\(total - packed) left to pack"
+        }
+        return isComplete ? "All done" : "\(total - packed) left"
     }
 }
 
@@ -735,12 +746,15 @@ private struct FocusBagPage: View {
 
                     if !packed.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Label("Packed · \(packed.count)", systemImage: "suitcase.rolling.fill")
+                            Label(
+                                "\(list.kind.checkedWord) · \(packed.count)",
+                                systemImage: list.kind == .packing ? "suitcase.rolling.fill" : "checkmark.circle.fill"
+                            )
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(.secondary)
                                 .contentTransition(.numericText())
 
-                            FocusPackedChips(items: packed, pendingPacks: pendingPacks)
+                            FocusPackedChips(items: packed, kind: list.kind, pendingPacks: pendingPacks)
                         }
                     }
 
@@ -784,6 +798,7 @@ private struct FocusBagPage: View {
 
         return HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
+                // No kind glyph here: it sits badly beside long, wrapping titles (the chip shows it)
                 Text(list.name)
                     .font(.largeTitle.bold())
                     .lineLimit(2)
@@ -822,9 +837,10 @@ private struct FocusBagPage: View {
     }
 
     private func statusText(packed: Int, total: Int, isComplete: Bool) -> String {
+        let checked = list.kind.checkedWord.lowercased()
         if total == 0 { return "Nothing in this list yet" }
-        if isComplete { return "All \(total) packed" }
-        return "\(total - packed) to go · \(packed) of \(total) packed"
+        if isComplete { return "All \(total) \(checked)" }
+        return "\(total - packed) to go · \(packed) of \(total) \(checked)"
     }
 
     private var completionCard: some View {
@@ -833,7 +849,7 @@ private struct FocusBagPage: View {
                 .font(.system(size: 44))
                 .foregroundStyle(.green)
 
-            Text("\(list.name) is packed")
+            Text("\(list.name) is \(list.kind.checkedWord.lowercased())")
                 .font(.headline)
 
             if let nextList {
@@ -846,7 +862,7 @@ private struct FocusBagPage: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
             } else {
-                Text("Everything is packed. Ready to go!")
+                Text(list.kind == .packing ? "Everything is packed. Ready to go!" : "Everything's done. Ready to go!")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -975,6 +991,7 @@ private struct FocusSectionItems: View {
 /// Packed items as small chips; tap one to unpack it
 private struct FocusPackedChips: View {
     let items: [Item]
+    let kind: ListKind
     let pendingPacks: PendingPackTracker
 
     var body: some View {
@@ -1001,8 +1018,8 @@ private struct FocusPackedChips: View {
                 }
                 .buttonStyle(PressableCardStyle(scale: 0.92))
                 .transition(.scale(scale: 0.4, anchor: .top).combined(with: .opacity))
-                .accessibilityLabel("\(item.name), packed")
-                .accessibilityHint("Unpacks the item")
+                .accessibilityLabel("\(item.name), \(kind.checkedWord.lowercased())")
+                .accessibilityHint(kind == .packing ? "Unpacks the item" : "Marks the item not done")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1044,7 +1061,7 @@ private struct FocusAllItemsPage: View {
                             .animation(.packingSpring, value: unpacked.map(\.persistentModelID))
 
                             if !packed.isEmpty {
-                                FocusPackedChips(items: packed, pendingPacks: pendingPacks)
+                                FocusPackedChips(items: packed, kind: list.kind, pendingPacks: pendingPacks)
                                     .padding(.top, 4)
                             }
                         } header: {
@@ -1079,7 +1096,7 @@ private struct FocusAllItemsPage: View {
     }
 
     private func sectionHeader(_ list: PackingList) -> some View {
-        Text(list.name)
+        ListNameLabel(list: list)
             .font(.title3.bold())
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 16)
@@ -1138,7 +1155,7 @@ private struct FocusItemCard: View {
             if !otherLists.isEmpty {
                 Menu("Move To", systemImage: "arrow.right.square") {
                     ForEach(otherLists) { list in
-                        Button(list.name) { onMove(list) }
+                        Button { onMove(list) } label: { ListMenuLabel(list: list) }
                     }
                 }
             }
@@ -1146,8 +1163,8 @@ private struct FocusItemCard: View {
             Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
         }
         .accessibilityLabel(accessibilityName)
-        .accessibilityValue(item.isPacked ? "Packed" : "Not packed")
-        .accessibilityHint(item.isPacked ? "Unpacks the item" : "Packs the item")
+        .accessibilityValue(accessibilityState)
+        .accessibilityHint(accessibilityToggleHint)
     }
 
     private var removableCard: some View {
@@ -1165,7 +1182,7 @@ private struct FocusItemCard: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityName)
-        .accessibilityValue(item.isPacked ? "Packed" : "Not packed")
+        .accessibilityValue(accessibilityState)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Removes the item")
         .accessibilityAction { onRemove() }
@@ -1173,6 +1190,18 @@ private struct FocusItemCard: View {
 
     private var accessibilityName: String {
         item.count > 1 ? "\(item.name), \(item.count)" : item.name
+    }
+
+    private var isPackingItem: Bool { (item.list?.kind ?? .packing) == .packing }
+
+    private var accessibilityState: String {
+        if isPackingItem { return item.isPacked ? "Packed" : "Not packed" }
+        return item.isPacked ? "Done" : "Not done"
+    }
+
+    private var accessibilityToggleHint: String {
+        if isPackingItem { return item.isPacked ? "Unpacks the item" : "Packs the item" }
+        return item.isPacked ? "Marks the item not done" : "Marks the item done"
     }
 
     private func cardContent(@ViewBuilder leading: () -> some View) -> some View {

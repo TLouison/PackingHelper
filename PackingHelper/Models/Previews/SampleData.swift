@@ -55,13 +55,13 @@ extension PreviewTrait where T == Preview.ViewTraits {
     
     // Packing List Creation (sections — user is on items, not lists)
     let springBreakBeachwear = PackingList(template: false, name: "Beachwear", countAsDays: true)
-    let sbItem1 = Item(name: "Board Shorts", category: "Clothing", count: 2, isPacked: false, type: .packing)
+    let sbItem1 = Item(name: "Board Shorts", category: "Clothing", count: 2, isPacked: false)
     sbItem1.user = userEmma
-    let sbItem2 = Item(name: "Bikini", category: "Clothing", count: 3, isPacked: true, type: .packing)
+    let sbItem2 = Item(name: "Bikini", category: "Clothing", count: 3, isPacked: true)
     sbItem2.user = userEmma
-    let sbItem3 = Item(name: "Sunscreen", category: "Clothing", count: 1, isPacked: true, type: .packing)
+    let sbItem3 = Item(name: "Sunscreen", category: "Clothing", count: 1, isPacked: true)
     sbItem3.user = userEmma
-    let sbItem4 = Item(name: "Sunglasses", category: "Accessories", count: 2, isPacked: false, type: .packing)
+    let sbItem4 = Item(name: "Sunglasses", category: "Accessories", count: 2, isPacked: false)
     sbItem4.user = userEmma
     springBreakBeachwear.addItem(sbItem1)
     springBreakBeachwear.addItem(sbItem2)
@@ -70,13 +70,13 @@ extension PreviewTrait where T == Preview.ViewTraits {
     springBreakBeachwear.trip = springBreakTrip
     
     let familyVisitEssentials = PackingList(template: false, name: "Essentials", countAsDays: true)
-    let fvItem1 = Item(name: "Shirts", category: "Clothing", count: 5, isPacked: false, type: .packing)
+    let fvItem1 = Item(name: "Shirts", category: "Clothing", count: 5, isPacked: false)
     fvItem1.user = userTodd
-    let fvItem2 = Item(name: "Shorts", category: "Clothing", count: 3, isPacked: true, type: .packing)
+    let fvItem2 = Item(name: "Shorts", category: "Clothing", count: 3, isPacked: true)
     fvItem2.user = userTodd
-    let fvItem3 = Item(name: "Shoes", category: "Clothing", count: 1, isPacked: true, type: .packing)
+    let fvItem3 = Item(name: "Shoes", category: "Clothing", count: 1, isPacked: true)
     fvItem3.user = userTodd
-    let fvItem4 = Item(name: "Gifts", category: "Accessories", count: 2, isPacked: false, type: .packing)
+    let fvItem4 = Item(name: "Gifts", category: "Accessories", count: 2, isPacked: false)
     fvItem4.user = userTodd
     familyVisitEssentials.addItem(fvItem1)
     familyVisitEssentials.addItem(fvItem2)
@@ -85,13 +85,13 @@ extension PreviewTrait where T == Preview.ViewTraits {
     familyVisitEssentials.trip = familyVisitTrip
     
     let workTripBizAttire = PackingList(template: false, name: "Business Attire", countAsDays: false)
-    let wtItem1 = Item(name: "Suit Jacket", category: "Clothing", count: 1, isPacked: false, type: .packing)
+    let wtItem1 = Item(name: "Suit Jacket", category: "Clothing", count: 1, isPacked: false)
     wtItem1.user = userEmma
-    let wtItem2 = Item(name: "Dress Shirt", category: "Clothing", count: 3, isPacked: true, type: .packing)
+    let wtItem2 = Item(name: "Dress Shirt", category: "Clothing", count: 3, isPacked: true)
     wtItem2.user = userEmma
-    let wtItem3 = Item(name: "Dress", category: "Clothing", count: 1, isPacked: true, type: .packing)
+    let wtItem3 = Item(name: "Dress", category: "Clothing", count: 1, isPacked: true)
     wtItem3.user = userEmma
-    let wtItem4 = Item(name: "Shoes", category: "Accessories", count: 2, isPacked: false, type: .packing)
+    let wtItem4 = Item(name: "Shoes", category: "Accessories", count: 2, isPacked: false)
     wtItem4.user = userEmma
     workTripBizAttire.addItem(wtItem1)
     workTripBizAttire.addItem(wtItem2)
@@ -99,19 +99,19 @@ extension PreviewTrait where T == Preview.ViewTraits {
     workTripBizAttire.addItem(wtItem4)
     workTripBizAttire.trip = workTrip
     
-    let workTripChecklist = PackingList(template: false, name: "International Travel Checklist", countAsDays: false)
-    let chkItem1 = Item(name: "Find Passport", category: "Task", count: 1, isPacked: false, type: .task)
+    let workTripChecklist = PackingList(kind: .tasks, template: false, name: "International Travel Checklist", countAsDays: false)
+    let chkItem1 = Item(name: "Find Passport", category: "Task", count: 1, isPacked: false)
     chkItem1.user = userEmma
-    let chkItem2 = Item(name: "File for travel visa", category: "Task", count: 1, isPacked: true, type: .task)
+    let chkItem2 = Item(name: "File for travel visa", category: "Task", count: 1, isPacked: true)
     chkItem2.user = userEmma
     workTripChecklist.addItem(chkItem1)
     workTripChecklist.addItem(chkItem2)
     workTripChecklist.trip = workTrip
     
-    let workTripMorningOf = PackingList(template: false, name: "Morning Of", countAsDays: true)
-    let moItem1 = Item(name: "Take Out Trash", category: "Task", count: 1, isPacked: false, type: .task, isDayOf: true)
+    let workTripMorningOf = PackingList(kind: .tasks, isDayOf: true, template: false, name: "Morning Of", countAsDays: false)
+    let moItem1 = Item(name: "Take Out Trash", category: "Task", count: 1, isPacked: false)
     moItem1.user = userEmma
-    let moItem2 = Item(name: "Kiss Todd", category: "Task", count: 1, isPacked: true, type: .task, isDayOf: true)
+    let moItem2 = Item(name: "Kiss Todd", category: "Task", count: 1, isPacked: true)
     moItem2.user = userEmma
     workTripMorningOf.addItem(moItem1)
     workTripMorningOf.addItem(moItem2)
@@ -132,16 +132,16 @@ extension PreviewTrait where T == Preview.ViewTraits {
 
     // Template lists
     let defaultPackingList = PackingList(template: true, name: "Essential Clothing", countAsDays: true)
-    defaultPackingList.addItem(Item(name: "Shirts", category: "Clothing", count: 1, isPacked: false, type: .packing))
-    defaultPackingList.addItem(Item(name: "Pants", category: "Clothing", count: 3, isPacked: true, type: .packing))
-    defaultPackingList.addItem(Item(name: "Underwear", category: "Clothing", count: 1, isPacked: true, type: .packing))
-    defaultPackingList.addItem(Item(name: "Socks", category: "Accessories", count: 2, isPacked: false, type: .packing))
+    defaultPackingList.addItem(Item(name: "Shirts", category: "Clothing", count: 1, isPacked: false))
+    defaultPackingList.addItem(Item(name: "Pants", category: "Clothing", count: 3, isPacked: true))
+    defaultPackingList.addItem(Item(name: "Underwear", category: "Clothing", count: 1, isPacked: true))
+    defaultPackingList.addItem(Item(name: "Socks", category: "Accessories", count: 2, isPacked: false))
 
     let defaultElectronicsPackingList = PackingList(template: true, name: "Electronics", countAsDays: false)
-    defaultElectronicsPackingList.addItem(Item(name: "Phone", category: "Electronics", count: 1, isPacked: false, type: .packing))
-    defaultElectronicsPackingList.addItem(Item(name: "Phone Charger", category: "Electronics", count: 1, isPacked: true, type: .packing))
-    defaultElectronicsPackingList.addItem(Item(name: "Laptop", category: "Electronics", count: 1, isPacked: true, type: .packing))
-    defaultElectronicsPackingList.addItem(Item(name: "Laptop Charger", category: "Electronics", count: 1, isPacked: false, type: .packing))
+    defaultElectronicsPackingList.addItem(Item(name: "Phone", category: "Electronics", count: 1, isPacked: false))
+    defaultElectronicsPackingList.addItem(Item(name: "Phone Charger", category: "Electronics", count: 1, isPacked: true))
+    defaultElectronicsPackingList.addItem(Item(name: "Laptop", category: "Electronics", count: 1, isPacked: true))
+    defaultElectronicsPackingList.addItem(Item(name: "Laptop Charger", category: "Electronics", count: 1, isPacked: false))
 
     container.mainContext.insert(userTodd)
     container.mainContext.insert(userEmma)

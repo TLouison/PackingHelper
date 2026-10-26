@@ -265,18 +265,6 @@ extension Trip {
         return Array(Set(allItems.compactMap { $0.user }))
     }
 
-    var containsListTypes: [ListType] {
-        return Array(Set(allItems.map { $0.type })).sorted()
-    }
-
-    var containsDayOfPacking: Bool {
-        return allItems.contains { $0.isDayOf && $0.type == .packing }
-    }
-
-    var containsDayOfTask: Bool {
-        return allItems.contains { $0.isDayOf && $0.type == .task }
-    }
-
     var listsFromTemplates: [PackingList] {
         return self.lists?.filter { $0.appliedFromTemplate != nil } ?? []
     }
@@ -321,60 +309,13 @@ extension Trip {
         return parts.joined(separator: " and ")
     }
 
-    // MARK: Item counts — item-based (replaces list-type-filtered overloads)
-    var totalListEntries: Int { totalItemsCount }
-
-    var totalIncompletePackingItemsEntries: Int {
-        allItems.filter { !$0.isPacked && $0.type == .packing }.count
-    }
-
-    func getTotalItems(for itemType: ListType) -> Int {
-        return allItems.filter { $0.type == itemType }.count
-    }
-
-    func getTotalItems(for itemType: ListType, isDayOf: Bool) -> Int {
-        return allItems.filter { $0.type == itemType && $0.isDayOf == isDayOf }.count
-    }
-
-    func getIncompleteItems(for itemType: ListType) -> Int {
-        return allItems.filter { $0.type == itemType && !$0.isPacked }.count
-    }
-
-    func getIncompleteItems(for itemType: ListType, isDayOf: Bool) -> Int {
-        return allItems.filter { $0.type == itemType && $0.isDayOf == isDayOf && !$0.isPacked }.count
-    }
-
-    func getCompleteItems(for itemType: ListType) -> Int {
-        return allItems.filter { $0.type == itemType && $0.isPacked }.count
-    }
-
-    func getCompleteItems(for itemType: ListType, isDayOf: Bool) -> Int {
-        return allItems.filter { $0.type == itemType && $0.isDayOf == isDayOf && $0.isPacked }.count
-    }
-
-    func allItemsComplete(for itemType: ListType) -> Bool {
-        return self.getTotalItems(for: itemType) == self.getCompleteItems(for: itemType)
-    }
-
     // MARK: Get Lists
-    func getLists(for listType: ListType) -> [PackingList] {
-        return self.lists?.filter { $0.type == listType } ?? []
+    func sortedLists(of kind: ListKind) -> [PackingList] {
+        PackingList.sorted(lists ?? [], sortOrder: .byCustomOrder).filter { $0.kind == kind }
     }
 
-    func getLists(for listType: ListType, isDayOf: Bool) -> [PackingList] {
-        return self.lists?.filter { $0.type == listType && $0.isDayOf == isDayOf } ?? []
-    }
-
-    func getLists(for user: User?) -> [PackingList] {
-        return self.lists ?? []
-    }
-
-    func getLists(for user: User?, ofType listType: ListType) -> [PackingList] {
-        return self.getLists(for: listType)
-    }
-
-    func getLists(for user: User?, ofType listType: ListType, isDayOf: Bool) -> [PackingList] {
-        return self.getLists(for: listType, isDayOf: isDayOf)
+    var dayOfLists: [PackingList] {
+        PackingList.sorted(lists ?? [], sortOrder: .byCustomOrder).filter(\.isDayOf)
     }
 
     // MARK: CRUD Lists
@@ -382,9 +323,16 @@ extension Trip {
         if self.lists == nil {
             self.lists = []
         }
-        // New sections go last; the Default section keeps its -1 so it stays first
+        // New sections go last; the Default section keeps its -1 so it stays first.
+        // Day-of lists stay at the end: other new lists go in front of them.
         if !list.isDefault {
-            list.sortOrder = SortOrderManager.nextListSortOrder(in: self.lists!)
+            let dayOfLists = self.dayOfLists
+            if !list.isDayOf, let firstDayOf = dayOfLists.first {
+                list.sortOrder = firstDayOf.sortOrder
+                for dayOfList in dayOfLists { dayOfList.sortOrder += 1 }
+            } else {
+                list.sortOrder = SortOrderManager.nextListSortOrder(in: self.lists!)
+            }
         }
         self.lists!.append(list)
     }
@@ -450,7 +398,7 @@ extension Trip {
         // Create the content
         let content = UNMutableNotificationContent()
         content.title = "Check your packing lists!"
-        content.body = "You have \(self.totalIncompletePackingItemsEntries) items to pack before you head out."
+        content.body = "You have \(self.incompleteItemsCount) items to pack before you head out."
 
         // Configure the date
         var components = Calendar.current.dateComponents([.day, .month, .year], from: self.startDate)

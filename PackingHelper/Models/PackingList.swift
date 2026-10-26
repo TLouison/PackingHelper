@@ -10,65 +10,52 @@ import SwiftUI
 import SwiftData
 import OSLog
 
-enum ListType: String, CaseIterable, Comparable {
-    case packing="Packing", task="Task"
+/// What a list holds. Packing lists check items off as packed, task lists as done.
+/// Either kind can also be a day-of list (`PackingList.isDayOf`): things you can't
+/// pack or do ahead, for the day you leave.
+enum ListKind: String, Codable, CaseIterable, Identifiable {
+    case packing, tasks
 
-    private var sortOrder: Int {
+    var id: String { rawValue }
+
+    var name: String {
         switch self {
-            case .packing:
-                return 0
-            case .task:
-                return 1
+        case .packing: "Packing"
+        case .tasks: "Tasks"
         }
     }
 
-    var icon: String {
+    /// Past tense for checked items: "Packed" or "Done"
+    var checkedWord: String {
+        self == .packing ? "Packed" : "Done"
+    }
+
+    /// SF Symbol for this kind, for pickers and filters
+    var image: Image {
         switch self {
-            case .packing: suitcaseIcon
-            case .task: "checklist"
+        case .packing: Image(systemName: suitcaseIcon)
+        case .tasks: Image(systemName: "checklist")
         }
     }
 
-    var localizedDisplayName: String {
-        switch self {
-        case .packing: return "Packing"
-        case .task: return "Task"
+    /// Glyph shown before a list's name. nil for everyday packing lists,
+    /// so trips with only packing lists look unchanged.
+    func glyph(isDayOf: Bool) -> Image? {
+        switch (self, isDayOf) {
+        case (.packing, false): nil
+        case (.tasks, false): Image(systemName: "checklist")
+        case (.packing, true): Image(suitcaseDayOfIcon)
+        case (.tasks, true): Image(checklistDayOfIcon)
         }
     }
 
-    static func ==(lhs: ListType, rhs: ListType) -> Bool {
-            return lhs.sortOrder == rhs.sortOrder
-    }
-
-    static func <(lhs: ListType, rhs: ListType) -> Bool {
-       return lhs.sortOrder < rhs.sortOrder
-    }
-}
-
-// Custom Codable implementation to handle legacy "Day-of" value
-extension ListType: Codable {
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let rawValue = try container.decode(String.self)
-
-        // Handle legacy "Day-of" value by mapping to packing
-        if rawValue == "Day-of" {
-            self = .packing
-        } else if let listType = ListType(rawValue: rawValue) {
-            self = listType
-        } else {
-            throw DecodingError.dataCorrupted(
-                DecodingError.Context(
-                    codingPath: decoder.codingPath,
-                    debugDescription: "Cannot initialize ListType from invalid String value \(rawValue)"
-                )
-            )
+    /// "Tasks", "Day Of", or "Day Of Tasks", for VoiceOver and info rows
+    func displayName(isDayOf: Bool) -> String {
+        switch (self, isDayOf) {
+        case (_, false): name
+        case (.packing, true): "Day Of"
+        case (.tasks, true): "Day Of Tasks"
         }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(self.rawValue)
     }
 }
 
@@ -94,11 +81,18 @@ enum PackingListSortOrder: String, SortOrderOption {
 final class PackingList {
     var created: Date = Date.now
 
-    // Legacy: type/user/isDayOf are now stored on Item; kept for migration reads
-    var type: ListType = ListType.packing
-    var typeString: String {
-        type.rawValue
+    // Stored as a raw string: lightweight migration fills existing rows with this default,
+    // where a Codable enum attribute comes back empty and crashes on read
+    var kindRawValue: String = ListKind.packing.rawValue
+
+    var kind: ListKind {
+        get { ListKind(rawValue: kindRawValue) ?? .packing }
+        set { kindRawValue = newValue.rawValue }
     }
+
+    /// For the day you leave: stays at the end of the trip's lists and feeds the
+    /// trip detail "left for today" line. The Default list is never day-of.
+    var isDayOf: Bool = false
 
     var name: String = "List"
 
@@ -108,7 +102,6 @@ final class PackingList {
     // Legacy template variables (template system still uses these)
     var template: Bool = false
     var countAsDays: Bool = false
-    var isDayOf: Bool = false
     var appliedFromTemplate: PackingList? = nil
     @Relationship(deleteRule: .nullify, inverse: \PackingList.appliedFromTemplate) var appliedToLists: [PackingList]?
 
@@ -124,15 +117,15 @@ final class PackingList {
 
     @Relationship(deleteRule: .cascade, inverse: \Item.list) var items: [Item]?
 
-    init(type: ListType = .packing, template: Bool, name: String, countAsDays: Bool, isDayOf: Bool = false, sortOrder: Int = 0) {
+    init(kind: ListKind = .packing, isDayOf: Bool = false, template: Bool, name: String, countAsDays: Bool, sortOrder: Int = 0) {
         self.created = Date.now
-        self.type = type
+        self.kindRawValue = kind.rawValue
+        self.isDayOf = isDayOf
         self.template = template
         self.items = []
         self.appliedToLists = []
         self.name = name
         self.countAsDays = countAsDays
-        self.isDayOf = isDayOf
         self.sortOrder = sortOrder
     }
 
@@ -174,40 +167,11 @@ final class PackingList {
     var iconImage: some View {
         Image(systemName: "list.bullet")
     }
+}
 
-    static func icon(listType: ListType, isDayOf: Bool = false) -> String {
-        if isDayOf {
-            return switch listType {
-                case .packing: suitcaseDayOfIcon
-                case .task: checklistDayOfIcon
-            }
-        }
-        return switch listType {
-            case .packing: suitcaseIcon
-            case .task: "checklist"
-        }
-    }
-
-    @ViewBuilder
-    static func iconImage(listType: ListType, isDayOf: Bool = false) -> some View {
-        if isDayOf {
-            switch listType {
-            case .packing:
-                Image(suitcaseDayOfIcon)
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(Color.yellow, Color.accentColor, Color.white)
-            case .task:
-                Image(checklistDayOfIcon)
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(Color.yellow, Color.accentColor, Color.white)
-            }
-        } else {
-            switch listType {
-            case .packing: Image(systemName: suitcaseIcon)
-            case .task: Image(systemName: "checklist")
-            }
-        }
-    }
+extension PackingList {
+    /// Glyph before the list's name; nil for everyday packing lists
+    var glyph: Image? { kind.glyph(isDayOf: isDayOf) }
 }
 
 extension PackingList {
@@ -227,17 +191,6 @@ extension PackingList {
         trip.addList(list)
         return list
     }
-
-    // Legacy overload kept for migration code; demoted = no longer creates default packing/task pairs
-    @discardableResult
-    static func createDefaultList(for trip: Trip, user: User, type: ListType, in context: ModelContext) -> PackingList {
-        let list = PackingList(type: type, template: false, name: defaultListName, countAsDays: false, sortOrder: -1)
-        list.isDefault = true
-        list.user = user
-        context.insert(list)
-        trip.addList(list)
-        return list
-    }
 }
 
 extension PackingList {
@@ -246,6 +199,8 @@ extension PackingList {
         _ packingList: PackingList?,
         name: String,
         template: Bool,
+        kind: ListKind? = nil,
+        isDayOf: Bool? = nil,
         owner: User? = nil,
         in context: ModelContext,
         for trip: Trip?
@@ -254,12 +209,17 @@ extension PackingList {
         if let packingList {
             AppLogger.packingList.debug("Packing list already exists. Updating with new info.")
             packingList.name = name
+            // The Default list stays an everyday packing list
+            if !packingList.isDefault {
+                if let kind { packingList.kind = kind }
+                if let isDayOf { packingList.isDayOf = isDayOf }
+            }
             if packingList.template {
                 packingList.user = owner
             }
         } else {
             AppLogger.packingList.debug("Packing list does not already exist. Creating with new info.")
-            let newPackingList = PackingList(template: template, name: name, countAsDays: false)
+            let newPackingList = PackingList(kind: kind ?? .packing, isDayOf: isDayOf ?? false, template: template, name: name, countAsDays: false)
             if template {
                 newPackingList.user = owner
             }
@@ -371,7 +331,7 @@ extension PackingList {
 
 extension PackingList {
     private static func _copy(_ packingList: PackingList, for trip: Trip? = nil, template: Bool = false) -> PackingList {
-        let newList = PackingList(template: packingList.template, name: packingList.name, countAsDays: packingList.countAsDays)
+        let newList = PackingList(kind: packingList.kind, isDayOf: packingList.isDayOf, template: packingList.template, name: packingList.name, countAsDays: packingList.countAsDays)
         AppLogger.packingList.info("Copied list.")
 
         if let items = packingList.items {
@@ -442,7 +402,7 @@ struct TemplateCandidate: Identifiable {
 
     var id: String { key }
 
-    /// Supplies the name, category and type for the template copy
+    /// Supplies the name and category for the template copy
     var displayItem: Item { items[0] }
 }
 
@@ -495,6 +455,8 @@ extension PackingList {
     @discardableResult
     func saveAsNewTemplate(named name: String, owner: User?, in context: ModelContext) -> PackingList {
         let template = PackingList(
+            kind: kind,
+            isDayOf: isDayOf,
             template: true,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             countAsDays: false
@@ -535,9 +497,7 @@ extension PackingList {
                 category: item.category,
                 count: 1,
                 isPacked: false,
-                sortOrder: nextSortOrder,
-                type: item.type,
-                isDayOf: item.isDayOf
+                sortOrder: nextSortOrder
             )
             context.insert(templateItem)
             templateItem.list = source

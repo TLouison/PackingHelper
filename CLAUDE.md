@@ -29,13 +29,14 @@ The app uses SwiftData with six models. All models have a `uuid`; use it (not `p
 
 **PackingList** (a section of a trip, or a template)
 - User-facing copy calls a trip's sections **lists** ("New List", "Edit List"), never "section" or "bag"; packed items sit under **Packed**. Code still says section in names and comments
-- Properties: `name`, `template`, `isDefault`, `sortOrder`, `countAsDays`; legacy `type`, `isDayOf`
+- Properties: `name`, `template`, `isDefault`, `sortOrder`, `countAsDays`, `kind` (`ListKind`: packing / tasks, stored as `kindRawValue`), `isDayOf`; Default is always everyday packing
+- Kinds: task lists check items off as "Done" instead of "Packed" (`ListKind.checkedWord`). Either kind can be day-of (for the day you leave): day-of lists stay at the end of a trip's lists when new lists are added (`Trip.addList`) and feed trip detail's "left for today" line. Task and day-of lists show a glyph (`ListKind.glyph(isDayOf:)`: checklist, DayOfPacking, DayOfTask) before the list name via `ListNameLabel` / `ListMenuLabel` (`Views/Model Views/PackingList/ListNameLabel.swift`; chips, headers, menus, not the big page title); everyday packing lists show none. Every kind counts toward packed progress. Items have no kind of their own
 - Belongs-to: `trip` (Trip); `user` (User) — owner for templates; legacy on trip lists
 - Has-many: `items` (Item, cascade delete)
 - Self-referencing: `appliedFromTemplate` / `appliedToLists` (nullify) for the template system. Applying a template snapshots its items; trip items can be saved back to templates, and lists made on a trip (not Default) can be saved as new templates (`saveAsNewTemplate`, which links the list) from the list menu or the end-of-trip review (`TemplateUpdateSheet`)
 
 **Item**
-- Properties: `name`, `count`, `isPacked`, `sortOrder`, `category`; legacy `type`, `isDayOf`, `unifiedSortOrder`
+- Properties: `name`, `count`, `isPacked`, `sortOrder`, `category`; legacy `unifiedSortOrder`
 - Belongs-to: `list` (PackingList), `user` (User — the packer; packers are assigned per item, not per list)
 
 **User**
@@ -69,6 +70,7 @@ Legacy fields above are slated for removal in one schema change (see ROADMAP.md 
 - Navigation uses `NavigationStack` with type-safe `NavigationPath`
 - Don't nest `NavigationStack`s — pushed or sheet content that already has one must not be wrapped in another
 - Empty-state actions use `EmptyStateButton` (`Views/General/`; extra-large glass, filled for the main action) with one or two short sentences of copy
+- No emoji anywhere in the app (UI copy, labels, icons, sample data); use SF Symbols or the asset catalog's custom symbols. Emoji are fine in throwaway mockups only
 
 **Focus State Management:**
 - IMPORTANT: When using text fields with keyboards, manage focus at the parent level

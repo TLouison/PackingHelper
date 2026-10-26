@@ -299,7 +299,7 @@ struct TemplateUpdateSheet: View {
             }
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text(list.name)
+                ListNameLabel(list: list)
                     .foregroundStyle(.primary)
                 Group {
                     if nameTaken {

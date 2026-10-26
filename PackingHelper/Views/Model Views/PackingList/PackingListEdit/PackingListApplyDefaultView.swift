@@ -13,8 +13,6 @@ struct PackingListApplyDefaultView: View {
     @Environment(\.modelContext) private var modelContext
 
     let trip: Trip
-    var listType: ListType? = nil
-    var isDayOf: Bool? = nil
 
     @State private var selectedUser: User?
     @State private var selectedLists: [PackingList] = []
@@ -50,9 +48,7 @@ struct PackingListApplyDefaultView: View {
                         ListSelectionView(
                             selectedLists: $selectedLists,
                             user: selectedUser,
-                            trip: trip,
-                            listType: listType,
-                            isDayOf: isDayOf
+                            trip: trip
                         )
                     } label: {
                         HStack {
@@ -157,8 +153,6 @@ struct ListSelectionView: View {
     @Binding var selectedLists: [PackingList]
     let user: User?
     let trip: Trip
-    var listType: ListType? = nil
-    var isDayOf: Bool? = nil
 
     @Query(
         filter: #Predicate<PackingList> { $0.template == true },
@@ -168,9 +162,8 @@ struct ListSelectionView: View {
     private var defaultPackingLists: [PackingList]
 
     @State private var searchText = ""
-    @State private var selectedListType: ListType?
+    @State private var selectedListKind: ListKind?
     @State private var showingFilters = false
-    @State private var showingOtherLists = false
 
     private var filteredLists: [PackingList] {
         // Every template is listed regardless of owner; the selected packer only receives
@@ -179,32 +172,13 @@ struct ListSelectionView: View {
         return defaultPackingLists
             .filter { list in
                 !usedTemplates.contains(list) &&
-                (listType != nil ? list.type == listType : selectedListType == nil || list.type == selectedListType) &&
+                (selectedListKind == nil || list.kind == selectedListKind) &&
                 (searchText.isEmpty || list.name.localizedCaseInsensitiveContains(searchText))
             }
     }
 
-    private var primaryLists: [PackingList] {
-        guard let isDayOf else { return filteredLists }
-        return filteredLists.filter { $0.isDayOf == isDayOf }
-    }
-
-    private var secondaryLists: [PackingList] {
-        guard let isDayOf else { return [] }
-        return filteredLists.filter { $0.isDayOf != isDayOf }
-    }
-
-    private var primarySectionTitle: String {
-        guard let isDayOf else { return "Lists" }
-        if isDayOf { return "Day-Of Lists" }
-        switch listType {
-        case .task: return "Task Lists"
-        default: return "Packing Lists"
-        }
-    }
-
     private var hasActiveFilters: Bool {
-        (listType == nil && selectedListType != nil) || !searchText.isEmpty
+        selectedListKind != nil || !searchText.isEmpty
     }
 
     var body: some View {
@@ -212,11 +186,10 @@ struct ListSelectionView: View {
             if showingFilters {
                 PackingListFilterSection(
                     searchText: $searchText,
-                    selectedListType: $selectedListType,
+                    selectedListKind: $selectedListKind,
                     selectedUser: .constant(user),
                     users: [],
                     showUserFilter: false,
-                    showTypeFilter: listType == nil,
                     hasActiveFilters: hasActiveFilters,
                     onClearFilters: clearFilters
                 )
@@ -237,14 +210,9 @@ struct ListSelectionView: View {
                 .frame(maxHeight: .infinity)
             } else {
                 ScrollView {
-                    if isDayOf != nil {
-                        sectionedListsView
-                            .padding(.top)
-                    } else {
-                        listCardsView(filteredLists)
-                            .padding(.horizontal)
-                            .padding(.top)
-                    }
+                    listCardsView(filteredLists)
+                        .padding(.horizontal)
+                        .padding(.top)
                 }
             }
         }
@@ -276,31 +244,6 @@ struct ListSelectionView: View {
                 Button("Done") {
                     dismiss()
                 }
-            }
-        }
-    }
-
-    private var sectionedListsView: some View {
-        LazyVStack(alignment: .leading, spacing: 16) {
-            if !primaryLists.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(primarySectionTitle)
-                        .font(.headline)
-                        .padding(.horizontal)
-                    listCardsView(primaryLists)
-                        .padding(.horizontal)
-                }
-            }
-
-            if !secondaryLists.isEmpty {
-                DisclosureGroup(isExpanded: $showingOtherLists) {
-                    listCardsView(secondaryLists)
-                        .padding(.top, 8)
-                } label: {
-                    Text("Other Lists")
-                        .font(.headline)
-                }
-                .padding(.horizontal)
             }
         }
     }
@@ -351,7 +294,7 @@ struct ListSelectionView: View {
     private func clearFilters() {
         withAnimation {
             searchText = ""
-            selectedListType = nil
+            selectedListKind = nil
         }
     }
 }
@@ -367,7 +310,7 @@ struct SelectablePackingListCard: View {
             HStack(spacing: 12) {
                 // Left side: Name and selection indicator
                 HStack(spacing: 8) {
-                    Text(list.name)
+                    ListNameLabel(list: list)
                         .font(.title3)
                         .fontWeight(.semibold)
                         .lineLimit(1)

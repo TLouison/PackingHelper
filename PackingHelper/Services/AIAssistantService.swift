@@ -65,8 +65,6 @@ struct AISuggestedItem: Decodable, Identifiable {
 
     enum Kind: String, Decodable {
         case packing, task
-
-        var listType: ListType { self == .task ? .task : .packing }
     }
 
     private enum CodingKeys: String, CodingKey {

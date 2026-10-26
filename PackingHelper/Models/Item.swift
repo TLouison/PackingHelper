@@ -22,22 +22,18 @@ class Item {
     // Sort order within a section (PackingList)
     var sortOrder: Int = 0
 
-    // Item-level attributes (moved from PackingList for v2 model)
-    var type: ListType = ListType.packing
-    var isDayOf: Bool = false
+    // The packer
     @Relationship var user: User?
 
     // Legacy: retained so the v2 migration can read it; new code uses sortOrder only
     var unifiedSortOrder: Int = 0
 
-    init(name: String, category: String, count: Int, isPacked: Bool, sortOrder: Int = 0, type: ListType = .packing, isDayOf: Bool = false) {
+    init(name: String, category: String, count: Int, isPacked: Bool, sortOrder: Int = 0) {
         self.name = name
         self.count = count
         self.category = category
         self.isPacked = isPacked
         self.sortOrder = sortOrder
-        self.type = type
-        self.isDayOf = isDayOf
     }
 
     static func copy(_ item: Item) -> Item {
@@ -46,9 +42,7 @@ class Item {
             category: item.category,
             count: item.count,
             isPacked: item.isPacked,
-            sortOrder: item.sortOrder,
-            type: item.type,
-            isDayOf: item.isDayOf
+            sortOrder: item.sortOrder
         )
         copyItem.list = item.list
         copyItem.user = item.user
@@ -61,9 +55,7 @@ class Item {
             category: item.category,
             count: item.count,
             isPacked: false,
-            sortOrder: item.sortOrder,
-            type: item.type,
-            isDayOf: item.isDayOf
+            sortOrder: item.sortOrder
         )
         copyItem.list = item.list
         // Templates are generic — user assignment is not carried over
@@ -77,26 +69,20 @@ class Item {
         name: String,
         count: Int,
         isPacked: Bool,
-        type: ListType = .packing,
-        isDayOf: Bool = false,
         user: User? = nil
     ) {
         var itemCategory = category
-        if type == .task {
+        if list.kind == .tasks {
             itemCategory = .Task
-        } else {
-            if itemCategory == nil {
-                itemCategory = PackingEngine.interpretItem(itemName: name)
-            }
+        } else if itemCategory == nil {
+            itemCategory = PackingEngine.interpretItem(itemName: name)
         }
 
         let newItem = Item(
             name: name,
             category: (itemCategory ?? .other).rawValue.capitalized,
             count: count,
-            isPacked: isPacked,
-            type: type,
-            isDayOf: isDayOf
+            isPacked: isPacked
         )
         newItem.user = user
         newItem.list = list
