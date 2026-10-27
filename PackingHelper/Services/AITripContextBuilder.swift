@@ -31,6 +31,9 @@ enum AITripContextBuilder {
     /// suggestion) and packer changes are included. Weather is fetched once per session.
     @MainActor
     static func build(for trip: Trip, targetUser: User?, weather: AIWeatherContext?) -> AITripContext {
+        // With multiple packers off, the trip is packed as one person's
+        let multiplePackers = FeatureFlags.shared.showingMultiplePackers
+        let targetUser = multiplePackers ? targetUser : nil
         let mine = itemsBelonging(to: targetUser, in: trip)
         let mineKeys = Set(mine.map(\.name).map(matchKey))
         let others = trip.allItems.filter { item in
@@ -48,7 +51,7 @@ enum AITripContextBuilder {
             durationDays: max(trip.duration, 1),
             tripType: trip.typesName.lowercased(),
             accommodation: trip.accomodationsName.lowercased(),
-            packerCount: max(trip.packers.count, 1),
+            packerCount: multiplePackers ? max(trip.packers.count, 1) : 1,
             listNames: PackingList.sorted(trip.lists ?? [], sortOrder: .byCustomOrder).map(\.name),
             existingItems: uniqueNames(mine),
             otherPackersItems: uniqueNames(others).filter { !mineKeys.contains(matchKey($0)) },

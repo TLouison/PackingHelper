@@ -162,6 +162,7 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 
 Runtime `UserDefaults`-backed toggles on `FeatureFlags.shared` (`FeatureFlags.swift`), switched in the Developer Menu (Settings, DEBUG builds only):
 - `showingMultiplePackers`, `showingNotifications`, `showingPackingEngine`, `showingProfilePictures`
+- With `showingMultiplePackers` off, no packer pickers, filters, or names show anywhere; trip packing assigns new items to the main (oldest) user
 - Flags are all off in Release builds (the menu is `#if DEBUG`), so a feature ships only once its flag is removed
 
 ### File Organization

@@ -232,6 +232,7 @@ extension Trip {
     }
 
     // MARK: List metadata (item-based)
+    /// Users assigned to this trip's items, oldest first (empty on a new trip)
     var packers: [User] {
         var users = Set<User>()
         for list in lists ?? [] {
@@ -239,7 +240,7 @@ extension Trip {
                 if let user = item.user { users.insert(user) }
             }
         }
-        return Array(users)
+        return users.sorted { $0.created < $1.created }
     }
 
     var listsFromTemplates: [PackingList] {

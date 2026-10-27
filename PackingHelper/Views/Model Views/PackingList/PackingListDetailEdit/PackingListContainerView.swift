@@ -26,8 +26,8 @@ struct PackingListContainerView: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
 
     let context: PackingListContext
-    let users: [User]?
     let title: String?
+    @State private var featureFlags = FeatureFlags.shared
 
     /// Add, Remove Items, template editing, and check-off state (shared with the Focus pages)
     @State var editor: PackingEditor
@@ -59,16 +59,14 @@ struct PackingListContainerView: View {
     /// Initialize with a template
     init(packingList: PackingList) {
         self.context = .singleList(packingList)
-        self.users = nil
         self.title = packingList.name
         _editor = State(initialValue: PackingEditor(context: .singleList(packingList)))
         _assistantViewModel = State(initialValue: AIAssistantViewModel(context: .singleList(packingList)))
     }
 
     /// Initialize with a trip
-    init(trip: Trip, users: [User]?, title: String?) {
+    init(trip: Trip, title: String?) {
         self.context = .trip(trip)
-        self.users = users
         self.title = title
         _editor = State(initialValue: PackingEditor(context: .trip(trip)))
         _assistantViewModel = State(initialValue: AIAssistantViewModel(context: .trip(trip)))
@@ -80,9 +78,15 @@ struct PackingListContainerView: View {
         editor.lists
     }
 
+    /// Packers items can be assigned to: everyone, or just the main (first) packer
+    /// while multiple packers is off. Templates have no packers.
+    var users: [User] {
+        guard context.isTrip else { return [] }
+        return featureFlags.showingMultiplePackers ? allUsers : Array(allUsers.prefix(1))
+    }
+
     private var hasMultiplePackers: Bool {
-        guard let users = users else { return false }
-        return users.count > 1
+        users.count > 1
     }
 
     /// Whether to show the user selector
@@ -163,7 +167,7 @@ struct PackingListContainerView: View {
             editor.configure(modelContext: modelContext)
             // Only seed on first appearance so returning to this view keeps the user's picks
             if editor.user == nil {
-                editor.user = selectedUser ?? users?.first
+                editor.user = selectedUser ?? users.first
             }
             editor.resetTargetListIfNeeded()
         }
@@ -187,7 +191,7 @@ struct PackingListContainerView: View {
             // User selector (trip context with multiple packers only)
             if showUserSelector {
                 UserSelector(
-                    users: users ?? [],
+                    users: users,
                     selectedUser: $selectedUser
                 )
             }

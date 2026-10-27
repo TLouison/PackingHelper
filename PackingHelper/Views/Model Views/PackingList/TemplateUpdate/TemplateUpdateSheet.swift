@@ -38,8 +38,9 @@ struct TemplateReviewPage: Identifiable {
         return "Shared Templates"
     }
 
-    /// Owned pages ordered by packer creation, shared page last
-    static func pages(for lists: [PackingList]) -> [TemplateReviewPage] {
+    /// Owned pages ordered by packer creation, shared page last. Without `splitByPacker`
+    /// (multiple packers off), every template shares one page.
+    static func pages(for lists: [PackingList], splitByPacker: Bool) -> [TemplateReviewPage] {
         var owners: [User] = []
         var sectionsByOwner: [PersistentIdentifier: [TemplateReviewSection]] = [:]
         var sharedSections: [TemplateReviewSection] = []
@@ -49,7 +50,7 @@ struct TemplateReviewPage: Identifiable {
             guard !candidates.isEmpty else { continue }
             let section = TemplateReviewSection(list: list, candidates: candidates)
 
-            if let owner = list.appliedFromTemplate?.user {
+            if splitByPacker, let owner = list.appliedFromTemplate?.user {
                 let ownerID = owner.persistentModelID
                 if sectionsByOwner[ownerID] == nil {
                     owners.append(owner)
@@ -131,7 +132,10 @@ struct TemplateUpdateSheet: View {
             // Snapshot candidates so the lists don't shift while reviewing; save re-validates
             guard pages.isEmpty else { return }
             newTemplateLists = trip.newTemplateCandidateLists
-            pages = TemplateReviewPage.pages(for: trip.templateCandidateSections)
+            pages = TemplateReviewPage.pages(
+                for: trip.templateCandidateSections,
+                splitByPacker: featureFlags.showingMultiplePackers
+            )
             // Only new lists: one page that holds just the new templates block
             if pages.isEmpty && !newTemplateLists.isEmpty {
                 pages = [TemplateReviewPage(packer: nil, sections: [])]

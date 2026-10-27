@@ -19,6 +19,12 @@ struct PackingListEditView: View {
     var onListCreated: ((PackingList) -> Void)? = nil
 
     @Query(sort: \User.created) private var users: [User]
+    @State private var featureFlags = FeatureFlags.shared
+
+    /// Owner picker for templates; hidden while multiple packers is off (new templates go to the main packer)
+    private var showsOwnerPicker: Bool {
+        isTemplate && featureFlags.showingMultiplePackers && users.count > 1
+    }
 
     @State private var listName = ""
     @State private var kind: ListKind = .packing
@@ -42,7 +48,7 @@ struct PackingListEditView: View {
             return false
         }
         // Templates need an owner once there's more than one packer to choose from
-        if isTemplate && users.count > 1 && owner == nil {
+        if showsOwnerPicker && owner == nil {
             return false
         }
         return true
@@ -104,7 +110,7 @@ struct PackingListEditView: View {
                         Toggle("Day Of", isOn: $isDayOf)
                     }
 
-                    if isTemplate && users.count > 1 {
+                    if showsOwnerPicker {
                         UserPickerView(selectedUser: $owner, style: .inline, allowAll: false)
                     }
                 } header: {

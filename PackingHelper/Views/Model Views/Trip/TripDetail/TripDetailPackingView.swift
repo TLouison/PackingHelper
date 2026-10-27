@@ -59,11 +59,7 @@ struct TripDetailPackingView: View {
                     .shaded()
             } else {
                 NavigationLink {
-                    PackingListContainerView(
-                        trip: trip,
-                        users: trip.packers.isEmpty ? nil : trip.packers,
-                        title: trip.name
-                    )
+                    PackingListContainerView(trip: trip, title: trip.name)
                 } label: {
                     card
                 }

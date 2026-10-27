@@ -18,7 +18,7 @@ Keep [Behavior] and [No change] work in separate PRs where possible, so a refact
 
 ## 1. Small bug fixes
 
-- **[Behavior] Packers can't be assigned on a new trip.** `TripDetailPackingView` (~line 64) passes `trip.packers` (derived from users already on items) → nil on new trips → no picker. `Trip.packers` is `Array(Set(...))`, so order is unstable. Fix: pass all users from a sorted `@Query`; keep `trip.packers` for display, sorted by `created`. Same in `AIAssistantSheet`.
+- None open.
 
 ## 2. Dead code & hygiene
 
