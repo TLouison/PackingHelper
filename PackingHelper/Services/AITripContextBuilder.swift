@@ -25,6 +25,7 @@ enum AITripContextBuilder {
         Purchases.shared.appUserID
     }
 
+    @MainActor
     static func build(for trip: Trip, targetUser: User?) async -> AITripContext {
         AITripContext(
             destinationName: trip.destination?.name ?? "",
@@ -39,6 +40,7 @@ enum AITripContextBuilder {
         )
     }
 
+    @MainActor
     private static func existingItemNames(for trip: Trip, targetUser: User?) -> [String] {
         let items = trip.allItems.filter { item in
             guard let targetUser else { return true }
@@ -58,6 +60,7 @@ enum AITripContextBuilder {
         return names.sorted()
     }
 
+    @MainActor
     private static func weatherContext(for trip: Trip) async -> AIWeatherContext? {
         guard let destination = trip.destination,
               let weather = await destination.getTripWeather(for: trip) else {

@@ -67,6 +67,9 @@ extension TripLocation {
     }
 }
 
+/// Weather reads `Trip` / `TripLocation` state, so everything here runs on the main actor.
+/// Inputs are copied into locals before any `await`, so no model is read after a suspension.
+@MainActor
 extension TripLocation {
     func canGetCurrentWeather(for trip: Trip) -> Bool {
         return !trip.complete
@@ -79,9 +82,10 @@ extension TripLocation {
     func getCurrentWeather(for trip: Trip) async -> CurrentWeather? {
         if self.canGetCurrentWeather(for: trip) {
             let weatherService = WeatherService()
-            
+            let location = self.location
+
             do {
-                return try await weatherService.weather(for: self.location).currentWeather
+                return try await weatherService.weather(for: location).currentWeather
             } catch {
                 return nil
             }
@@ -102,10 +106,11 @@ extension TripLocation {
             let weatherService = WeatherService()
             
             let (startDate, endDate) = self.getForecastStartAndEnd(trip: trip)
-            
+            let location = self.location
+
             do {
                 return try await weatherService.weather(
-                    for: self.location,
+                    for: location,
                     including: .daily(startDate: startDate, endDate: endDate)
                 )
             } catch {
@@ -127,6 +132,7 @@ extension TripLocation {
         }
 
         let weatherService = WeatherService()
+        let location = self.location
 
         let allowCurrentWeather = canGetCurrentWeather(for: trip)
         let allowForecastWeather = canGetWeatherForecast(for: trip)
@@ -139,7 +145,7 @@ extension TripLocation {
 
             do {
                 let weatherData = try await weatherService.weather(
-                    for: self.location,
+                    for: location,
                     including: .daily(startDate: startDate, endDate: endDate),
                     .current
                 )
@@ -160,14 +166,11 @@ extension TripLocation {
             newWeather = TripWeather(currentWeather: nil, dailyForecast: nil)
         }
 
-        // Mutate on MainActor
-        await MainActor.run {
-            self.weatherLastFetched = Date.now
-            self.weatherTripDates = tripDates
-            self.weather = newWeather
-        }
+        self.weatherLastFetched = Date.now
+        self.weatherTripDates = tripDates
+        self.weather = newWeather
 
-        return self.weather
+        return newWeather
     }
 }
 
