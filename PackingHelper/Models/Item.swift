@@ -62,6 +62,21 @@ class Item {
         return copyItem
     }
 
+    /// Inserts an unpacked, unassigned copy of `item` (trimmed name) into a template list
+    @discardableResult
+    static func insertTemplateItem(from item: Item, count: Int, sortOrder: Int, into template: PackingList, in context: ModelContext) -> Item {
+        let templateItem = Item(
+            name: item.name.trimmingCharacters(in: .whitespacesAndNewlines),
+            category: item.category,
+            count: count,
+            isPacked: false,
+            sortOrder: sortOrder
+        )
+        context.insert(templateItem)
+        templateItem.list = template
+        return templateItem
+    }
+
     static func create(
         for list: PackingList,
         in context: ModelContext,

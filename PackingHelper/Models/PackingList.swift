@@ -435,15 +435,7 @@ extension PackingList {
 
         let sourceItems = Item.sorted(items ?? [], sortOrder: .byCustomOrder)
         for (order, item) in sourceItems.enumerated() {
-            let templateItem = Item(
-                name: item.name.trimmingCharacters(in: .whitespacesAndNewlines),
-                category: item.category,
-                count: item.count,
-                isPacked: false,
-                sortOrder: order
-            )
-            context.insert(templateItem)
-            templateItem.list = template
+            Item.insertTemplateItem(from: item, count: item.count, sortOrder: order, into: template, in: context)
         }
 
         appliedFromTemplate = template
@@ -461,15 +453,7 @@ extension PackingList {
         for candidate in candidates where existingKeys.insert(candidate.key).inserted {
             let item = candidate.displayItem
             // Templates store base counts and aren't assigned to a packer
-            let templateItem = Item(
-                name: item.name.trimmingCharacters(in: .whitespacesAndNewlines),
-                category: item.category,
-                count: 1,
-                isPacked: false,
-                sortOrder: nextSortOrder
-            )
-            context.insert(templateItem)
-            templateItem.list = source
+            let templateItem = Item.insertTemplateItem(from: item, count: 1, sortOrder: nextSortOrder, into: source, in: context)
             nextSortOrder += 1
             AppLogger.packingList.info("Saved \(templateItem.name) back to template \(source.name)")
         }
