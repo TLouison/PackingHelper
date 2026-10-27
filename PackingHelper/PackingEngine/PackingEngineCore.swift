@@ -8,20 +8,8 @@
 import Foundation
 import CoreML
 
-enum PackingRecommendationStatus {
-    case result, empty
-}
-
 enum PackingRecommendationCategory: String, CaseIterable {
     case Clothing, Electronics, Toiletries, Task, other
-}
-
-struct PackingRecommendationResult {
-    var status: PackingRecommendationStatus
-    var category: PackingRecommendationCategory
-    var item: String
-    var count: Int
-    var context: String
 }
 
 class PackingEngine {

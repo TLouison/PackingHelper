@@ -19,13 +19,6 @@ struct TripWeather {
         }
         return nil
     }
-    
-    func getCurrentTemperatureString() -> String? {
-        if let currentTemperature = self.getCurrentTemperature() {
-            return getCurrentWeatherFormattedTemperature(currentTemperature: currentTemperature)
-        }
-        return nil
-    }
 }
 
 func getCurrentWeatherFormattedTemperature(currentTemperature: Measurement<UnitTemperature>) -> String {

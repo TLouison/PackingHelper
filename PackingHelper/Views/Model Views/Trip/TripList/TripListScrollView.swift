@@ -22,7 +22,6 @@ struct TripListScrollView: View {
     @State private var isLandscape: Bool = false
     
     var trips: [Trip]
-    var canShowCTA: Bool = false
     /// Leads with the past trips summary card
     var showsPastTripsSummary: Bool = false
     /// Completed trips; when present, a trailing card opens them
@@ -31,18 +30,6 @@ struct TripListScrollView: View {
     var scrollToStart: Int = 0
 
     @State private var scrollPosition = ScrollPosition()
-    
-    //    var shouldShowCTA: Bool {
-    //        !purchaseManager.hasUnlockedPlus && canShowCTA && trips.count >= Trip.maxFreeTrips
-    //    }
-    //
-    //    func shouldDisable(index: Int) -> Bool {
-    //        !purchaseManager.hasUnlockedPlus && index >= Trip.maxFreeTrips && canShowCTA
-    //    }
-    //    Temporary force enable until purchases are figured out
-    func shouldDisable(index: Int) -> Bool {
-        return false
-    }
     
     func deleteTrip() {
         if let trip = tripToDelete {
@@ -132,16 +119,6 @@ extension TripListScrollView {
                     entryCard
                         .modifier(TripCardPageStyle())
                 }
-
-                //                if shouldShowCTA {
-                //                    PackingHelperPlusCTA(headerText: "Add unlimited trips with", version: .tall)
-                //                        .containerRelativeFrame(.horizontal, count: 1, spacing: 16)
-                //                        .scrollTransition { content, phase in
-                //                            content
-                //                                .opacity(phase.isIdentity ? 1.0 : 0.8)
-                //                                .scaleEffect(y: phase.isIdentity ? 1.0 : 0.9)
-                //                        }
-                //                }
             }
             .scrollTargetLayout()
         }
@@ -226,7 +203,7 @@ extension TripListScrollView {
     private func tripCard(_ trip: Trip, index: Int, isFeatured: Bool = false) -> some View {
         // Use ZStack to guarantee a hittable layer
         ZStack {
-            TripListRowView(trip: trip, disabled: shouldDisable(index: index), isFeatured: isFeatured)
+            TripListRowView(trip: trip, isFeatured: isFeatured)
                 // Display only; the layer below takes taps. Keeps row content that draws past the
                 // card's edges from swallowing taps meant for neighboring cards.
                 .allowsHitTesting(false)
@@ -234,18 +211,14 @@ extension TripListScrollView {
             Color.clear
                 .contentShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
                 .onTapGesture {
-                    if !shouldDisable(index: index) {
-                        path.append(trip)
-                    }
+                    path.append(trip)
                 }
         }
         // The tap layer isn't a Button, so expose the card to VoiceOver as one
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
-            if !shouldDisable(index: index) {
-                path.append(trip)
-            }
+            path.append(trip)
         }
         .accessibilityAction(named: "Delete") {
             tripToDelete = trip
@@ -259,7 +232,7 @@ extension TripListScrollView {
                 Label("Delete", systemImage: "trash")
             }
         } preview: {
-            TripListRowView(trip: trip, disabled: false)
+            TripListRowView(trip: trip)
                 .frame(width: 300, height: 440)
                 .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 10))
         }

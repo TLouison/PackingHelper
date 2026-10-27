@@ -36,9 +36,3 @@ struct TripDetailInfoView: View {
         }
     }
 }
-
-//@available(iOS 18, *)
-//#Preview {
-//    @Previewable @Query var trips: [Trip]
-//    TripDetailInfoView(trip: trips.first!)
-//}

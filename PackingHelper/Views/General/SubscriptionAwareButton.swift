@@ -9,8 +9,6 @@ import SwiftUI
 import OSLog
 
 struct SubscriptionAwareButton<Label: View>: View {
-//    @Environment(PurchaseManager.self) private var purchaseManager: PurchaseManager
-    
     @State private var isShowingSubscriptionStoreSheet = false
     
     var localLimitMet: Bool
@@ -18,9 +16,6 @@ struct SubscriptionAwareButton<Label: View>: View {
     var paidAction: () -> Void
     @ViewBuilder let label: () -> Label
     
-//    var canPerformAction: Bool {
-//        purchaseManager.hasUnlockedPlus || !localLimitMet
-//    }
     // Temporary force allow until purchases is figured out
     var canPerformAction: Bool {
         true
@@ -34,21 +29,11 @@ struct SubscriptionAwareButton<Label: View>: View {
                     paidAction()
                 } else {
                     AppLogger.purchases.info("User is not subscribed, showing subscription page")
-//                        isShowingSubscriptionStoreSheet.toggle()
                 }
             }
         } label: {
-//            if !purchaseManager.hasUnlockedPlus && localLimitMet {
-//                label()
-//                    .labelStyle(.iconOnly)
-//                    .overlay {
-//                        plusSubscriptionIcon()
-//                            .offset(x:8, y:8)
-//                    }
-//            } else {
-                label()
-                    .labelStyle(.iconOnly)
-//            }
+            label()
+                .labelStyle(.iconOnly)
         }
         .disabled(!canPerformAction)
         .sheet(isPresented: $isShowingSubscriptionStoreSheet) {
@@ -73,5 +58,4 @@ struct SubscriptionAwareButton<Label: View>: View {
                 .labelStyle(.iconOnly)
         }
     }
-//    .environment(PurchaseManager())
 }

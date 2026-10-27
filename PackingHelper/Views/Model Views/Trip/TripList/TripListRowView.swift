@@ -24,7 +24,6 @@ struct TripListRowView: View {
 
     @Bindable var trip: Trip
 
-    var disabled: Bool
     /// The next departure, shown as the wide card above the grid
     var isFeatured: Bool = false
 
@@ -248,30 +247,6 @@ struct TripListRowView: View {
             tripRowOverlay(trip)
                 .frame(maxWidth: .infinity)
                 .padding()
-            
-            
-            // Block the trip from being accessed if the user has more than the free amount
-            if disabled {
-                Color.black.opacity(0.8).frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-                VStack(spacing: 32) {
-                    VStack {
-                        Text("This Trip is Disabled").font(.title)
-                        Text("You may only plan up to \(Trip.maxFreeTrips) trips.").font(.subheadline)
-                    }
-                    
-                    VStack {
-                        Text("To regain access, please:")
-                            .font(.headline)
-                        VStack {
-                            Text("- Complete your other trips.")
-                            Text("- Remove other upcoming trips.")
-                            plusSubscriptionWithText(before: "- Subscribe to")
-                        }
-                        .font(.subheadline)
-                    }
-                }
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
@@ -320,8 +295,4 @@ struct UserIndicators: View {
         .scaleEffect(1.4, anchor: .top)
     }
 }
-
-//#Preview {
-//    TripListRowView()
-//}
 

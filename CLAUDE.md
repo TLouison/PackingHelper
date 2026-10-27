@@ -58,7 +58,7 @@ Legacy fields above are slated for removal in one schema change (see ROADMAP.md 
 **SwiftData Usage:**
 - Use `@Query` with `FetchDescriptor` for reactive data fetching
 - Filter with predicates: `#Predicate<Trip> { trip.endDate > now }`
-- Models use static factory methods for CRUD (e.g., `Trip.create_or_update()`, `PackingList.save()`)
+- Models use static factory methods for CRUD (e.g., `User.create_or_update()`, `PackingList.save()`)
 - Always specify cascade delete rules in `@Relationship` for parent-child relationships
 - Access model context via `@Environment(\.modelContext)`
 
@@ -194,7 +194,6 @@ Config values (`REVENUECAT_API_KEY`, `WORKER_URL`) come from the gitignored `Con
 **Preview Infrastructure:**
 - `Models/Previews/SampleData.swift`: in-memory container with mock trips, lists, items, users
 - Use `#Preview(traits: .sampleData)`.
-- Don't use `Trip.sampleTrip` in new previews — it's a global model that schedules real notifications
 
 **SwiftData Container Setup** (`User` is reached through relationships):
 ```swift

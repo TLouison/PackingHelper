@@ -13,7 +13,7 @@ import WeatherKit
 import OSLog
 
 @Model
-final class TripLocation: Codable, Equatable {
+final class TripLocation: Equatable {
     var name: String = "Location"
     
     @Relationship(inverse: \Trip.origin) var originTrips: [Trip]? = []
@@ -36,44 +36,9 @@ final class TripLocation: Codable, Equatable {
         self.longitude = longitude
     }
     
-    // Custom decoder
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        name = try container.decode(String.self, forKey: .name)
-        latitude = try container.decode(Double.self, forKey: .latitude)
-        longitude = try container.decode(Double.self, forKey: .longitude)
-    }
-    
-    func update(name: String, latitude: Double, longitude: Double) {
-        self.name = name
-        self.latitude = latitude
-        self.longitude = longitude
-    }
-    
-    func update(_ destination: TripLocation) {
-        self.name = destination.name
-        self.latitude = destination.latitude
-        self.longitude = destination.longitude
-    }
-
     // Equatable conformance
     static func == (lhs: TripLocation, rhs: TripLocation) -> Bool {
         lhs.id == rhs.id
-    }
-
-    // Custom coding keys
-    private enum CodingKeys: String, CodingKey {
-        case name
-        case latitude
-        case longitude
-    }
-    
-    // Custom encoder
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(self.name, forKey: .name)
-        try container.encode(self.latitude, forKey: .latitude)
-        try container.encode(self.longitude, forKey: .longitude)
     }
 }
 
@@ -206,23 +171,6 @@ extension TripLocation {
     }
 }
 
-// MARK: - DefaultLocationInformation
-
-/// Lightweight Codable mirror of TripLocation used for AppStorage persistence.
-struct DefaultLocationInformation: Codable {
-    let name: String
-    let latitude: Double
-    let longitude: Double
-
-    static var `default`: DefaultLocationInformation {
-        DefaultLocationInformation(name: "New York City", latitude: 40.7128, longitude: -74.0060)
-    }
-
-    static func decode(from data: Data) -> DefaultLocationInformation? {
-        try? JSONDecoder().decode(DefaultLocationInformation.self, from: data)
-    }
-}
-
 extension TripLocation {
     static var sampleOrigin: TripLocation {
         TripLocation(name: "New York City", latitude: 40.7128, longitude: -74.0060)
@@ -230,12 +178,5 @@ extension TripLocation {
     
     static var sampleDestination: TripLocation {
         TripLocation(name: "Amsterdam", latitude: 52.3676, longitude: 4.9041)
-    }
-    
-    // Takes in data that should be in the form of DefaultLocationInformation and decodes that
-    // to a TripLocation that we can use elsewhere in the app.
-    static func from(data: Data) -> TripLocation {
-        let data = DefaultLocationInformation.decode(from: data)
-        return TripLocation(name: data!.name, latitude: data!.latitude, longitude: data!.longitude)
     }
 }

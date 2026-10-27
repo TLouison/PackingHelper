@@ -152,17 +152,6 @@ final class PackingList {
         items?.remove(at: index)
     }
 
-    func removeItem(at index: Int) {
-        if self.items != nil {
-            AppLogger.packingList.debug("Removing item at index \(index)")
-            self.items?.remove(at: index)
-        }
-    }
-
-    var icon: String {
-        return "list.bullet"
-    }
-
     @ViewBuilder
     var iconImage: some View {
         Image(systemName: "list.bullet")
@@ -271,11 +260,6 @@ extension PackingList {
 }
 
 extension PackingList {
-    static func filtered(user: User?, _ lists: [PackingList]) -> [PackingList] {
-        // User filtering is now at the item level; return all lists
-        return lists
-    }
-
     static func sorted(_ lists: [PackingList], sortOrder: PackingListSortOrder = .byDate) -> [PackingList] {
         switch sortOrder {
             case .byNameAsc:
@@ -289,11 +273,6 @@ extension PackingList {
             case .byCustomOrder:
                 return lists.sorted { $0.sortOrder < $1.sortOrder }
             }
-    }
-
-    static func containsMultiplePackers(_ lists: [PackingList]) -> Bool {
-        let allItems = lists.flatMap { $0.items ?? [] }
-        return Set(allItems.compactMap { $0.user?.persistentModelID }).count > 1
     }
 }
 
@@ -316,16 +295,6 @@ extension PackingList {
 
     var lastAppliedTrip: Trip? {
         appliedTrips.max(by: { $0.startDate < $1.startDate })
-    }
-}
-
-extension PackingList {
-    static func samplePackingList() -> PackingList {
-        return PackingList(template: false, name: "Packing List", countAsDays: false)
-    }
-
-    static func sampleDefaultList() -> PackingList {
-        return PackingList(template: true, name: "Template List", countAsDays: false)
     }
 }
 

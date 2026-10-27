@@ -111,8 +111,6 @@ final class Trip {
     /// Set when the user saves from or dismisses the post-trip template review card
     var templateReviewDismissed: Bool = false
 
-    static let maxFreeTrips: Int = 3
-
     init(name: String, startDate: Date, endDate: Date, types: [TripType], origin: TripLocation?, destination: TripLocation, accomodations: [TripAccomodation]) {
         self.createdDate = Date.now
 
@@ -129,44 +127,6 @@ final class Trip {
 
         if FeatureFlags.shared.showingNotifications {
             self.createDayOfPackingNotification()
-        }
-    }
-
-    static func create_or_update(
-        _ trip: Trip?,
-        name: String,
-        startDate: Date,
-        endDate: Date,
-        types: [TripType],
-        origin: TripLocation,
-        destination: TripLocation,
-        accomodations: [TripAccomodation],
-        in context: ModelContext
-    ) -> Trip {
-        if let trip {
-            trip.name = name
-
-            trip.startDate = startDate
-            trip.endDate = endDate
-
-            trip.types = types
-            trip.accomodations = accomodations
-
-            trip.origin = origin
-            trip.destination = destination
-            return trip
-        } else {
-            let newTrip = Trip(
-                name: name,
-                startDate: startDate,
-                endDate: endDate,
-                types: types,
-                origin: origin,
-                destination: destination,
-                accomodations: accomodations
-            )
-            context.insert(newTrip)
-            return newTrip
         }
     }
 
@@ -249,18 +209,11 @@ extension Trip {
         lists?.first(where: { $0.isDefault })
     }
 
-    // Legacy accessor — always nil in v2 model (single default list per trip)
-    var defaultTaskList: PackingList? { nil }
-
     var hasDefaultLists: Bool {
         defaultPackingList != nil
     }
 
     // MARK: List metadata (item-based)
-    var hasMultiplePackers: Bool {
-        return self.packers.count > 1
-    }
-
     var packers: [User] {
         return Array(Set(allItems.compactMap { $0.user }))
     }
@@ -382,10 +335,6 @@ extension Trip {
             return 0
         }
     }
-}
-
-extension Trip {
-    static var sampleTrip = Trip(name: "Anniversary Trip", startDate: Date(), endDate: Date.now.addingTimeInterval(86400), types: [.plane], origin: TripLocation.sampleOrigin, destination: TripLocation.sampleDestination, accomodations: [.hotel])
 }
 
 /// Notification Code

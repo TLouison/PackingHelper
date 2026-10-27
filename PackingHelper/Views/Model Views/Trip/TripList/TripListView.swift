@@ -52,10 +52,6 @@ struct TripListView: View {
     ) var completedTrips: [Trip]
     @Query private var users: [User]
     
-    var atMaxFreeTrips: Bool {
-        upcomingTrips.count >= Trip.maxFreeTrips
-    }
-    
     var viewTitle: String {
         upcomingTrips.isEmpty ? "" : "Upcoming Trips"
     }
@@ -90,7 +86,7 @@ struct TripListView: View {
     @ViewBuilder
     func tripList() -> some View {
         if !upcomingTrips.isEmpty {
-            TripListScrollView(path: $viewModel.path, trips: upcomingTrips, canShowCTA: true, pastTrips: completedTrips, scrollToStart: scrollToSoonestTrip)
+            TripListScrollView(path: $viewModel.path, trips: upcomingTrips, pastTrips: completedTrips, scrollToStart: scrollToSoonestTrip)
         } else if !completedTrips.isEmpty {
             allTripsCompletedView
                 .navigationTitle("Trips")
@@ -118,7 +114,7 @@ struct TripListView: View {
     @ViewBuilder
     var addTripButton: some View {
         if !users.isEmpty {
-            SubscriptionAwareButton(localLimitMet: atMaxFreeTrips) {
+            SubscriptionAwareButton(localLimitMet: false) {
                 withAnimation {
                     isShowingAddTripSheet.toggle()
                 }
