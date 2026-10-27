@@ -176,6 +176,7 @@ PackingHelper/           # Xcode synchronized folder — new files are added to 
 ├── Utilities/           # Cross-cutting concerns (Color, Calendar, Style, Purchase, etc.)
 └── PackingEngine/       # ML categorization
 scripts/run-on-device.sh # Build, install, launch on a physical iPhone (works over Wi-Fi)
+scripts/run-on-simulator.sh # Same for a Simulator; from Linux, rsyncs to the Mac (MAC_HOST) and builds there
 ```
 Config values (`REVENUECAT_API_KEY`, `WORKER_URL`) come from the gitignored `Config.xcconfig` (template: `Config.xcconfig.example`) via Info.plist.
 

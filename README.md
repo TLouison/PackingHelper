@@ -42,6 +42,24 @@ CONSOLE=1 scripts/run-on-device.sh        # stream app output after launch
 
 It works over Wi-Fi if the phone is paired with "Connect via network" in Xcode's Devices window, and unlocks the login keychain for codesigning when run over SSH.
 
+### Running in the Simulator
+
+`scripts/run-on-simulator.sh` does the same for an iOS Simulator. It offers the 5 most recently opened simulators (iOS 26 and later), numbered 0–4, and takes 0 if you press Enter or wait 5 seconds. Run from a machine that isn't a Mac (such as a Linux dev server), it rsyncs the working tree, including `Config.xcconfig`, to the Mac at `MAC_HOST` and builds there. `MAC_HOST` defaults to `ios-mac`, an SSH alias with key auth that you define on the machine running the script:
+
+```
+# ~/.ssh/config
+Host ios-mac
+  HostName <your Mac's hostname or IP>
+  User <your Mac username>
+```
+
+```
+scripts/run-on-simulator.sh                 # pick from a list; Enter or 5s takes the most recent
+scripts/run-on-simulator.sh "iPhone 17"     # by name or UDID
+MAC_HOST=other-mac scripts/run-on-simulator.sh
+CONSOLE=1 scripts/run-on-simulator.sh       # stream app output after launch
+```
+
 ## More
 
 See `CLAUDE.md` for architecture notes, `ROADMAP.md` for planned work, and `SPEC.md` for the template review design.
