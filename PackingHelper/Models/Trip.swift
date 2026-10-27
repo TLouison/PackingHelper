@@ -200,9 +200,25 @@ extension Trip {
     }
 
     // MARK: Item counts (item-level attributes)
-    var totalItemsCount: Int { allItems.count }
-    var packedItemsCount: Int { allItems.filter { $0.isPacked }.count }
-    var incompleteItemsCount: Int { allItems.filter { !$0.isPacked }.count }
+    /// Total and packed counts in one walk over the lists, without building the flattened array
+    var itemCounts: (total: Int, packed: Int) {
+        var total = 0
+        var packed = 0
+        for list in lists ?? [] {
+            for item in list.items ?? [] {
+                total += 1
+                if item.isPacked { packed += 1 }
+            }
+        }
+        return (total, packed)
+    }
+
+    var totalItemsCount: Int { itemCounts.total }
+    var packedItemsCount: Int { itemCounts.packed }
+    var incompleteItemsCount: Int {
+        let counts = itemCounts
+        return counts.total - counts.packed
+    }
 
     // MARK: Default list accessors
     var defaultPackingList: PackingList? {
@@ -215,7 +231,13 @@ extension Trip {
 
     // MARK: List metadata (item-based)
     var packers: [User] {
-        return Array(Set(allItems.compactMap { $0.user }))
+        var users = Set<User>()
+        for list in lists ?? [] {
+            for item in list.items ?? [] {
+                if let user = item.user { users.insert(user) }
+            }
+        }
+        return Array(users)
     }
 
     var listsFromTemplates: [PackingList] {
