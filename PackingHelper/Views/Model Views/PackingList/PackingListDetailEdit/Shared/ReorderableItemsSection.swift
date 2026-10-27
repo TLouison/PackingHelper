@@ -86,11 +86,12 @@ struct ItemDropZone: View {
                 guard let transferData = items.first else { return false }
 
                 // Look up the item from the model context using UUID
-                let descriptor = FetchDescriptor<Item>(
+                var descriptor = FetchDescriptor<Item>(
                     predicate: #Predicate<Item> { item in
                         item.uuid == transferData.itemUUID
                     }
                 )
+                descriptor.fetchLimit = 1
 
                 if let allItems = try? modelContext.fetch(descriptor),
                     let item = allItems.first
