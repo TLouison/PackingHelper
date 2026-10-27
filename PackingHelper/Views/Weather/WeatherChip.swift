@@ -30,8 +30,10 @@ struct WeatherChip: View {
 
             HStack(spacing: 6) {
                 Image(systemName: weather.symbolName)
+                    .contentTransition(.symbolEffect(.replace))
                 Text(temperature)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
             }
             .font(.headline)
         }

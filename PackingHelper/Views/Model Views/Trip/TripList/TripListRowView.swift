@@ -99,11 +99,13 @@ struct TripListRowView: View {
                         Image(systemName: cardWeather.symbolName)
                             .symbolRenderingMode(.multicolor)
                             .font(.title2)
+                            .contentTransition(.symbolEffect(.replace))
                         Text(cardWeather.temperature)
                             .font(.caption.weight(.semibold))
+                            .contentTransition(.numericText())
                     }
                     .accessibilityElement(children: .combine)
-                    .transition(.opacity)
+                    .transition(.blurReplace)
                 }
             }
 

@@ -57,6 +57,7 @@ struct TripDetailHeroView: View {
 
             if let currentWeather = tripWeather?.currentWeather {
                 WeatherChip(weather: currentWeather)
+                    .transition(.blurReplace)
             }
         }
         .padding(20)

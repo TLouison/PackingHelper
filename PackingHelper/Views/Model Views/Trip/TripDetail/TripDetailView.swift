@@ -89,7 +89,10 @@ struct TripDetailView: View {
             }
             // Refetch when the destination or dates are edited (e.g. moved past the forecast window)
             .task(id: WeatherRequest(trip: trip)) {
-                tripWeather = await trip.destination?.getTripWeather(for: trip)
+                let weather = await trip.destination?.getTripWeather(for: trip)
+                withAnimation(.smooth) {
+                    tripWeather = weather
+                }
             }
             .onChange(of: isDeleted) {
                 if isDeleted {
