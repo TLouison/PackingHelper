@@ -21,7 +21,7 @@ struct PackingHelperApp: App {
 
     @Environment(\.scenePhase) var scenePhase
 
-    private var purchaseManager = PurchaseManager()
+    @State private var purchaseManager = PurchaseManager()
 
     let modelContainer: ModelContainer
     
