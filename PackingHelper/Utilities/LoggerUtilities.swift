@@ -23,6 +23,7 @@ enum AppLogger {
     static let weather = Logger(subsystem: subsystem, category: "Weather")
     static let notifications = Logger(subsystem: subsystem, category: "Notifications")
     static let purchases = Logger(subsystem: subsystem, category: "Purchases")
+    static let coverPhoto = Logger(subsystem: subsystem, category: "CoverPhoto")
 
     // UI loggers
     static let views = Logger(subsystem: subsystem, category: "Views")

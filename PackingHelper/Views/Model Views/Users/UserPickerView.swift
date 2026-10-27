@@ -65,39 +65,49 @@ struct UserPickerView: View {
     
     // MARK: - Picker Styles
     
+    /// The "All Users" row (when allowed) followed by one row per user, with a checkmark on the selection
+    @ViewBuilder
+    private func userMenuItems(dividerAfterAll: Bool) -> some View {
+        if allowAll {
+            Button {
+                withAnimation(.snappy) {
+                    selectedUser = nil
+                }
+            } label: {
+                if selectedUser == nil {
+                    Label("All Users", systemImage: "checkmark")
+                } else {
+                    Text("All Users")
+                }
+            }
+
+            if dividerAfterAll {
+                Divider()
+            }
+        } else {
+            if selectedUser == nil {
+                Text("Select User")
+            }
+        }
+
+        ForEach(filteredUsers) { user in
+            Button {
+                withAnimation(.snappy) {
+                    selectedUser = user
+                }
+            } label: {
+                if selectedUser == user {
+                    Label(user.name, systemImage: "checkmark")
+                } else {
+                    Text(user.name)
+                }
+            }
+        }
+    }
+
     private var menuPicker: some View {
         Menu {
-            if allowAll {
-                Button {
-                    withAnimation(.snappy) {
-                        selectedUser = nil
-                    }
-                } label: {
-                    if selectedUser == nil {
-                        Label("All Users", systemImage: "checkmark")
-                    } else {
-                        Text("All Users")
-                    }
-                }
-            } else {
-                if selectedUser == nil {
-                    Text("Select User")
-                }
-            }
-            
-            ForEach(filteredUsers) { user in
-                Button {
-                    withAnimation(.snappy) {
-                        selectedUser = user
-                    }
-                } label: {
-                    if selectedUser == user {
-                        Label(user.name, systemImage: "checkmark")
-                    } else {
-                        Text(user.name)
-                    }
-                }
-            }
+            userMenuItems(dividerAfterAll: false)
         } label: {
             HStack(spacing: 8) {
                 if let user = selectedUser {
@@ -133,39 +143,7 @@ struct UserPickerView: View {
             Spacer()
             
             Menu {
-                if allowAll {
-                    Button {
-                        withAnimation(.snappy) {
-                            selectedUser = nil
-                        }
-                    } label: {
-                        if selectedUser == nil {
-                            Label("All Users", systemImage: "checkmark")
-                        } else {
-                            Text("All Users")
-                        }
-                    }
-                    
-                    Divider()
-                } else {
-                    if selectedUser == nil {
-                        Text("Select User")
-                    }
-                }
-                
-                ForEach(filteredUsers) { user in
-                    Button {
-                        withAnimation(.snappy) {
-                            selectedUser = user
-                        }
-                    } label: {
-                        if selectedUser == user {
-                            Label(user.name, systemImage: "checkmark")
-                        } else {
-                            Text(user.name)
-                        }
-                    }
-                }
+                userMenuItems(dividerAfterAll: true)
             } label: {
                 HStack {
                     if let user = selectedUser {

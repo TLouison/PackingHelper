@@ -13,7 +13,7 @@ enum AppTab: Hashable {
 }
 
 struct ContentView: View {
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage(StorageKey.hasCompletedOnboarding) private var hasCompletedOnboarding = false
     @State private var selectedTab: AppTab = .trips
     /// Bumped when the Trips tab is tapped while already selected
     @State private var tripsTabReselections = 0

@@ -48,8 +48,8 @@ struct TripEditView: View {
     @State private var selectedTemplates: [PackingList] = []
     @State private var showingTemplateStep = false
 
-    @AppStorage("autoCreateDefaultLists") private var autoCreateDefaultLists = false
-    @AppStorage("defaultTripCover") private var defaultTripCover = DefaultTripCover.photo.rawValue
+    @AppStorage(StorageKey.autoCreateDefaultLists) private var autoCreateDefaultLists = false
+    @AppStorage(StorageKey.defaultTripCover) private var defaultTripCover = DefaultTripCover.photo.rawValue
 
     private var isCreating: Bool { trip == nil }
     private var canSave: Bool { destinationLocation != nil }

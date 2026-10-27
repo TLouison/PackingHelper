@@ -34,7 +34,7 @@ struct UserColorPicker: View {
             colorButtonBase(color: color, name: name)
                 .overlay {
                     RoundedRectangle(cornerRadius: defaultCornerRadius)
-                        .stroke(Color.secondary.opacity(.infinity), lineWidth: 4)
+                        .stroke(Color.secondary, lineWidth: 4)
                 }
         } else {
             colorButtonBase(color: color, name: name)

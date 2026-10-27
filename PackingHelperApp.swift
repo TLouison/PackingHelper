@@ -12,7 +12,7 @@ import TipKit
 
 @main
 struct PackingHelperApp: App {
-    @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
+    @AppStorage(StorageKey.appearanceMode) private var appearanceMode = AppearanceMode.system.rawValue
     @AppStorage("hasLaunchedBefore") private var hasLaunchedBefore = false
     @AppStorage("hasMigratedSortOrders") private var hasMigratedSortOrders = false
     @AppStorage("hasMigratedDefaultLists") private var hasMigratedDefaultLists = false
@@ -42,9 +42,9 @@ struct PackingHelperApp: App {
 
         // Feature tips (PackingTips.swift). The datastore can only be reset before configuring.
         #if DEBUG
-        if UserDefaults.standard.bool(forKey: "resetTipsOnLaunch") {
+        if UserDefaults.standard.bool(forKey: StorageKey.resetTipsOnLaunch) {
             try? Tips.resetDatastore()
-            UserDefaults.standard.set(false, forKey: "resetTipsOnLaunch")
+            UserDefaults.standard.set(false, forKey: StorageKey.resetTipsOnLaunch)
         }
         #endif
         try? Tips.configure()

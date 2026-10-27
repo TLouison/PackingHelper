@@ -14,7 +14,7 @@ import SwiftData
 struct WelcomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage(StorageKey.hasCompletedOnboarding) private var hasCompletedOnboarding = false
 
     /// Developer Menu preview: Continue just closes the sheet without saving
     var isPreview = false

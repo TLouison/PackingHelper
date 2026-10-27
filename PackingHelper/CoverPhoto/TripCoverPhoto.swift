@@ -17,7 +17,7 @@ enum CoverPhotoSource: String, Codable {
 }
 
 /// What a new trip shows before the user picks a cover photo. Stored in
-/// `@AppStorage("defaultTripCover")`; only consulted when creating a trip.
+/// `@AppStorage(StorageKey.defaultTripCover)`; only consulted when creating a trip.
 enum DefaultTripCover: String, CaseIterable {
     /// A random Unsplash photo of the destination, picked in the new-trip form.
     case photo = "Photo"

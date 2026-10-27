@@ -13,7 +13,7 @@ import SwiftUI
 
 /// Which page trip packing opens on (Settings → Trips)
 enum PackingStartPage: String, CaseIterable {
-    static let storageKey = "packingStartPage"
+    static let storageKey = StorageKey.packingStartPage
 
     case all = "All Items"
     case firstList = "First List"

@@ -28,7 +28,7 @@ struct SettingsView: View {
 
     @Query private var users: [User]
 
-    @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
+    @AppStorage(StorageKey.appearanceMode) private var appearanceMode = AppearanceMode.system.rawValue
 
     #if DEBUG
     @State private var showDeveloperMenu = false
@@ -97,8 +97,8 @@ struct SettingsView: View {
 /// Preferences that shape trips. Each setting gets its own section so its
 /// explanation sits directly under it as the footer.
 private struct TripSettingsSection: View {
-    @AppStorage("autoCreateDefaultLists") private var autoCreateDefaultLists = false
-    @AppStorage("defaultTripCover") private var defaultTripCover = DefaultTripCover.photo.rawValue
+    @AppStorage(StorageKey.autoCreateDefaultLists) private var autoCreateDefaultLists = false
+    @AppStorage(StorageKey.defaultTripCover) private var defaultTripCover = DefaultTripCover.photo.rawValue
     @AppStorage(PackingStartPage.storageKey) private var packingStartPage = PackingStartPage.firstList.rawValue
 
     var body: some View {

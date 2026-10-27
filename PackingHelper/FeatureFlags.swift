@@ -14,25 +14,25 @@ class FeatureFlags {
 
     var showingMultiplePackers: Bool {
         didSet {
-            UserDefaults.standard.set(showingMultiplePackers, forKey: "featureFlag_showingMultiplePackers")
+            UserDefaults.standard.set(showingMultiplePackers, forKey: StorageKey.showingMultiplePackers)
         }
     }
 
     var showingNotifications: Bool {
         didSet {
-            UserDefaults.standard.set(showingNotifications, forKey: "featureFlag_showingNotifications")
+            UserDefaults.standard.set(showingNotifications, forKey: StorageKey.showingNotifications)
         }
     }
 
     var showingPackingEngine: Bool {
         didSet {
-            UserDefaults.standard.set(showingPackingEngine, forKey: "featureFlag_showingPackingEngine")
+            UserDefaults.standard.set(showingPackingEngine, forKey: StorageKey.showingPackingEngine)
         }
     }
 
     var showingProfilePictures: Bool {
         didSet {
-            UserDefaults.standard.set(showingProfilePictures, forKey: "featureFlag_showingProfilePictures")
+            UserDefaults.standard.set(showingProfilePictures, forKey: StorageKey.showingProfilePictures)
         }
     }
 
@@ -43,9 +43,9 @@ class FeatureFlags {
 
     private init() {
         // Initialize from UserDefaults
-        self.showingMultiplePackers = UserDefaults.standard.bool(forKey: "featureFlag_showingMultiplePackers")
-        self.showingNotifications = UserDefaults.standard.bool(forKey: "featureFlag_showingNotifications")
-        self.showingPackingEngine = UserDefaults.standard.bool(forKey: "featureFlag_showingPackingEngine")
-        self.showingProfilePictures = UserDefaults.standard.bool(forKey: "featureFlag_showingProfilePictures")
+        self.showingMultiplePackers = UserDefaults.standard.bool(forKey: StorageKey.showingMultiplePackers)
+        self.showingNotifications = UserDefaults.standard.bool(forKey: StorageKey.showingNotifications)
+        self.showingPackingEngine = UserDefaults.standard.bool(forKey: StorageKey.showingPackingEngine)
+        self.showingProfilePictures = UserDefaults.standard.bool(forKey: StorageKey.showingProfilePictures)
     }
 }

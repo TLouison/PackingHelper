@@ -60,7 +60,11 @@ actor CoverPhotoImageLoader {
     private let directory: URL = {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         let dir = caches.appendingPathComponent("CoverPhotos", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            AppLogger.coverPhoto.error("Couldn't create the cover photo cache directory: \(error.localizedDescription, privacy: .public)")
+        }
         return dir
     }()
 
@@ -103,16 +107,26 @@ actor CoverPhotoImageLoader {
 
     private static func loadUnsplash(id: String, rawURL: String, width: Int, directory: URL) async -> UIImage? {
         let file = directory.appendingPathComponent("\(id)_\(width).jpg")
-        if let data = try? Data(contentsOf: file), let image = decode(data, maxPixelSize: width) {
+        if let data = readCachedFile(file), let image = decode(data, maxPixelSize: width) {
             return image
         }
 
-        if let url = sizedURL(rawURL: rawURL, width: width),
-           let result = try? await URLSession.shared.data(from: url),
-           (result.1 as? HTTPURLResponse)?.statusCode == 200,
-           let image = decode(result.0, maxPixelSize: width) {
-            try? result.0.write(to: file, options: .atomic)
-            return image
+        if let url = sizedURL(rawURL: rawURL, width: width) {
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                if (response as? HTTPURLResponse)?.statusCode == 200,
+                   let image = decode(data, maxPixelSize: width) {
+                    do {
+                        try data.write(to: file, options: .atomic)
+                    } catch {
+                        AppLogger.coverPhoto.error("Couldn't cache \(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    }
+                    return image
+                }
+            } catch {
+                // Routine when offline; the cached fallback below covers it
+                AppLogger.coverPhoto.info("Couldn't download \(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
         }
 
         // Offline or failed: fall back to any other cached size of this photo.
@@ -129,16 +143,33 @@ actor CoverPhotoImageLoader {
     }
 
     private static func largestCachedVariant(id: String, directory: URL) -> UIImage? {
-        let files = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        let files: [String]
+        do {
+            files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        } catch {
+            AppLogger.coverPhoto.error("Couldn't list the cover photo cache: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
         let widths = files.compactMap { name -> Int? in
             guard name.hasPrefix("\(id)_"), name.hasSuffix(".jpg") else { return nil }
             return Int(name.dropFirst(id.count + 1).dropLast(4))
         }
         guard let best = widths.max(),
-              let data = try? Data(contentsOf: directory.appendingPathComponent("\(id)_\(best).jpg")) else {
+              let data = readCachedFile(directory.appendingPathComponent("\(id)_\(best).jpg")) else {
             return nil
         }
         return decode(data, maxPixelSize: best)
+    }
+
+    /// A cached file's bytes, or nil if it isn't there. A file that exists but can't be read is logged.
+    private static func readCachedFile(_ file: URL) -> Data? {
+        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+        do {
+            return try Data(contentsOf: file)
+        } catch {
+            AppLogger.coverPhoto.error("Couldn't read cached photo \(file.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     // MARK: - Decoding

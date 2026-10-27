@@ -156,7 +156,13 @@ struct CoverPhotoSection: View {
         isProcessing = true
         loadError = nil
 
-        let data = try? await item.loadTransferable(type: Data.self)
+        let data: Data?
+        do {
+            data = try await item.loadTransferable(type: Data.self)
+        } catch {
+            AppLogger.coverPhoto.error("Couldn't load the picked photo: \(error.localizedDescription, privacy: .public)")
+            data = nil
+        }
         let prepared = await Task.detached(priority: .userInitiated) {
             data.flatMap(CoverPhotoProcessing.preparedJPEG(from:))
         }.value

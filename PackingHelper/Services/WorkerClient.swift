@@ -18,7 +18,7 @@ enum WorkerConfig {
     /// for local `wrangler dev` testing; release builds always use the bundled URL.
     static var baseURL: URL? {
         #if DEBUG
-        if let override = UserDefaults.standard.string(forKey: "debug_workerURLOverride"),
+        if let override = UserDefaults.standard.string(forKey: StorageKey.workerURLOverride),
            !override.isEmpty,
            let url = URL(string: override) {
             return url

@@ -12,8 +12,8 @@ import SwiftData
 struct DeveloperMenuView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("resetTipsOnLaunch") private var resetTipsOnLaunch = false
+    @AppStorage(StorageKey.hasCompletedOnboarding) private var hasCompletedOnboarding = false
+    @AppStorage(StorageKey.resetTipsOnLaunch) private var resetTipsOnLaunch = false
     @Query private var users: [User]
     @State private var featureFlagsExpanded = true
     @State private var featureFlags = FeatureFlags.shared
