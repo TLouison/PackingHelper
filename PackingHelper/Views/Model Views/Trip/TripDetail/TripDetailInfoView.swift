@@ -11,26 +11,17 @@ import SwiftData
 struct TripDetailInfoView: View {
     let trip: Trip
     
-    @ViewBuilder
-    func infoRow(_ title: String, _ detail: some View) -> some View {
-        HStack {
-            Text(title).font(.caption)
-            Spacer()
-            detail
-        }
-    }
-    
     var body: some View {
         TripDetailSectionView(title: "Trip Info") {
             VStack(spacing: 10) {
-                infoRow("Status", trip.getStatusLabel())
-                infoRow("Type", trip.getTypeLabel())
-                infoRow("Duration", Text("\(trip.duration) days"))
+                InfoRow("Status", trip.getStatusLabel())
+                InfoRow("Type", trip.getTypeLabel())
+                InfoRow("Duration", Text("\(trip.duration) days"))
                 
                 if trip.daysUntilDeparture > 0 {
-                    infoRow("Days Until Departure", Text("\(trip.daysUntilDeparture) days"))
+                    InfoRow("Days Until Departure", Text("\(trip.daysUntilDeparture) days"))
                 } else if trip.daysUntilReturn > 0 {
-                    infoRow("Days Until Return", Text("\(trip.daysUntilReturn) days"))
+                    InfoRow("Days Until Return", Text("\(trip.daysUntilReturn) days"))
                 }
             }
         }

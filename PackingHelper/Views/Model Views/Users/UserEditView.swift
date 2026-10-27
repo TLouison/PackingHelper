@@ -125,16 +125,15 @@ struct UserEditView: View {
                     }
                 }
             }
-            .alert("Delete User", isPresented: $showingDeleteConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    if let user {
-                        deleteUser(user)
-                        dismiss()
-                    }
+            .deleteConfirmation(
+                "Delete User",
+                isPresented: $showingDeleteConfirmation,
+                message: "Are you sure you want to delete this user? Their items will stay on your trips, unassigned. This cannot be undone."
+            ) {
+                if let user {
+                    deleteUser(user)
+                    dismiss()
                 }
-            } message: {
-                Text("Are you sure you want to delete this user? Their items will stay on your trips, unassigned. This cannot be undone.")
             }
             .sheet(isPresented: $showingLocationSearch) {
                 LocationSearchView(location: $defaultLocation)

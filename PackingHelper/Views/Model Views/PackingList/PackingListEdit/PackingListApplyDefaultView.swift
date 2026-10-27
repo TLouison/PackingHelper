@@ -79,20 +79,9 @@ struct PackingListApplyDefaultView: View {
             }
             .navigationTitle("Apply Template Lists")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", role: .cancel) {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") {
-                        save()
-                        dismiss()
-                    }
-                    .disabled(!canSave)
-                }
+            .editSheetToolbar(confirmTitle: "Apply", canConfirm: canSave) {
+                save()
+                dismiss()
             }
         }
     }

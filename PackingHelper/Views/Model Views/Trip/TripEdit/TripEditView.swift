@@ -197,13 +197,12 @@ struct TripEditView: View {
                     initialSnapshot = currentSnapshot
                 }
             }
-            .alert("Delete Trip", isPresented: $showDeleteAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    deleteTrip()
-                }
-            } message: {
-                Text("Are you sure you want to delete this trip? This action cannot be undone.")
+            .deleteConfirmation(
+                "Delete Trip",
+                isPresented: $showDeleteAlert,
+                message: "Are you sure you want to delete this trip? This action cannot be undone."
+            ) {
+                deleteTrip()
             }
             .alert("Moving to Past Trips", isPresented: $showMovingToPastAlert) {
                 Button("Cancel", role: .cancel) { }

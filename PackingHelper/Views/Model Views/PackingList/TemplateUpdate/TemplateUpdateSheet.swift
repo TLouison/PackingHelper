@@ -233,8 +233,7 @@ struct TemplateUpdateSheet: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+        .groupedCard()
     }
 
     private func candidateRow(_ candidate: TemplateCandidate, in section: TemplateReviewSection) -> some View {
@@ -277,8 +276,7 @@ struct TemplateUpdateSheet: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+        .groupedCard()
         .overlay {
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(Color.green.opacity(0.5), lineWidth: 1)

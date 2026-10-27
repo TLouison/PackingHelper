@@ -134,16 +134,8 @@ struct PackingListEditView: View {
                 ToolbarItem(placement: .principal) {
                     Text(titleString)
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: saveAndDismiss)
-                        .disabled(!formIsValid)
-                }
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", role: .cancel) {
-                        dismiss()
-                    }
-                }
             }
+            .editSheetToolbar(confirmTitle: "Save", canConfirm: formIsValid, onConfirm: saveAndDismiss)
 
         }
         .onAppear {
