@@ -11,7 +11,7 @@ import OSLog
 
 struct NotificationUtilities {
     static func getNotificationPermission() {
-        guard FeatureFlags.shared.showingNotifications else { return }
+        guard FeatureFlags.notificationsEnabled else { return }
 
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { success, error in
             if success {

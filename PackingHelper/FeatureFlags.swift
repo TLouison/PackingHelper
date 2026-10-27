@@ -36,6 +36,11 @@ class FeatureFlags {
         }
     }
 
+    /// Reads the notifications flag straight from UserDefaults, so model and utility code can check it from any actor
+    nonisolated static var notificationsEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "featureFlag_showingNotifications")
+    }
+
     private init() {
         // Initialize from UserDefaults
         self.showingMultiplePackers = UserDefaults.standard.bool(forKey: "featureFlag_showingMultiplePackers")
