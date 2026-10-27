@@ -57,34 +57,16 @@ struct BorderGradient: ViewModifier {
     }
 }
 
-// MARK: - GlassEffectIfAvailable
-
-struct GlassEffectIfAvailable: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.glassEffect()
-        } else {
-            content
-        }
-    }
-}
-
 // MARK: - OpaqueBox (less-transparent glass for floating input bar)
 
 struct OpaqueBox: ViewModifier {
     let background: Material
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content
-                .padding()
-                .background(Color(UIColor.systemBackground).opacity(0.5), in: RoundedRectangle(cornerRadius: defaultCornerRadius))
-                .glassEffect(in: .rect(cornerRadius: defaultCornerRadius))
-        } else {
-            content
-                .padding()
-                .background(background)
-        }
+        content
+            .padding()
+            .background(Color(UIColor.systemBackground).opacity(0.5), in: RoundedRectangle(cornerRadius: defaultCornerRadius))
+            .glassEffect(in: .rect(cornerRadius: defaultCornerRadius))
     }
 }
 
@@ -94,15 +76,9 @@ struct OpaqueGlassCapsule: ViewModifier {
     let background: Material
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content
-                .background(Color(UIColor.systemBackground).opacity(0.3), in: Capsule())
-                .glassEffect(in: .capsule)
-        } else {
-            content
-                .background(background)
-                .clipShape(Capsule())
-        }
+        content
+            .background(Color(UIColor.systemBackground).opacity(0.3), in: Capsule())
+            .glassEffect(in: .capsule)
     }
 }
 
@@ -138,9 +114,5 @@ extension View {
 
     func borderGradient(width: CGFloat = 1) -> some View {
         modifier(BorderGradient(width: width))
-    }
-
-    func glassEffectIfAvailable() -> some View {
-        modifier(GlassEffectIfAvailable())
     }
 }

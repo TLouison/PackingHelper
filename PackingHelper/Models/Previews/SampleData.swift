@@ -8,7 +8,6 @@
 import SwiftUI
 import SwiftData
 
-@available(iOS 18.0, *)
 struct SampleData: PreviewModifier {
     static func makeSharedContext() async throws -> Context {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -24,7 +23,6 @@ struct SampleData: PreviewModifier {
     }
 }
 
-@available(iOS 18.0, *)
 extension PreviewTrait where T == Preview.ViewTraits {
     @MainActor static var sampleData: Self = .modifier(SampleData())
 }

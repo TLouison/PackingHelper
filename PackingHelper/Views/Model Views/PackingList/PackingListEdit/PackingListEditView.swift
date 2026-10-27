@@ -202,14 +202,12 @@ struct PackingListEditView: View {
     }
 }
 
-@available(iOS 18.0, *)
 #Preview(traits: .sampleData) {
     PackingListEditView(isDeleted: .constant(false))
         .previewDevice(PreviewDevice(rawValue: "iPhone 14"))
         .previewDisplayName("New List")
 }
 
-@available(iOS 18.0, *)
 #Preview(traits: .sampleData) {
     @Previewable @Query var lists: [PackingList]
     PackingListEditView(packingList: lists.first, isTemplate: true, isDeleted: .constant(false))

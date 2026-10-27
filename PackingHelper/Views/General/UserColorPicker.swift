@@ -60,7 +60,6 @@ struct UserColorPicker: View {
     }
 }
 
-@available(iOS 18, *)
 #Preview {
     @Previewable @State var selectedColor: Color = Color.accentColor
     UserColorPicker(selectedColor: $selectedColor)

@@ -138,7 +138,7 @@ extension User {
             .background(self.userColor)
             .clipShape(.capsule)
             .shaded()
-            .glassEffectIfAvailable()
+            .glassEffect()
     }
     
     var pillFirstInitialIcon: some View {
@@ -149,21 +149,11 @@ extension User {
             .frame(width: 24, height: 24)
             .background(self.userColor)
             .clipShape(Circle())
-            .glassEffectIfAvailable()
+            .glassEffect()
     }
     
     var pillFirstInitialIconSolid: some View {
-        if #available(iOS 26.0, *) {
-            AnyView(
-                pillFirstInitialIcon
-                    .glassEffect(.regular.tint(self.userColor).interactive())
-            )
-        } else {
-            AnyView(
-                pillFirstInitialIcon
-                    .background(self.userColor.opacity(1))
-                    .clipShape(Circle())
-            )
-        }
+        pillFirstInitialIcon
+            .glassEffect(.regular.tint(self.userColor).interactive())
     }
 }

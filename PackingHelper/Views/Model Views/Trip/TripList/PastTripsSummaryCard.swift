@@ -145,7 +145,6 @@ private struct RecentTripRow: View {
     }
 }
 
-@available(iOS 18.0, *)
 #Preview(traits: .sampleData) {
     @Previewable @Query var trips: [Trip]
     PastTripsSummaryCard(path: .constant(NavigationPath()), trips: trips) { _ in }

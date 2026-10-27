@@ -26,7 +26,6 @@ struct MissingUsersView: View {
     }
 }
 
-@available(iOS 18, *)
 #Preview(traits: .sampleData) {
     MissingUsersView()
 }

@@ -48,7 +48,6 @@ struct TemplateReviewTripRow: View {
     }
 }
 
-@available(iOS 18.0, *)
 #Preview(traits: .sampleData) {
     @Previewable @Query var trips: [Trip]
     if let trip = trips.first {

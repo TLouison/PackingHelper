@@ -87,7 +87,6 @@ private struct TrailingIconLabelStyle: LabelStyle {
     }
 }
 
-@available(iOS 18.0, *)
 #Preview(traits: .sampleData) {
     @Previewable @Query var trips: [Trip]
     PastTripsEntryCard(trips: trips) {}

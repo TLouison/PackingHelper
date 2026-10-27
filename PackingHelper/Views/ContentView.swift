@@ -67,7 +67,6 @@ extension ContentView {
     }
 }
 
-@available(iOS 18.0, *)
 #Preview(traits: .sampleData) {
     ContentView()
 }

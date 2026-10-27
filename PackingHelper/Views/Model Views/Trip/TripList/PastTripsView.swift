@@ -40,7 +40,6 @@ struct PastTripsView: View {
     }
 }
 
-@available(iOS 18.0, *)
 #Preview(traits: .sampleData) {
     NavigationStack {
         PastTripsView()

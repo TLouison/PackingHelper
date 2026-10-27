@@ -246,12 +246,10 @@ private struct FeatureRow: View {
 }
 
 
-@available(iOS 18, *)
 #Preview(traits: .sampleData) {
     PackingHelperPlusCTA(headerText: "Small CTA", version: .small)
 }
 
-@available(iOS 18, *)
 #Preview(traits: .sampleData) {
     PackingHelperPlusCTA(headerText: "Tall CTA", version: .tall)
 }
