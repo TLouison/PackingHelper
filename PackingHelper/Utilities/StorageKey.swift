@@ -14,7 +14,6 @@ enum StorageKey {
     static let defaultTripCover = "defaultTripCover"
     static let packingStartPage = "packingStartPage"
     static let resetTipsOnLaunch = "resetTipsOnLaunch"
-    static let selectedUserPersistentID = "selectedUserPersistentID"
     static let workerURLOverride = "debug_workerURLOverride"
 
     // Feature flags
