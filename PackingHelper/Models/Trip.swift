@@ -365,8 +365,8 @@ extension Trip {
         // Schedule the request with the system.
         let notificationCenter = UNUserNotificationCenter.current()
         notificationCenter.add(request) { (error) in
-            if error != nil {
-                // Handle any errors.
+            if let error {
+                AppLogger.notifications.error("Failed to schedule day-of notification: \(error.localizedDescription)")
             }
         }
     }
