@@ -27,7 +27,7 @@ struct PackingHelperApp: App {
     
     init() {
         do {
-            modelContainer = try ModelContainer(for: Trip.self, TripLocation.self, PackingList.self, Item.self, TripCoverPhoto.self/*, Preferences.self*/)
+            modelContainer = try ModelContainer(for: Trip.self, TripLocation.self, PackingList.self, Item.self, TripCoverPhoto.self)
         } catch {
             fatalError("Could not initialize ModelContainer")
         }

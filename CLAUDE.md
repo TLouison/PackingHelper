@@ -193,7 +193,7 @@ Config values (`REVENUECAT_API_KEY`, `WORKER_URL`) come from the gitignored `Con
 
 **Preview Infrastructure:**
 - `Models/Previews/SampleData.swift`: in-memory container with mock trips, lists, items, users
-- Use `#Preview(traits: .sampleData)`. (`PreviewContainer.swift` is unused)
+- Use `#Preview(traits: .sampleData)`.
 - Don't use `Trip.sampleTrip` in new previews — it's a global model that schedules real notifications
 
 **SwiftData Container Setup** (`User` is reached through relationships):
