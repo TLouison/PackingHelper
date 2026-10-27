@@ -116,7 +116,13 @@ struct CoverPhotoDraft: CoverPhotoRepresentable, Identifiable, Equatable {
 
     static let maxZoom: Double = 3
 
-    var imageData: Data?
+    /// Bytes of a freshly picked library photo. Nil for a draft of a saved photo.
+    var pickedImageData: Data?
+    /// The saved photo this draft was made from. Its bytes are read on demand, so
+    /// opening the editor doesn't load the image from storage.
+    private(set) var savedPhoto: TripCoverPhoto?
+
+    var imageData: Data? { pickedImageData ?? savedPhoto?.imageData }
 
     var unsplashId: String?
     var unsplashRawURL: String?
@@ -135,7 +141,7 @@ struct CoverPhotoDraft: CoverPhotoRepresentable, Identifiable, Equatable {
 
     init(libraryImageData: Data) {
         self.source = .library
-        self.imageData = libraryImageData
+        self.pickedImageData = libraryImageData
     }
 
     init(unsplash photo: UnsplashPhoto) {
@@ -157,7 +163,7 @@ struct CoverPhotoDraft: CoverPhotoRepresentable, Identifiable, Equatable {
         self.focalX = photo.focalX
         self.focalY = photo.focalY
         self.zoom = photo.zoom
-        self.imageData = photo.imageData
+        self.savedPhoto = photo
         self.unsplashId = photo.unsplashId
         self.unsplashRawURL = photo.unsplashRawURL
         self.unsplashHTMLLink = photo.unsplashHTMLLink
