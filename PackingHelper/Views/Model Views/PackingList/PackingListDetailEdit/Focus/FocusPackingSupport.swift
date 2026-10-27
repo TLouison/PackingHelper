@@ -68,11 +68,20 @@ struct FocusPackingInput {
 
     /// A section's items in manual order, narrowed to the selected packer
     func items(in list: PackingList) -> [Item] {
-        var items = list.items ?? []
-        if let selectedUser {
-            items = items.filter { $0.user?.persistentModelID == selectedUser.persistentModelID }
-        }
-        return Item.sorted(items, sortOrder: .byCustomOrder)
+        Item.sorted(filteredItems(in: list), sortOrder: .byCustomOrder)
+    }
+
+    /// A section's items narrowed to the selected packer, in no particular order. Cheaper than
+    /// `items(in:)` for counts and "is anything left" checks.
+    func filteredItems(in list: PackingList) -> [Item] {
+        let items = list.items ?? []
+        guard let selectedUser else { return items }
+        return items.filter { $0.user?.persistentModelID == selectedUser.persistentModelID }
+    }
+
+    /// Sections (by id) with at least one unchecked item for the selected packer
+    var incompleteListIDs: Set<PersistentIdentifier> {
+        Set(lists.filter { list in filteredItems(in: list).contains { !$0.isPacked } }.map(\.persistentModelID))
     }
 }
 

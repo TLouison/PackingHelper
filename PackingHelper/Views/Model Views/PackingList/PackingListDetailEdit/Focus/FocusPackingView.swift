@@ -86,24 +86,24 @@ struct FocusPackingView: View {
         visiblePages.contains(.all)
     }
 
-    private var isAddPageVisible: Bool {
-        visiblePages.contains(.addSection)
-    }
-
     var body: some View {
+        // Worked out once per body and handed down, rather than re-derived by each reader
+        let onScreen = visiblePages
+        let onScreenListIDs = onScreen.compactMap(\.listID)
+
         VStack(spacing: 0) {
             FocusBagRail(
                 input: input,
-                visibleListIDs: visibleListIDs,
-                isAllVisible: isAllVisible,
-                isAddPageVisible: isAddPageVisible,
+                visibleListIDs: onScreenListIDs,
+                isAllVisible: onScreen.contains(.all),
+                isAddPageVisible: onScreen.contains(.addSection),
                 currentTip: tips.currentTip,
                 onSelectAll: goToAll,
                 onSelect: goTo,
                 onMove: moveList
             )
 
-            pager
+            pager(visibleListIDs: onScreenListIDs)
         }
         .onChange(of: input.lists.count, initial: true) { _, sectionCount in
             ApplyTemplateTip.tripHasNoSections = sectionCount == 0
@@ -170,9 +170,11 @@ struct FocusPackingView: View {
         }
     }
 
-    private var pager: some View {
+    private func pager(visibleListIDs: [PersistentIdentifier]) -> some View {
         GeometryReader { proxy in
             let pageWidth = proxy.size.width / CGFloat(columns)
+            // Which sections still have something to pack, worked out once for every page's "Next" card
+            let incompleteIDs = input.incompleteListIDs
 
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 0) {
@@ -191,7 +193,7 @@ struct FocusPackingView: View {
                             list: list,
                             input: input,
                             pendingPacks: pendingPacks,
-                            nextList: nextIncompleteList(after: list),
+                            nextList: nextIncompleteList(after: list, incompleteIDs: incompleteIDs),
                             onShowDetails: { detailItem = $0 },
                             onGoTo: goTo
                         )
@@ -375,12 +377,12 @@ struct FocusPackingView: View {
     }
 
     /// The next section (wrapping) that still has something to pack
-    private func nextIncompleteList(after list: PackingList) -> PackingList? {
+    private func nextIncompleteList(after list: PackingList, incompleteIDs: Set<PersistentIdentifier>) -> PackingList? {
         guard let index = input.lists.firstIndex(where: { $0.persistentModelID == list.persistentModelID }) else {
             return nil
         }
         let rest = input.lists[(index + 1)...] + input.lists[..<index]
-        return rest.first { list in input.items(in: list).contains { !$0.isPacked } }
+        return rest.first { incompleteIDs.contains($0.persistentModelID) }
     }
 }
 
@@ -472,7 +474,7 @@ private struct FocusBagRail: View {
     }
 
     private func chip(for list: PackingList) -> some View {
-        let items = input.items(in: list)
+        let items = input.filteredItems(in: list)
         let label = FocusBagChip(
             name: list.name,
             kind: list.kind,
@@ -921,13 +923,15 @@ private struct FocusSectionItems: View {
     var showsInlineRow = true
 
     var body: some View {
+        let otherLists = input.lists.filter { $0.persistentModelID != list.persistentModelID }
+
         VStack(spacing: 6) {
             ForEach(unpacked) { item in
                 FocusItemCard(
                     item: item,
                     isRemoving: input.isRemovingItems,
                     showsPacker: input.hasMultiplePackers,
-                    otherLists: input.lists.filter { $0.persistentModelID != list.persistentModelID },
+                    otherLists: otherLists,
                     onToggle: { pendingPacks.toggle(item) },
                     onShowDetails: { onShowDetails(item) },
                     onMove: { target in
