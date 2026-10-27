@@ -81,9 +81,3 @@ class PurchaseManager {
         plusEntitlement = entitlement
     }
 }
-
-extension PurchaseManager {
-    var hasUnlockedPlus: Bool {
-        isPlusActive
-    }
-}

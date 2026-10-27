@@ -24,7 +24,7 @@ struct PackingHelperPlusCTA: View {
     // TODO: Re-enable these if useful
 //    var smallCTA: some View {
 //        Group {
-//            if purchaseManager.hasUnlockedPlus {
+//            if purchaseManager.isPlusActive {
 //                if showAfterPurchase {
 //                    // We want to show a "Thank You" after purchase
 //                    HStack {
@@ -69,7 +69,7 @@ struct PackingHelperPlusCTA: View {
 //    
 //    var tallCTA: some View {
 //        Group {
-//            if purchaseManager.hasUnlockedPlus {
+//            if purchaseManager.isPlusActive {
 //                if showAfterPurchase {
 //                    VStack {
 //                        plusLogoImage(size: 100)

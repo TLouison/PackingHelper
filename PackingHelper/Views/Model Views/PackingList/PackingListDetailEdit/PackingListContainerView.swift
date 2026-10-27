@@ -592,7 +592,7 @@ struct PackingListContainerView: View {
     private var tripToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Button {
-                if !purchaseManager.hasUnlockedPlus {
+                if !purchaseManager.isPlusActive {
                     showingAIPaywall = true
                 } else if horizontalSizeClass == .regular {
                     if isShowingAssistantPanel {
@@ -610,7 +610,7 @@ struct PackingListContainerView: View {
                 } icon: {
                     Image(systemName: "sparkles")
                         .overlay(alignment: .topTrailing) {
-                            if !purchaseManager.hasUnlockedPlus {
+                            if !purchaseManager.isPlusActive {
                                 Image(systemName: "plus.circle.fill")
                                     .font(.caption2)
                                     .imageScale(.small)
@@ -621,7 +621,7 @@ struct PackingListContainerView: View {
                         }
                 }
             }
-            .accessibilityHint(purchaseManager.hasUnlockedPlus ? "" : "Requires Packing Helper Plus")
+            .accessibilityHint(purchaseManager.isPlusActive ? "" : "Requires Packing Helper Plus")
         }
     }
 
