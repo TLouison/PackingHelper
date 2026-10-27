@@ -46,7 +46,7 @@ The app uses SwiftData with six models. All models have a `uuid`; use it (not `p
 
 **TripLocation**
 - Properties: `name`, `latitude`, `longitude`
-- Weather via `getTripWeather(for:)`, `getCurrentWeather(for:)`, `getWeatherForecast(for:)` with a 1-hour cache (`weather` is `@Transient`)
+- Weather via `getTripWeather(for:)`, `getCurrentWeather(for:)`, `getWeatherForecast(for:)` (`@MainActor`; they hand plain values to `WeatherProvider`, which holds the cache)
 
 **TripCoverPhoto** (in `CoverPhoto/`)
 - Library or Unsplash image, `.externalStorage` bytes, BlurHash placeholder
@@ -123,8 +123,8 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 - API is `PackingEngine.interpretItem(itemName:)`, called only from `Item.create`, which currently has no callers — new items are not categorized yet (ROADMAP.md 5.2)
 
 **Weather Integration:**
-- `WeatherUtilities.swift` + `TripLocation.swift` handle weather fetching
-- Async/await pattern, caching with 1-hour TTL
+- `WeatherUtilities.swift` (`WeatherProvider` actor: one `WeatherService`, caches successful fetches only) + `TripLocation.swift` handle weather fetching
+- Async/await pattern, 1-hour cache TTL keyed by place and trip dates
 - Only fetches for trips within 5 days of start date
 - Use `getTripWeather(for:)` / `getCurrentWeather(for:)` / `getWeatherForecast(for:)` on TripLocation
 

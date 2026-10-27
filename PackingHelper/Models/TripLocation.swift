@@ -25,11 +25,6 @@ final class TripLocation: Equatable {
     
     var created: Date = Date.now
     
-    @Transient var weather: TripWeather = TripWeather(currentWeather: nil, dailyForecast: nil)
-    /// Trip dates `weather` was fetched for; other dates (or an edited trip) need a new fetch
-    @Transient var weatherTripDates: DateInterval? = nil
-    var weatherLastFetched: Date = Date.distantPast
-    
     init(name: String, latitude: Double, longitude: Double) {
         self.name = name
         self.latitude = latitude
@@ -67,110 +62,37 @@ extension TripLocation {
     }
 }
 
-/// Weather reads `Trip` / `TripLocation` state, so everything here runs on the main actor.
-/// Inputs are copied into locals before any `await`, so no model is read after a suspension.
+/// Weather reads `Trip` / `TripLocation` state, so these run on the main actor. Inputs are copied
+/// into plain values before the hop to `WeatherProvider`, which owns the service and the cache.
 @MainActor
 extension TripLocation {
     func canGetCurrentWeather(for trip: Trip) -> Bool {
         return !trip.complete
     }
-    
+
     func canGetWeatherForecast(for trip: Trip) -> Bool {
         return !trip.complete && trip.startDate <= Date().advanced(by: 5 * SECONDS_IN_DAY)
     }
-    
+
     func getCurrentWeather(for trip: Trip) async -> CurrentWeather? {
-        if self.canGetCurrentWeather(for: trip) {
-            let weatherService = WeatherService()
-            let location = self.location
+        guard canGetCurrentWeather(for: trip) else { return nil }
+        return await WeatherProvider.shared.currentWeather(latitude: latitude, longitude: longitude)
+    }
 
-            do {
-                return try await weatherService.weather(for: location).currentWeather
-            } catch {
-                return nil
-            }
-        }
-        return nil
-    }
-    
-    private func getForecastStartAndEnd(trip: Trip) -> (start: Date, end: Date) {
-        // If the trip has begin (i.e. the start date is in the past) we want
-        // the start of the forecast to be the current date
-        let startDate = max(trip.startDate, Date.now)
-        let endDate = startDate.advanced(by: 5 * SECONDS_IN_DAY)
-        return (startDate, endDate)
-    }
-    
     func getWeatherForecast(for trip: Trip) async -> Forecast<DayWeather>? {
-        if canGetWeatherForecast(for: trip) {
-            let weatherService = WeatherService()
-            
-            let (startDate, endDate) = self.getForecastStartAndEnd(trip: trip)
-            let location = self.location
-
-            do {
-                return try await weatherService.weather(
-                    for: location,
-                    including: .daily(startDate: startDate, endDate: endDate)
-                )
-            } catch {
-                return nil
-            }
-        }
-        return nil
+        guard canGetWeatherForecast(for: trip) else { return nil }
+        return await WeatherProvider.shared.forecast(latitude: latitude, longitude: longitude, tripStart: trip.startDate)
     }
-    
+
     func getTripWeather(for trip: Trip) async -> TripWeather? {
-        // Try to get cached weather first. We refetch every hour. `weather` is transient, so after a
-        // relaunch it's empty even though `weatherLastFetched` persisted — only treat it as a hit if it has data.
-        AppLogger.weather.debug("Checking weather cache. Last fetched: \(self.weatherLastFetched), \(self.weatherLastFetched.distance(to: .now)) seconds ago")
-        let hasCachedWeather = weather.currentWeather != nil || weather.dailyForecast != nil
-        let tripDates = DateInterval(start: trip.startDate, end: max(trip.startDate, trip.endDate))
-        if hasCachedWeather && weatherTripDates == tripDates
-            && weatherLastFetched.distance(to: .now) < SECONDS_IN_MINUTE * MINUTES_IN_HOUR {
-            return self.weather
-        }
-
-        let weatherService = WeatherService()
-        let location = self.location
-
-        let allowCurrentWeather = canGetCurrentWeather(for: trip)
-        let allowForecastWeather = canGetWeatherForecast(for: trip)
-
-        let newWeather: TripWeather
-
-        if allowCurrentWeather && allowForecastWeather {
-            AppLogger.weather.debug("Fetching current weather + 5-day forecast")
-            let (startDate, endDate) = self.getForecastStartAndEnd(trip: trip)
-
-            do {
-                let weatherData = try await weatherService.weather(
-                    for: location,
-                    including: .daily(startDate: startDate, endDate: endDate),
-                    .current
-                )
-                newWeather = TripWeather(currentWeather: weatherData.1, dailyForecast: weatherData.0)
-            } catch {
-                // Don't stamp weatherLastFetched on failure, so the next appearance retries.
-                AppLogger.weather.error("Failed to fetch weather: \(error.localizedDescription)")
-                return nil
-            }
-        } else if allowCurrentWeather {
-            AppLogger.weather.debug("Fetching current weather only")
-            newWeather = await TripWeather(currentWeather: self.getCurrentWeather(for: trip), dailyForecast: nil)
-        } else if allowForecastWeather {
-            AppLogger.weather.debug("Fetching forecast weather only")
-            newWeather = await TripWeather(currentWeather: nil, dailyForecast: self.getWeatherForecast(for: trip))
-        } else {
-            AppLogger.weather.debug("No weather data available for this trip")
-            newWeather = TripWeather(currentWeather: nil, dailyForecast: nil)
-        }
-
-        self.weatherLastFetched = Date.now
-        self.weatherTripDates = tripDates
-        self.weather = newWeather
-
-        return newWeather
+        await WeatherProvider.shared.tripWeather(
+            latitude: latitude,
+            longitude: longitude,
+            tripStart: trip.startDate,
+            tripEnd: trip.endDate,
+            allowCurrent: canGetCurrentWeather(for: trip),
+            allowForecast: canGetWeatherForecast(for: trip)
+        )
     }
 }
 
