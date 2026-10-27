@@ -162,7 +162,7 @@ PackingHelperApp.swift   # App entry + ModelContainer (repo root, outside the sy
 PackingHelper/           # Xcode synchronized folder — new files are added to the target automatically
 ├── Models/              # SwiftData models (+ Previews/SampleData.swift)
 ├── ViewModels/          # Lightweight view models (@Observable)
-├── Services/            # Worker clients (AI)
+├── Services/            # Worker clients (AI) + shared WorkerClient (base URL, POST, status split)
 ├── CoverPhoto/          # TripCoverPhoto model, library/Unsplash pickers, loader, BlurHash
 ├── Views/
 │   ├── Model Views/     # Entity-specific views (Trip/, PackingList/, DefaultPackingList/, Item/, Users/)

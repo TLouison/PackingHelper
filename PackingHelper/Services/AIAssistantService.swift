@@ -106,80 +106,45 @@ enum AIAssistantError: LocalizedError {
     }
 }
 
-// MARK: - Worker
-
-/// PackingHelperWorkers location, shared by every Worker-backed service.
-enum WorkerConfig {
-    /// Resolves the Worker base URL. Debug builds prefer a `debug_workerURLOverride`
-    /// for local `wrangler dev` testing; release builds always use the bundled URL.
-    static var baseURL: URL? {
-        #if DEBUG
-        if let override = UserDefaults.standard.string(forKey: "debug_workerURLOverride"),
-           !override.isEmpty,
-           let url = URL(string: override) {
-            return url
-        }
-        #endif
-        guard let raw = Bundle.main.infoDictionary?["WORKER_URL"] as? String,
-              !raw.isEmpty,
-              let url = URL(string: raw) else {
-            return nil
-        }
-        return url
-    }
-}
-
 // MARK: - Service
 
 struct AIAssistantService {
     static let shared = AIAssistantService()
 
-    private let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 60
-        return URLSession(configuration: config)
-    }()
+    // Only a 200 is success here; every other status is mapped below.
+    private let client = WorkerClient(timeout: 60, successStatuses: 200..<201)
 
     func sendMessage(_ request: AIAssistantRequest) async throws -> AIAssistantResponse {
-        guard let baseURL = WorkerConfig.baseURL else { throw AIAssistantError.notConfigured }
-        let endpoint = baseURL.appendingPathComponent("v1/assistant/message")
-
-        var urlRequest = URLRequest(url: endpoint)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let data: Data
         do {
-            urlRequest.httpBody = try JSONEncoder().encode(request)
+            data = try await client.post("v1/assistant/message", body: request)
+        } catch let error as WorkerClientError {
+            throw Self.map(error)
+        }
+        do {
+            return try JSONDecoder().decode(AIAssistantResponse.self, from: data)
         } catch {
             throw AIAssistantError.decoding(error)
         }
+    }
 
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(for: urlRequest)
-        } catch {
-            throw AIAssistantError.network(error)
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw AIAssistantError.server(-1)
-        }
-
-        switch http.statusCode {
-        case 200:
-            do {
-                return try JSONDecoder().decode(AIAssistantResponse.self, from: data)
-            } catch {
-                throw AIAssistantError.decoding(error)
+    private static func map(_ error: WorkerClientError) -> AIAssistantError {
+        switch error {
+        case .notConfigured:
+            return .notConfigured
+        case .encoding(let underlying):
+            return .decoding(underlying)
+        case .network(let underlying):
+            return .network(underlying)
+        case .invalidResponse:
+            return .server(-1)
+        case .status(let code, let data):
+            switch code {
+            case 401: return .notSubscribed
+            case 429: return .limitReached(resetsAt: parseResetsAt(data))
+            case 503: return .serverBusy
+            default: return .server(code)
             }
-        case 401:
-            throw AIAssistantError.notSubscribed
-        case 429:
-            throw AIAssistantError.limitReached(resetsAt: Self.parseResetsAt(data))
-        case 503:
-            throw AIAssistantError.serverBusy
-        default:
-            throw AIAssistantError.server(http.statusCode)
         }
     }
 

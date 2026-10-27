@@ -102,11 +102,7 @@ struct UnsplashService {
         return components.url
     }
 
-    private let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 20
-        return URLSession(configuration: config)
-    }()
+    private let client = WorkerClient(timeout: 20)
 
     func search(query: String, page: Int) async throws -> UnsplashSearchResponse {
         let body = UnsplashSearchRequest(
@@ -149,38 +145,25 @@ struct UnsplashService {
     }
 
     private func post(_ path: String, body: some Encodable) async throws -> Data {
-        guard let baseURL = WorkerConfig.baseURL else { throw UnsplashServiceError.notConfigured }
-
-        var urlRequest = URLRequest(url: baseURL.appendingPathComponent(path))
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         do {
-            urlRequest.httpBody = try JSONEncoder().encode(body)
-        } catch {
-            throw UnsplashServiceError.decoding(error)
-        }
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(for: urlRequest)
-        } catch {
-            throw UnsplashServiceError.network(error)
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw UnsplashServiceError.server(-1)
-        }
-
-        switch http.statusCode {
-        case 200..<300:
-            return data
-        case 401:
-            throw UnsplashServiceError.notSubscribed
-        case 429:
-            throw UnsplashServiceError.rateLimited
-        default:
-            throw UnsplashServiceError.server(http.statusCode)
+            return try await client.post(path, body: body)
+        } catch let error as WorkerClientError {
+            switch error {
+            case .notConfigured:
+                throw UnsplashServiceError.notConfigured
+            case .encoding(let underlying):
+                throw UnsplashServiceError.decoding(underlying)
+            case .network(let underlying):
+                throw UnsplashServiceError.network(underlying)
+            case .invalidResponse:
+                throw UnsplashServiceError.server(-1)
+            case .status(let code, _):
+                switch code {
+                case 401: throw UnsplashServiceError.notSubscribed
+                case 429: throw UnsplashServiceError.rateLimited
+                default: throw UnsplashServiceError.server(code)
+                }
+            }
         }
     }
 }
