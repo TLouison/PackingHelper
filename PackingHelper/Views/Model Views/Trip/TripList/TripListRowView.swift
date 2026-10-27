@@ -13,10 +13,7 @@ import WeatherKit
 struct TripListRowView: View {
     @Environment(\.modelContext) var modelContext
 
-    @State private var mapPosition: MapCameraPosition = .automatic
     @State private var showDeleteTripAlert: Bool = false
-    @State private var isMapLoading: Bool = true
-    @State private var isShimmering: Bool = false
     @State private var featureFlags = FeatureFlags.shared
     @State private var cardWeather: CardWeather?
     /// Wide enough that a full-width info bar would stretch into a thin strip
@@ -204,71 +201,16 @@ struct TripListRowView: View {
 
     var body: some View {
         ZStack {
-            if trip.coverPhoto != nil {
-                // Cover photo is drawn as the background below.
-            } else if isMapLoading {
-                // Skeleton view while map is loading
-                RoundedRectangle(cornerRadius: defaultCornerRadius)
-                    .fill(Color(.systemGray5))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: defaultCornerRadius)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.clear, Color.primary.opacity(0.15), Color.clear],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .offset(x: isShimmering ? 400 : -400)
-                            // Scoped to the gradient: a withAnimation forever transaction also catches the
-                            // overlay's glass boxes sizing in on first layout, looping them small → full
-                            .animation(.linear(duration: 1.5).repeatForever(autoreverses: false), value: isShimmering)
-                    )
-                    // The shimmer sweeps past the card's edges; clipping doesn't limit hit testing
-                    .allowsHitTesting(false)
-                    .onAppear {
-                        // Started by the skeleton itself, not keyed to isMapLoading: a forever animation on the
-                        // change that removes the skeleton keeps it alive (invisible, sweeping over neighboring cards)
-                        isShimmering = true
-                    }
-            } else {
-                Map(
-                    position: $mapPosition,
-                    interactionModes: []
-                )
-                // Points of interest turn the card into a street map; muted keeps the info bar readable
-                .mapStyle(.standard(emphasis: .muted, pointsOfInterest: .excludingAll))
-                .id(trip.destination?.id)
-                .overlay(Color.clear.allowsHitTesting(true))
-                .transition(.opacity)
-            }
-
             tripRowOverlay(trip)
                 .frame(maxWidth: .infinity)
                 .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            if let coverPhoto = trip.coverPhoto {
-                CoverPhotoImageView(photo: coverPhoto)
-            }
+            TripBackgroundView(trip: trip, style: .card)
         }
         .clipShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
         .shadow(radius: defaultShadowRadius)
-        .onAppear {
-            if let destination = trip.destination {
-                mapPosition = destination.overviewCameraPosition
-            }
-        }
-        .task {
-            // Simulate map loading delay
-            try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.3)) {
-                isMapLoading = false
-            }
-        }
         .onGeometryChange(for: Bool.self) { proxy in
             proxy.size.width >= Self.wideCardWidth
         } action: { isWide in
@@ -276,11 +218,6 @@ struct TripListRowView: View {
         }
         .task(id: trip.destination?.id) {
             await loadWeather()
-        }
-        .onChange(of: trip.destination) { _, newDestination in
-            if let destination = newDestination {
-                mapPosition = destination.overviewCameraPosition
-            }
         }
     }
 }

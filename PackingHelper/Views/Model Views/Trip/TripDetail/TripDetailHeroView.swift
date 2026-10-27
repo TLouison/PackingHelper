@@ -14,12 +14,10 @@ struct TripDetailHeroView: View {
     @Bindable var trip: Trip
     let tripWeather: TripWeather?
 
-    @State private var cameraPosition: MapCameraPosition = .automatic
-    @State private var isMapLoading: Bool = true
     @State private var isShowingTitle: Bool = false
 
     var body: some View {
-        heroBackground
+        TripBackgroundView(trip: trip, style: .hero)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .bottom) {
                 if isShowingTitle {
@@ -28,50 +26,11 @@ struct TripDetailHeroView: View {
                 }
             }
             .clipShape(.rect(cornerRadius: defaultCornerRadius))
-            .onChange(of: trip.destination?.mapCameraPosition ?? TripLocation.sampleOrigin.mapCameraPosition, initial: true) {
-                cameraPosition = trip.destination?.mapCameraPosition ?? TripLocation.sampleOrigin.mapCameraPosition
-            }
             .onAppear {
                 withAnimation(.easeIn(duration: 0.5)) {
                     isShowingTitle = true
                 }
             }
-    }
-
-    @ViewBuilder
-    private var heroBackground: some View {
-        if let coverPhoto = trip.coverPhoto {
-            Color(.systemGray5)
-                .overlay {
-                    CoverPhotoImageView(photo: coverPhoto)
-                }
-        } else if isMapLoading {
-            // Skeleton view while map is loading
-            Rectangle()
-                .fill(Color(.systemGray5))
-                .overlay(
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.clear, Color.primary.opacity(0.15), Color.clear],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .offset(x: isMapLoading ? 400 : -400)
-                        .animation(.linear(duration: 1.5).repeatForever(autoreverses: false), value: isMapLoading)
-                )
-                .task {
-                    try? await Task.sleep(for: .milliseconds(500))
-                    guard !Task.isCancelled else { return }
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        isMapLoading = false
-                    }
-                }
-        } else {
-            Map(position: $cameraPosition)
-                .transition(.opacity)
-        }
     }
 
     private var titleBlock: some View {
@@ -88,7 +47,7 @@ struct TripDetailHeroView: View {
                         .font(.headline)
                 }
 
-                departureInfo
+                trip.statusDateText
                     .font(.subheadline)
             }
             .foregroundStyle(.white)
@@ -114,25 +73,6 @@ struct TripDetailHeroView: View {
         }
     }
 
-    @ViewBuilder
-    private var departureInfo: some View {
-        let calendar = Calendar.current
-        let now = Date.now
-        let beginDateString = trip.startDate.formatted(date: .abbreviated, time: .omitted)
-        let endDateString = trip.endDate.formatted(date: .abbreviated, time: .omitted)
-
-        if calendar.isDateInToday(trip.startDate) {
-            Label { Text("Departing today!") } icon: { trip.primaryType.startIcon }
-        } else if now < trip.startDate {
-            Label { Text("Departing on \(beginDateString)") } icon: { trip.primaryType.startIcon }
-        } else if calendar.isDateInToday(trip.endDate) {
-            Label { Text("Returning today") } icon: { trip.primaryType.endIcon }
-        } else if now < trip.endDate {
-            Label { Text("Returning on \(endDateString)") } icon: { trip.primaryType.endIcon }
-        } else {
-            Label { Text("Returned on \(endDateString)") } icon: { trip.primaryType.endIcon }
-        }
-    }
 }
 
 #Preview(traits: .sampleData) {
