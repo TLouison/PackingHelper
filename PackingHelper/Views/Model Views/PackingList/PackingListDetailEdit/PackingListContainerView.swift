@@ -4,8 +4,9 @@
 //
 //  Container that renders the packing screen.
 //  Trip context: FocusPackingView (one page per section, swipe between).
-//  Single-list context: inline template editor.
-//  Editing state and actions live in PackingEditor.
+//  Single-list context: TemplateListEditorView.
+//  Editing state and actions live in PackingEditor; sheets, toolbar, and the AI panel are in
+//  the PackingListContainerView+*.swift files.
 //
 //  Created by Claude on 1/11/26.
 //
@@ -18,23 +19,20 @@ import SwiftUI
 struct PackingListContainerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Environment(PurchaseManager.self) private var purchaseManager
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    // The extensions in `PackingListContainerView+*.swift` read the members below, so these
+    // are internal rather than private.
+    @Environment(PurchaseManager.self) var purchaseManager
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
 
     let context: PackingListContext
     let users: [User]?
     let title: String?
 
     /// Add, Remove Items, template editing, and check-off state (shared with the Focus pages)
-    @State private var editor: PackingEditor
-    @State private var editingList: PackingList? = nil
-    @State private var showingAddListSheet: Bool = false
-    @State private var isApplyingDefaultPackingList: Bool = false
-    @State private var isShowingListSettings: Bool = false
-    @State private var isShowingTemplateInfo: Bool = false
-    @State private var showingAIAssistant: Bool = false
-    @State private var showingAIPaywall: Bool = false
+    @State var editor: PackingEditor
+    /// The one sheet showing, if any (see `PackingListContainerView+Sheets.swift`)
+    @State var activeSheet: ActiveSheet?
     @State private var listToDelete: PackingList? = nil
     /// Trip list being saved as a new template (name asked in an alert)
     @State private var listToSaveAsTemplate: PackingList?
@@ -47,18 +45,17 @@ struct PackingListContainerView: View {
     // AI assistant (trip context only)
     /// Show the paywall once the assistant sheet finishes dismissing (two
     /// sheets can't present back-to-back in the same update).
-    @State private var showPaywallAfterAIDismiss: Bool = false
+    @State var showPaywallAfterAIDismiss: Bool = false
     /// Regular width: the assistant is a side panel instead of a sheet. `isShowingAssistantPanel`
     /// drives the slide; `isAssistantPanelMounted` keeps the chat rendered until the slide-out finishes.
-    @State private var isShowingAssistantPanel: Bool = false
-    @State private var isAssistantPanelMounted: Bool = false
+    @State var isShowingAssistantPanel: Bool = false
+    @State var isAssistantPanelMounted: Bool = false
     /// Shared by the panel and the sheet so the conversation survives a wide → compact switch.
     /// Replaced on each fresh open.
-    @State private var assistantViewModel = AIAssistantViewModel()
+    @State var assistantViewModel = AIAssistantViewModel()
 
     // Single list mode state
-    @State private var isDeleted: Bool = false
-    @State private var singleListScrollTask: Task<Void, Never>?
+    @State var isDeleted: Bool = false
 
     // MARK: - Initializers
 
@@ -80,7 +77,7 @@ struct PackingListContainerView: View {
 
     // MARK: - Computed Properties
 
-    private var lists: [PackingList] {
+    var lists: [PackingList] {
         editor.lists
     }
 
@@ -103,78 +100,15 @@ struct PackingListContainerView: View {
         }
         .safeAreaInset(edge: .bottom) {
             if editor.isAdding {
-                newItemAccessoryBar
+                NewItemAccessoryBar(isTrip: context.isTrip, hasMultiplePackers: hasMultiplePackers)
             }
         }
         // Outside the inset so the accessory bar and the pages both read the editor
         .environment(editor)
         .navigationTitle(title ?? "Packing")
         .navigationBarTitleDisplayMode(context.isTrip ? .inline : .large)
-        .sheet(item: $editingList) { list in
-            if let trip = context.trip {
-                PackingListEditView(
-                    packingList: list,
-                    trip: trip,
-                    isDeleted: .constant(false),
-                    fitsContent: true
-                )
-            }
-        }
-        .sheet(isPresented: $showingAddListSheet) {
-            if let trip = context.trip {
-                PackingListEditView(
-                    packingList: nil,
-                    trip: trip,
-                    onListCreated: { newList in
-                        editor.targetList = newList
-                    }, isDeleted: .constant(false),
-                    fitsContent: true
-                )
-            }
-        }
-        .sheet(isPresented: $isApplyingDefaultPackingList) {
-            if let trip = context.trip {
-                PackingListApplyDefaultView(trip: trip)
-            }
-        }
-        .sheet(isPresented: $isShowingListSettings) {
-            if let singleList = context.singleList {
-                PackingListEditView(
-                    packingList: singleList,
-                    isTemplate: singleList.template,
-                    isDeleted: $isDeleted,
-                    fitsContent: true
-                )
-            }
-        }
-        .sheet(isPresented: $isShowingTemplateInfo) {
-            if let singleList = context.singleList {
-                TemplateListInfoView(list: singleList)
-                    .presentationDetents([.fraction(0.65), .large])
-            }
-        }
-        .sheet(isPresented: $showingAIAssistant, onDismiss: {
-            if showPaywallAfterAIDismiss {
-                showPaywallAfterAIDismiss = false
-                showingAIPaywall = true
-            }
-        }) {
-            if let trip = context.trip {
-                AIAssistantSheet(
-                    viewModel: assistantViewModel,
-                    trip: trip,
-                    users: users,
-                    targetUser: Bindable(editor).user,
-                    onSubscriptionLapsed: {
-                        showPaywallAfterAIDismiss = true
-                        showingAIAssistant = false
-                    }
-                )
-                .presentationDetents([.large])
-            }
-        }
-        .sheet(isPresented: $showingAIPaywall) {
-            PlusPaywallView()
+        .sheet(item: $activeSheet, onDismiss: activeSheetDidDismiss) { sheet in
+            sheetContent(sheet)
         }
     }
 
@@ -241,19 +175,7 @@ struct PackingListContainerView: View {
             }
         }
         .onChange(of: horizontalSizeClass) { _, sizeClass in
-            // The panel only exists in the wide layout (e.g. the Duo was folded closed):
-            // hand the open conversation over to the sheet instead of dropping it
-            if sizeClass != .regular && isAssistantPanelMounted {
-                isShowingAssistantPanel = false
-                isAssistantPanelMounted = false
-                showingAIAssistant = true
-            } else if sizeClass == .regular && showingAIAssistant && context.isTrip {
-                // Unfolded with the sheet open: move the conversation back into the side panel.
-                // Shown in place (no slide) since the whole layout is already changing.
-                showingAIAssistant = false
-                isAssistantPanelMounted = true
-                isShowingAssistantPanel = true
-            }
+            handleSizeClassChange(to: sizeClass)
         }
         .onChange(of: lists.map(\.persistentModelID)) {
             // The target section was deleted; fall back so we never insert into a deleted list
@@ -274,7 +196,7 @@ struct PackingListContainerView: View {
             if let trip = context.trip {
                 tripPackingView(trip: trip)
             } else if let singleList = context.singleList {
-                singleListView(list: singleList)
+                TemplateListEditorView(list: singleList)
             }
         }
     }
@@ -287,9 +209,9 @@ struct PackingListContainerView: View {
             lists: editor.sortedLists,
             users: users,
             selectedUser: selectedUser,
-            onEditList: { editingList = $0 },
-            onCreateList: { showingAddListSheet = true },
-            onApplyTemplate: { isApplyingDefaultPackingList = true },
+            onEditList: { activeSheet = .editList($0) },
+            onCreateList: { activeSheet = .addList },
+            onApplyTemplate: { activeSheet = .applyTemplate },
             onDeleteList: { listToDelete = $0 },
             onSaveAsTemplate: { list in
                 newTemplateName = list.name
@@ -316,307 +238,6 @@ struct PackingListContainerView: View {
                         .allowsHitTesting(isShowingAssistantPanel)
                         .accessibilityHidden(!isShowingAssistantPanel)
                 }
-            }
-        }
-    }
-
-    // MARK: - Assistant Panel
-
-    @ViewBuilder
-    private func assistantPanel(trip: Trip) -> some View {
-        if isAssistantPanelMounted {
-            AIAssistantSheet(
-                viewModel: assistantViewModel,
-                trip: trip,
-                users: users,
-                targetUser: Bindable(editor).user,
-                onSubscriptionLapsed: {
-                    closeAssistantPanel()
-                    showingAIPaywall = true
-                },
-                onClose: closeAssistantPanel
-            )
-        }
-    }
-
-    /// Reduce Motion swaps the panel slide for an instant change
-    private var assistantPanelAnimation: Animation? {
-        reduceMotion ? nil : .smooth(duration: 0.45)
-    }
-
-    /// Slides the assistant in from the right, pushing the packed column off the left edge
-    private func openAssistantPanel() {
-        // Reopened mid-slide-out: keep the conversation that's still on screen
-        if !isAssistantPanelMounted {
-            assistantViewModel = AIAssistantViewModel()
-        }
-        isAssistantPanelMounted = true
-        withAnimation(assistantPanelAnimation) {
-            isShowingAssistantPanel = true
-        }
-    }
-
-    private func closeAssistantPanel() {
-        withAnimation(assistantPanelAnimation) {
-            isShowingAssistantPanel = false
-        } completion: {
-            // Reopened mid-slide: keep the chat
-            if !isShowingAssistantPanel {
-                isAssistantPanelMounted = false
-            }
-        }
-    }
-
-    // MARK: - New Item Accessory Bar
-
-    /// Sits directly above the keyboard while the inline new item row is focused
-    private var newItemAccessoryBar: some View {
-        HStack(spacing: 8) {
-            if context.isTrip {
-                listPickerMenu
-            }
-
-            if hasMultiplePackers {
-                UserPickerView(
-                    selectedUser: Bindable(editor).user,
-                    style: .menu,
-                    allowAll: false
-                )
-            }
-
-            Spacer()
-
-            ItemCountStepper(count: Bindable(editor).count)
-                .padding(.horizontal, 4)
-                .opaqueGlassCapsule()
-        }
-        .padding(.horizontal)
-        .padding(.bottom, 8)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-    }
-
-    private var listPickerMenu: some View {
-        Menu {
-            ForEach(editor.sortedLists, id: \.id) { list in
-                Button {
-                    editor.targetList = list
-                } label: {
-                    if list.id == editor.targetList?.id {
-                        Label(list.name, systemImage: "checkmark")
-                    } else {
-                        ListMenuLabel(list: list)
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "list.bullet")
-                    .font(.caption)
-                Text(editor.resolvedTargetList?.name ?? "Select List")
-                    .fontWeight(.medium)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .opaqueGlassCapsule()
-        }
-        // Menus opening upward from the bottom reverse their items by default; keep section order
-        .menuOrder(.fixed)
-        .disabled(editor.lists.count <= 1)
-    }
-
-    // MARK: - Single List
-
-    private func singleListView(list: PackingList) -> some View {
-        let items = Item.sorted(list.items ?? [], sortOrder: .byCustomOrder)
-
-        return ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    singleListContent(list: list, items: items)
-                    singleListTapZone
-                }
-                // Template rows already carry their own inset and roomier padding
-                .padding(4)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .onChange(of: editor.isAdding) { _, isAdding in
-                if isAdding {
-                    withAnimation { proxy.scrollTo(NewItemRow.scrollID(for: list), anchor: .bottom) }
-                }
-            }
-            .onChange(of: editor.scrollToPlaceholder) { _, shouldScroll in
-                guard shouldScroll else { return }
-                editor.scrollToPlaceholder = false
-                singleListScrollTask?.cancel()
-                singleListScrollTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(200))
-                    guard !Task.isCancelled else { return }
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        proxy.scrollTo(NewItemRow.scrollID(for: list), anchor: .bottom)
-                    }
-                }
-            }
-        }
-    }
-
-    /// Item rows, inline new item row, and empty state for a template
-    @ViewBuilder
-    private func singleListContent(list: PackingList, items: [Item]) -> some View {
-        ReorderableItemsSection(
-            items: items,
-            editingItemId: Bindable(editor).editingItemId,
-            onUpdateItem: { editor.updateItem($0, name: $1, count: $2) },
-            onDeleteItem: { editor.deleteItem($0) },
-            onReorder: { item, newIndex in
-                editor.reorderItem(item, in: list, to: newIndex)
-            }
-        )
-
-        if editor.isAdding {
-            NewItemRow(
-                itemName: Bindable(editor).name,
-                isFocused: Bindable(editor).isFieldFocused,
-                itemCount: editor.count,
-                onSubmitReturn: { editor.addAndContinue() },
-                onDeleteEmpty: {
-                    // Backspace on the empty new row moves editing up to the last item
-                    if let lastItem = items.last {
-                        editor.editingItemId = lastItem.persistentModelID
-                    }
-                }
-            )
-            .id(NewItemRow.scrollID(for: list))
-        }
-
-        if items.isEmpty && !editor.isAdding {
-            EmptyStateView()
-                .padding(.top, 60)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .onTapGesture { editor.handleTapOnEmptyArea(in: nil) }
-        }
-    }
-
-    /// Blank space below the list: tap to add, or to finish adding
-    private var singleListTapZone: some View {
-        AddItemTapZone(minHeight: 120) {
-            editor.handleTapOnEmptyArea(in: nil)
-        }
-    }
-
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder
-    private var containerToolbar: some ToolbarContent {
-        if editor.isRemovingItems {
-            removingItemsToolbar
-        } else if editor.isAdding {
-            addingItemToolbar
-        } else if context.isTrip {
-            tripToolbar
-            addItemToolbar
-        } else {
-            singleListToolbar
-            addItemToolbar
-        }
-    }
-
-    /// Primary action lives in the bottom bar; on the folded iPhone Duo the system moves it to the side bar
-    @ToolbarContentBuilder
-    private var addItemToolbar: some ToolbarContent {
-        // A trip with no sections has nowhere to put an item: create or apply one first
-        if !(context.isTrip && lists.isEmpty) {
-            ToolbarSpacer(placement: .bottomBar)
-            ToolbarItem(placement: .bottomBar) {
-                Button("Add Item", systemImage: "plus") {
-                    editor.startAdding(in: nil)
-                }
-            }
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var addingItemToolbar: some ToolbarContent {
-        ToolbarItem(placement: .confirmationAction) {
-            // Title + symbol so the system has a name to show in overflow menus and expanded bars
-            Button { editor.finishAdding() } label: {
-                Label("Done", systemImage: "checkmark")
-                    .fontWeight(.semibold)
-            }
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var removingItemsToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button("Undo", systemImage: "arrow.uturn.backward", action: editor.undoRemove)
-                .disabled(editor.removedItems.isEmpty)
-                .accessibilityHint(editor.removedItems.last.map { "Puts back \($0.name)" } ?? "")
-        }
-        ToolbarItem(placement: .confirmationAction) {
-            Button {
-                editor.stopRemoving()
-            } label: {
-                Label("Done", systemImage: "checkmark")
-                    .fontWeight(.semibold)
-            }
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var tripToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                if !purchaseManager.isPlusActive {
-                    showingAIPaywall = true
-                } else if horizontalSizeClass == .regular {
-                    if isShowingAssistantPanel {
-                        closeAssistantPanel()
-                    } else {
-                        openAssistantPanel()
-                    }
-                } else {
-                    assistantViewModel = AIAssistantViewModel()
-                    showingAIAssistant = true
-                }
-            } label: {
-                Label {
-                    Text("AI Packing Assistant")
-                } icon: {
-                    Image(systemName: "sparkles")
-                        .overlay(alignment: .topTrailing) {
-                            if !purchaseManager.isPlusActive {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.caption2)
-                                    .imageScale(.small)
-                                    .foregroundStyle(.white, .blue)
-                                    .offset(x: 6, y: -6)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                }
-            }
-            .accessibilityHint(purchaseManager.isPlusActive ? "" : "Requires Packing Helper Plus")
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var singleListToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                isShowingTemplateInfo.toggle()
-            } label: {
-                Label("List Info", systemImage: "info.circle")
-            }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                isShowingListSettings.toggle()
-            } label: {
-                Label("List Settings", systemImage: "gear")
             }
         }
     }
