@@ -260,11 +260,13 @@ struct TripListRowView: View {
             if let destination = trip.destination {
                 mapPosition = destination.overviewCameraPosition
             }
+        }
+        .task {
             // Simulate map loading delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    isMapLoading = false
-                }
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.3)) {
+                isMapLoading = false
             }
         }
         .onGeometryChange(for: Bool.self) { proxy in

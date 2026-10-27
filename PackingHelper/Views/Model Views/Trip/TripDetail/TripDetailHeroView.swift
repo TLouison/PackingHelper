@@ -61,11 +61,11 @@ struct TripDetailHeroView: View {
                         .offset(x: isMapLoading ? 400 : -400)
                         .animation(.linear(duration: 1.5).repeatForever(autoreverses: false), value: isMapLoading)
                 )
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            isMapLoading = false
-                        }
+                .task {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        isMapLoading = false
                     }
                 }
         } else {
