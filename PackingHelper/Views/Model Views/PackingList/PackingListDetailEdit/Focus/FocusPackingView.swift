@@ -50,6 +50,7 @@ struct FocusPackingView: View {
     @State private var pageForNarrowing: FocusPage?
     /// Until then, scroll position reports are the pager settling after a resize/reorder, not swipes
     @State private var settlingUntil = Date.distantPast
+    @State private var resizeSnapTask: Task<Void, Never>?
     @State private var pendingPacks = PendingPackTracker()
     @State private var detailItem: Item?
     /// One packing tip at a time, the first whose rules pass
@@ -302,7 +303,12 @@ struct FocusPackingView: View {
         DispatchQueue.main.async(execute: scroll)
         if afterResize {
             // The scroll view adjusts its own offset as the rotation finishes; land again once it settles
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: scroll)
+            resizeSnapTask?.cancel()
+            resizeSnapTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
+                scroll()
+            }
         }
     }
 
@@ -718,6 +724,8 @@ private struct FocusBagPage: View {
     let onShowDetails: (Item) -> Void
     let onGoTo: (PackingList) -> Void
 
+    @State private var scrollTask: Task<Void, Never>?
+
     var body: some View {
         let items = input.items(in: list)
         // Remove Items mode lists packed items as cards too, so they can be removed
@@ -786,7 +794,10 @@ private struct FocusBagPage: View {
     }
 
     private func scrollToNewRow(_ proxy: ScrollViewProxy) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        scrollTask?.cancel()
+        scrollTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 proxy.scrollTo(NewItemRow.scrollID(for: list), anchor: .bottom)
             }
@@ -1036,6 +1047,8 @@ private struct FocusAllItemsPage: View {
     let pendingPacks: PendingPackTracker
     let onShowDetails: (Item) -> Void
 
+    @State private var scrollTask: Task<Void, Never>?
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -1112,7 +1125,10 @@ private struct FocusAllItemsPage: View {
 
     private func scrollToNewRow(_ proxy: ScrollViewProxy) {
         guard let target = input.add.targetList.wrappedValue else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        scrollTask?.cancel()
+        scrollTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 proxy.scrollTo(NewItemRow.scrollID(for: target), anchor: .bottom)
             }

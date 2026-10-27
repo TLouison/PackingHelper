@@ -64,6 +64,9 @@ struct PackingListContainerView: View {
     @State private var newItemList: PackingList? = nil
     @State private var newItemFieldFocused = false
     @State private var scrollToPlaceholder = false
+    /// Delayed work for the add flow; replaced (and cancelled) when it is scheduled again
+    @State private var finishAddingTask: Task<Void, Never>?
+    @State private var scrollTask: Task<Void, Never>?
 
     // Single list mode state
     @State private var isShowingListSettings: Bool = false
@@ -237,7 +240,10 @@ struct PackingListContainerView: View {
             guard !isFocused && isAddingNewItem else { return }
             // Focus drops briefly when the inline row moves to another section,
             // so only finish if it is still unfocused after the row has re-rendered
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            finishAddingTask?.cancel()
+            finishAddingTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
                 if !newItemFieldFocused && isAddingNewItem {
                     finishAddingNewItem()
                 }
@@ -473,7 +479,10 @@ struct PackingListContainerView: View {
             .onChange(of: scrollToPlaceholder) { _, shouldScroll in
                 guard shouldScroll else { return }
                 scrollToPlaceholder = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                scrollTask?.cancel()
+                scrollTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(200))
+                    guard !Task.isCancelled else { return }
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                         proxy.scrollTo(NewItemRow.scrollID(for: list), anchor: .bottom)
                     }

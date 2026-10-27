@@ -311,7 +311,9 @@ struct UnifiedItemRow: View {
         withAnimation(.easeOut(duration: 0.2)) {
             offset = -max(rowWidth, 320)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        // Not cancelled if the row goes away first: the delete still has to happen
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(200))
             onDelete()
         }
     }
