@@ -96,6 +96,8 @@ final class Trip {
     @Relationship var destination: TripLocation?
     @Relationship(deleteRule: .cascade, inverse: \PackingList.trip) var lists: [PackingList]? = []
     @Relationship(deleteRule: .cascade, inverse: \TripCoverPhoto.trip) var coverPhoto: TripCoverPhoto?
+    /// The saved AI assistant chat, if one was started
+    @Relationship(deleteRule: .cascade, inverse: \AIConversation.trip) var aiConversation: AIConversation?
 
     var startDate: Date = Date.now
     var endDate: Date = Date.now.advanced(by: SECONDS_IN_DAY)

@@ -2,9 +2,10 @@
 //  AIAssistantSheet.swift
 //  PackingHelper
 //
-//  The AI packing assistant chat. The presenter owns the view model so a conversation
-//  survives moving between the wide side panel and the sheet; it is discarded when the
-//  assistant is closed. Added items are the durable artifact.
+//  The AI packing assistant chat, for a trip or a template. The presenter owns the view model
+//  so a conversation survives moving between the wide side panel and the sheet, and the view
+//  model saves it, so closing the assistant keeps it until New Chat. Without Plus the paywall
+//  opens over the chat, so buying drops the user straight back into it.
 //
 
 import SwiftUI
@@ -12,12 +13,9 @@ import SwiftData
 
 struct AIAssistantSheet: View {
     @Bindable var viewModel: AIAssistantViewModel
-    let trip: Trip
     let users: [User]?
+    /// The packer suggestions go to (trip only)
     @Binding var targetUser: User?
-    /// Called after the Worker reports no active subscription and entitlements
-    /// have been refreshed; the presenter should close this and show the paywall.
-    var onSubscriptionLapsed: () -> Void = {}
     /// Set when embedded as a side panel (regular width) instead of presented as a sheet.
     /// The panel draws its own header and calls this from its close button.
     var onClose: (() -> Void)? = nil
@@ -27,9 +25,11 @@ struct AIAssistantSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @FocusState private var composerFocused: Bool
+    @State private var showingPaywall = false
 
-    private var lists: [PackingList] { trip.lists ?? [] }
-    private var hasMultiplePackers: Bool { (users?.count ?? 0) > 1 }
+    /// Destinations for "Add to"; a template only has itself
+    private var lists: [PackingList] { viewModel.context.trip?.lists ?? [] }
+    private var hasMultiplePackers: Bool { !viewModel.isTemplate && (users?.count ?? 0) > 1 }
 
     var body: some View {
         Group {
@@ -52,20 +52,56 @@ struct AIAssistantSheet: View {
                                     dismiss()
                                 }
                             }
+                            ToolbarItem(placement: .primaryAction) {
+                                chatMenu
+                            }
                         }
                 }
             }
         }
         .task {
-            await viewModel.prepare(trip: trip, targetUser: targetUser, modelContext: modelContext)
+            await viewModel.prepare(modelContext: modelContext)
+            if !purchaseManager.isPlusActive {
+                showingPaywall = true
+            }
+        }
+        .onChange(of: targetUser?.persistentModelID, initial: true) {
+            viewModel.targetUser = targetUser
         }
         .onChange(of: viewModel.subscriptionLapsed) { _, lapsed in
             guard lapsed else { return }
             composerFocused = false
             Task {
                 await purchaseManager.refresh()
-                onSubscriptionLapsed()
+                if purchaseManager.isPlusActive {
+                    // RevenueCat still says active (the Worker's lookup failed): keep the error
+                    // showing but let the next rejection try again
+                    viewModel.subscriptionRestored()
+                    viewModel.errorMessage = AIAssistantError.server(401).errorDescription
+                } else {
+                    showingPaywall = true
+                }
             }
+        }
+        .onChange(of: purchaseManager.isPlusActive) { _, isActive in
+            guard isActive else { return }
+            viewModel.subscriptionRestored()
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PlusPaywallView()
+        }
+    }
+
+    /// New Chat is the only way to clear the saved conversation
+    private var chatMenu: some View {
+        Menu {
+            Button("New Chat", systemImage: "square.and.pencil") {
+                composerFocused = false
+                withAnimation { viewModel.startNewChat() }
+            }
+            .disabled(viewModel.entries.isEmpty && viewModel.composerText.isEmpty)
+        } label: {
+            Label("Chat Options", systemImage: "ellipsis")
         }
     }
 
@@ -87,6 +123,9 @@ struct AIAssistantSheet: View {
             Label("AI Assistant", systemImage: "sparkles")
                 .font(.headline)
             Spacer()
+            chatMenu
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.circle)
             Button {
                 // Dismiss the keyboard before the panel animates away
                 composerFocused = false
@@ -158,13 +197,47 @@ struct AIAssistantSheet: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Ask about your trip", systemImage: "sparkles")
-                .font(.headline)
-            Text("Describe your plans — activities, what you're bringing — and I'll suggest what to pack, including easy-to-forget accessories.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            if let template = viewModel.context.singleList {
+                Label("Build this template", systemImage: "sparkles")
+                    .font(.headline)
+                Text("Tell me what this list is for, like a beach weekend or work travel, and I'll suggest a solid set of items to start from.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                starterButtons([
+                    template.items?.isEmpty ?? true
+                        ? "Suggest a starting set for \(template.name)"
+                        : "What's missing from \(template.name)?"
+                ])
+            } else {
+                Label("Ask about your trip", systemImage: "sparkles")
+                    .font(.headline)
+                Text("Describe your plans, like activities or what you're bringing, and I'll suggest what to pack, including easy-to-forget accessories.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                starterButtons([
+                    "What am I missing?",
+                    "What should I do before I leave?"
+                ])
+            }
         }
         .padding(.top, 24)
+    }
+
+    /// One-tap first messages
+    private func starterButtons(_ prompts: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(prompts, id: \.self) { prompt in
+                Button(prompt) {
+                    composerFocused = false
+                    Task { await viewModel.send(prompt) }
+                }
+                .font(.subheadline)
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+            }
+        }
+        .disabled(viewModel.composerDisabled || !purchaseManager.isPlusActive)
+        .padding(.top, 8)
     }
 
     private var typingIndicator: some View {
@@ -190,16 +263,21 @@ struct AIAssistantSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            if viewModel.remaining == 0 {
+            if !purchaseManager.isPlusActive {
+                upsellBar
+            } else if viewModel.remaining == 0 {
                 limitReachedBar
             } else {
                 inputBar
-                if let remaining = viewModel.remaining, remaining < 10 {
-                    Text("\(remaining) message\(remaining == 1 ? "" : "s") left this month")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("AI can make mistakes. Check suggestions before you rely on them.")
+                    Spacer(minLength: 8)
+                    if let remaining = viewModel.remaining, remaining < 10 {
+                        Text("\(remaining) message\(remaining == 1 ? "" : "s") left this month")
+                    }
                 }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal)
@@ -209,7 +287,7 @@ struct AIAssistantSheet: View {
 
     private var inputBar: some View {
         HStack(spacing: 8) {
-            TextField("Describe your plans…", text: $viewModel.composerText, axis: .vertical)
+            TextField(viewModel.isTemplate ? "What is this list for?" : "Describe your plans…", text: $viewModel.composerText, axis: .vertical)
                 .lineLimit(1...4)
                 .focused($composerFocused)
                 .textFieldStyle(.plain)
@@ -225,6 +303,20 @@ struct AIAssistantSheet: View {
             }
             .disabled(viewModel.composerDisabled || viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+    }
+
+    /// Shown in place of the composer until Plus is active (the paywall was closed without buying)
+    private var upsellBar: some View {
+        HStack(spacing: 12) {
+            Text("The AI assistant comes with Packing Helper Plus.")
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Unlock") {
+                showingPaywall = true
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.vertical, 6)
     }
 
     private var limitReachedBar: some View {

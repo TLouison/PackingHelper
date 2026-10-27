@@ -57,12 +57,9 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 
 ## 7. AI assistant & Plus
 
-- **7.1 [Behavior]** AI sheet passes `targetUser` once to `prepare` in `.task`; later packer changes are ignored. Existing item names are already sent to the model, but adding a suggestion doesn't skip items already on the trip.
 - **7.3 (rest) [Behavior]** Map Worker 400 to a distinct error (currently falls into `.server(400)`).
-- **7.4 [Behavior]** Paying users can see the paywall when the RevenueCat lookup fails (401 → `subscriptionLapsed` immediately); Unsplash can loop on it. Add `reconcileWorkerRejection()` → paywall only on `.lapsed`; Worker returns 503 when RC is unreachable.
+- **7.4 [Behavior]** The assistant now refreshes CustomerInfo on a Worker 401 and only shows the paywall if RevenueCat agrees Plus is inactive. Still open: Unsplash can loop on the paywall the same way, and the Worker should return 503 (not 401) when RevenueCat is unreachable.
 - **7.5 (rest) [Behavior]** Loading hint while context builds.
-- **7.6 [Behavior]** Failed message can't be retried and stays in `entries`, so the next send has two user turns.
-- **7.7 [Behavior]** One unknown `category` fails the whole reply (`PackingRecommendationCategory` decoded strictly) — lenient decoding.
 - **7.9 [Behavior]** The initial `customerInfo()` in `PurchaseManager.start()` can overwrite a fresher stream/refresh result.
 
 ## 8. Security & release

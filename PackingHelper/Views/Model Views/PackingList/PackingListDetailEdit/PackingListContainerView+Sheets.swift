@@ -19,9 +19,8 @@ extension PackingListContainerView {
         case listSettings
         /// The template's info (single-list context)
         case templateInfo
-        /// The AI assistant as a sheet (compact width, trip context)
+        /// The AI assistant as a sheet (templates, and trips at compact width)
         case aiAssistant
-        case aiPaywall
 
         var id: String {
             switch self {
@@ -31,22 +30,12 @@ extension PackingListContainerView {
             case .listSettings: "listSettings"
             case .templateInfo: "templateInfo"
             case .aiAssistant: "aiAssistant"
-            case .aiPaywall: "aiPaywall"
             }
         }
 
         var isAIAssistant: Bool {
             if case .aiAssistant = self { return true }
             return false
-        }
-    }
-
-    /// Runs when any sheet finishes dismissing. The AI assistant sheet asks for the paywall once
-    /// it is gone (two sheets can't present back-to-back in the same update).
-    func activeSheetDidDismiss() {
-        if showPaywallAfterAIDismiss {
-            showPaywallAfterAIDismiss = false
-            activeSheet = .aiPaywall
         }
     }
 
@@ -92,21 +81,12 @@ extension PackingListContainerView {
                     .presentationDetents([.fraction(0.65), .large])
             }
         case .aiAssistant:
-            if let trip = context.trip {
-                AIAssistantSheet(
-                    viewModel: assistantViewModel,
-                    trip: trip,
-                    users: users,
-                    targetUser: Bindable(editor).user,
-                    onSubscriptionLapsed: {
-                        showPaywallAfterAIDismiss = true
-                        activeSheet = nil
-                    }
-                )
-                .presentationDetents([.large])
-            }
-        case .aiPaywall:
-            PlusPaywallView()
+            AIAssistantSheet(
+                viewModel: assistantViewModel,
+                users: users,
+                targetUser: Bindable(editor).user
+            )
+            .presentationDetents([.large])
         }
     }
 }

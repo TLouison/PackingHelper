@@ -68,42 +68,48 @@ extension PackingListContainerView {
     @ToolbarContentBuilder
     private var tripToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                if !purchaseManager.isPlusActive {
-                    activeSheet = .aiPaywall
-                } else if horizontalSizeClass == .regular {
-                    if isShowingAssistantPanel {
-                        closeAssistantPanel()
-                    } else {
-                        openAssistantPanel()
-                    }
-                } else {
-                    assistantViewModel = AIAssistantViewModel()
-                    activeSheet = .aiAssistant
-                }
-            } label: {
-                Label {
-                    Text("AI Packing Assistant")
-                } icon: {
-                    Image(systemName: "sparkles")
-                        .overlay(alignment: .topTrailing) {
-                            if !purchaseManager.isPlusActive {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.caption2)
-                                    .imageScale(.small)
-                                    .foregroundStyle(.white, .blue)
-                                    .offset(x: 6, y: -6)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                }
-            }
-            .accessibilityHint(purchaseManager.isPlusActive ? "" : "Requires Packing Helper Plus")
+            assistantButton
         }
+    }
+
+    /// Opens the assistant even without Plus: the chat shows the paywall over itself, so buying
+    /// lands the user in it. Trips at regular width get the side panel; everything else a sheet.
+    private var assistantButton: some View {
+        Button {
+            if context.isTrip && horizontalSizeClass == .regular {
+                if isShowingAssistantPanel {
+                    closeAssistantPanel()
+                } else {
+                    openAssistantPanel()
+                }
+            } else {
+                activeSheet = .aiAssistant
+            }
+        } label: {
+            Label {
+                Text("AI Packing Assistant")
+            } icon: {
+                Image(systemName: "sparkles")
+                    .overlay(alignment: .topTrailing) {
+                        if !purchaseManager.isPlusActive {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.caption2)
+                                .imageScale(.small)
+                                .foregroundStyle(.white, .blue)
+                                .offset(x: 6, y: -6)
+                                .accessibilityHidden(true)
+                        }
+                    }
+            }
+        }
+        .accessibilityHint(purchaseManager.isPlusActive ? "" : "Requires Packing Helper Plus")
     }
 
     @ToolbarContentBuilder
     private var singleListToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            assistantButton
+        }
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 activeSheet = .templateInfo

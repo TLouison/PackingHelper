@@ -117,6 +117,9 @@ final class PackingList {
 
     @Relationship(deleteRule: .cascade, inverse: \Item.list) var items: [Item]?
 
+    /// The saved AI assistant chat (templates only)
+    @Relationship(deleteRule: .cascade, inverse: \AIConversation.template) var aiConversation: AIConversation?
+
     init(kind: ListKind = .packing, isDayOf: Bool = false, template: Bool, name: String, countAsDays: Bool, sortOrder: Int = 0) {
         self.created = Date.now
         self.kindRawValue = kind.rawValue

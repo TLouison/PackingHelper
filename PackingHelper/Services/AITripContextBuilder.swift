@@ -2,12 +2,14 @@
 //  AITripContextBuilder.swift
 //  PackingHelper
 //
-//  Assembles the trip context sent to the AI assistant: core facts, existing
-//  item names (for dedupe + accessory reasoning), and live weather when it's
-//  available within the forecast window.
+//  Assembles the context sent to the AI assistant: core trip facts, existing item names
+//  (for dedupe + accessory reasoning), and live weather when it's available within the
+//  forecast window. Also the template-mode context and the item-name matching used to drop
+//  suggestions the user already has.
 //
 
 import Foundation
+import SwiftData
 import WeatherKit
 import RevenueCat
 
@@ -25,35 +27,76 @@ enum AITripContextBuilder {
         Purchases.shared.appUserID
     }
 
+    /// Built on every send so items added since the last message (by hand or from a
+    /// suggestion) and packer changes are included. Weather is fetched once per session.
     @MainActor
-    static func build(for trip: Trip, targetUser: User?) async -> AITripContext {
-        AITripContext(
+    static func build(for trip: Trip, targetUser: User?, weather: AIWeatherContext?) -> AITripContext {
+        let mine = itemsBelonging(to: targetUser, in: trip)
+        let mineKeys = Set(mine.map(\.name).map(matchKey))
+        let others = trip.allItems.filter { item in
+            guard let targetUser, let user = item.user else { return false }
+            return user.persistentModelID != targetUser.persistentModelID
+        }
+
+        return AITripContext(
+            tripName: trip.name,
             destinationName: trip.destination?.name ?? "",
+            destinationLatitude: trip.destination?.latitude,
+            originName: trip.origin?.name,
             startDate: dayFormatter.string(from: trip.startDate),
             endDate: dayFormatter.string(from: trip.endDate),
             durationDays: max(trip.duration, 1),
             tripType: trip.typesName.lowercased(),
             accommodation: trip.accomodationsName.lowercased(),
             packerCount: max(trip.packers.count, 1),
-            existingItems: existingItemNames(for: trip, targetUser: targetUser),
-            weather: await weatherContext(for: trip)
+            listNames: PackingList.sorted(trip.lists ?? [], sortOrder: .byCustomOrder).map(\.name),
+            existingItems: uniqueNames(mine),
+            otherPackersItems: uniqueNames(others).filter { !mineKeys.contains(matchKey($0)) },
+            weather: weather
         )
     }
 
     @MainActor
-    private static func existingItemNames(for trip: Trip, targetUser: User?) -> [String] {
-        let items = trip.allItems.filter { item in
-            guard let targetUser else { return true }
-            return item.user?.persistentModelID == targetUser.persistentModelID
-        }
+    static func build(for template: PackingList) -> AITemplateContext {
+        AITemplateContext(
+            name: template.name,
+            listKind: template.kind.rawValue,
+            isDayOf: template.isDayOf,
+            countAsDays: template.countAsDays,
+            existingItems: uniqueNames(template.items ?? [])
+        )
+    }
 
+    /// The packer's items plus unassigned ones (everything when there's no packer)
+    @MainActor
+    static func itemsBelonging(to targetUser: User?, in trip: Trip) -> [Item] {
+        trip.allItems.filter { item in
+            guard let targetUser, let user = item.user else { return true }
+            return user.persistentModelID == targetUser.persistentModelID
+        }
+    }
+
+    /// Loose identity for item names so "Phone Chargers" matches "phone charger"
+    static func matchKey(_ name: String) -> String {
+        var key = name
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        if key.count > 3, key.hasSuffix("s"), !key.hasSuffix("ss") {
+            key.removeLast()
+        }
+        return key
+    }
+
+    @MainActor
+    private static func uniqueNames(_ items: [Item]) -> [String] {
         var seen = Set<String>()
         var names: [String] = []
         for item in items {
             let trimmed = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            let key = trimmed.lowercased()
-            if seen.insert(key).inserted {
+            if seen.insert(matchKey(trimmed)).inserted {
                 names.append(trimmed)
             }
         }
@@ -61,7 +104,7 @@ enum AITripContextBuilder {
     }
 
     @MainActor
-    private static func weatherContext(for trip: Trip) async -> AIWeatherContext? {
+    static func weatherContext(for trip: Trip) async -> AIWeatherContext? {
         guard let destination = trip.destination,
               let weather = await destination.getTripWeather(for: trip) else {
             return nil

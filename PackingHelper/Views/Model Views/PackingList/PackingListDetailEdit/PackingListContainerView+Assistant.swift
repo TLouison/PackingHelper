@@ -10,17 +10,12 @@ import SwiftUI
 
 extension PackingListContainerView {
     @ViewBuilder
-    func assistantPanel(trip: Trip) -> some View {
+    var assistantPanel: some View {
         if isAssistantPanelMounted {
             AIAssistantSheet(
                 viewModel: assistantViewModel,
-                trip: trip,
                 users: users,
                 targetUser: Bindable(editor).user,
-                onSubscriptionLapsed: {
-                    closeAssistantPanel()
-                    activeSheet = .aiPaywall
-                },
                 onClose: closeAssistantPanel
             )
         }
@@ -33,10 +28,6 @@ extension PackingListContainerView {
 
     /// Slides the assistant in from the right, pushing the packed column off the left edge
     func openAssistantPanel() {
-        // Reopened mid-slide-out: keep the conversation that's still on screen
-        if !isAssistantPanelMounted {
-            assistantViewModel = AIAssistantViewModel()
-        }
         isAssistantPanelMounted = true
         withAnimation(assistantPanelAnimation) {
             isShowingAssistantPanel = true
@@ -47,7 +38,7 @@ extension PackingListContainerView {
         withAnimation(assistantPanelAnimation) {
             isShowingAssistantPanel = false
         } completion: {
-            // Reopened mid-slide: keep the chat
+            // Reopened mid-slide: keep it mounted
             if !isShowingAssistantPanel {
                 isAssistantPanelMounted = false
             }

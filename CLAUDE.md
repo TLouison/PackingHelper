@@ -17,7 +17,7 @@ Other commands (e.g. `git`, file inspection, search) are fine to run.
 
 ### Data Model (SwiftData)
 
-The app uses SwiftData with six models. All models have a `uuid`; use it (not `persistentModelID.hashValue`, which is reseeded every launch) for any key that must survive relaunch.
+The app uses SwiftData with seven models. All models have a `uuid`; use it (not `persistentModelID.hashValue`, which is reseeded every launch) for any key that must survive relaunch.
 
 **Trip** (root entity)
 - Properties: `name`, `startDate`, `endDate`, `types` (plane/car/train/boat/ferry; multi-select, `primaryType` is the icon), `accomodations` (multi-select)
@@ -50,6 +50,10 @@ The app uses SwiftData with six models. All models have a `uuid`; use it (not `p
 
 **TripCoverPhoto** (in `CoverPhoto/`)
 - Library or Unsplash image, `.externalStorage` bytes, BlurHash placeholder
+
+**AIConversation**
+- The saved AI assistant chat for one trip (`trip.aiConversation`) or template (`list.aiConversation`), cascade-deleted with it
+- `entriesData` is the JSON-encoded `[AIAssistantViewModel.ChatEntry]`; cleared only by New Chat
 
 Legacy fields above are slated for removal in one schema change (see ROADMAP.md §12); don't build new features on them.
 
@@ -147,6 +151,11 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 
 **AI Assistant:**
 - `Views/AI/`, `ViewModels/AIAssistantViewModel.swift`, `Services/AIAssistantService.swift`, `Services/AITripContextBuilder.swift`
+- Two modes: **trip** (fill gaps in the trip's lists, using destination, season, transport, stays, weather, and other packers' items) and **template** (a reusable starting point for a template list; opened from the template editor's toolbar, always as a sheet)
+- The paywall opens over the chat (not instead of it), so buying lands the user back in the conversation; without Plus the composer becomes an Unlock bar
+- The container keeps one `AIAssistantViewModel` per trip/template; it saves to `AIConversation`, so closing the assistant or leaving the screen keeps the chat until New Chat (the chat's ⋯ menu)
+- Context is rebuilt on every send (weather once per session). Suggestions matching something the packer already has (`AITripContextBuilder.matchKey`: case, punctuation, simple plurals) are dropped client-side, and adding skips them
+- The prompt lives in the Worker repo (`PackingHelperWorkers`, `src/prompt.ts`); request DTOs in `AIAssistantService.swift` must stay in sync with its README contract
 - The Worker rejects history entries with empty content and conversations over 40 messages, so the client filters and trims history
 
 ### Feature Flags
@@ -198,7 +207,7 @@ Config values (`REVENUECAT_API_KEY`, `WORKER_URL`) come from the gitignored `Con
 
 **SwiftData Container Setup** (`User` is reached through relationships):
 ```swift
-ModelContainer(for: Trip.self, TripLocation.self, PackingList.self, Item.self, TripCoverPhoto.self)
+ModelContainer(for: Trip.self, TripLocation.self, PackingList.self, Item.self, TripCoverPhoto.self, AIConversation.self)
 ```
 
 ### Critical Dependencies

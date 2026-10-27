@@ -11,7 +11,7 @@ import SwiftData
 struct SampleData: PreviewModifier {
     static func makeSharedContext() async throws -> Context {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Trip.self, TripLocation.self, PackingList.self, Item.self, User.self, TripCoverPhoto.self, configurations: config)
+        let container = try ModelContainer(for: Trip.self, TripLocation.self, PackingList.self, Item.self, User.self, TripCoverPhoto.self, AIConversation.self, configurations: config)
         
         makeSamples(in: container)
         

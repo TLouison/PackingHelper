@@ -14,20 +14,49 @@ import Foundation
 
 struct AIAssistantRequest: Encodable {
     let rcAppUserId: String
-    let tripContext: AITripContext
+    let mode: Mode
+    /// Set in `.trip` mode
+    let tripContext: AITripContext?
+    /// Set in `.template` mode
+    let templateContext: AITemplateContext?
     let messages: [AIChatMessageDTO]
+
+    enum Mode: String, Encodable {
+        /// Fill gaps in a trip's lists
+        case trip
+        /// Build a reusable starting point for a template list
+        case template
+    }
 }
 
 struct AITripContext: Encodable {
+    let tripName: String
     let destinationName: String
+    /// For the season (hemisphere, tropics); nil when the destination has no coordinates
+    let destinationLatitude: Double?
+    let originName: String?
     let startDate: String   // yyyy-MM-dd
     let endDate: String     // yyyy-MM-dd
     let durationDays: Int
     let tripType: String
     let accommodation: String
     let packerCount: Int
+    /// The trip's list names (e.g. "Ski Gear"), which hint at plans
+    let listNames: [String]
+    /// The packer's items plus unassigned ones, packed or not
     let existingItems: [String]
+    /// What the trip's other packers are bringing, so shared items aren't doubled up
+    let otherPackersItems: [String]
     let weather: AIWeatherContext?  // nil → omitted (synthesized encoder uses encodeIfPresent)
+}
+
+struct AITemplateContext: Encodable {
+    let name: String
+    let listKind: String  // "packing" | "tasks"
+    let isDayOf: Bool
+    /// Item counts become the trip's length when applied, so counts don't matter
+    let countAsDays: Bool
+    let existingItems: [String]
 }
 
 struct AIWeatherContext: Encodable {
@@ -55,25 +84,47 @@ struct AIAssistantResponse: Decodable {
     let remaining: Int
 }
 
-struct AISuggestedItem: Decodable, Identifiable {
-    let id = UUID()  // client-side identity for ForEach; not from the wire
+/// Decoded from the Worker and also saved with the conversation (`AIConversation`), which is
+/// why `id` is encoded: the wire never sends one, so decoding makes a fresh one.
+struct AISuggestedItem: Codable, Identifiable {
+    var id = UUID()
     let name: String
     let category: PackingRecommendationCategory
     let count: Int
     let kind: Kind
     let accessoryFor: String?
 
-    enum Kind: String, Decodable {
+    enum Kind: String, Codable {
         case packing, task
     }
 
     private enum CodingKeys: String, CodingKey {
-        case name, category, count, kind, accessoryFor
+        case id, name, category, count, kind, accessoryFor
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decode(String.self, forKey: .name)
+        // Unknown values fall back rather than failing the whole reply
+        let categoryName = try container.decodeIfPresent(String.self, forKey: .category) ?? ""
+        category = PackingRecommendationCategory(rawValue: categoryName) ?? .other
+        count = try container.decodeIfPresent(Int.self, forKey: .count) ?? 1
+        let kindName = try container.decodeIfPresent(String.self, forKey: .kind) ?? ""
+        kind = Kind(rawValue: kindName) ?? .packing
+        accessoryFor = try container.decodeIfPresent(String.self, forKey: .accessoryFor)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(category.rawValue, forKey: .category)
+        try container.encode(count, forKey: .count)
+        try container.encode(kind, forKey: .kind)
+        try container.encodeIfPresent(accessoryFor, forKey: .accessoryFor)
     }
 }
-
-// Raw values already match the wire strings ("Clothing", "Electronics", …).
-extension PackingRecommendationCategory: Decodable {}
 
 // MARK: - Errors
 

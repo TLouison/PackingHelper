@@ -42,17 +42,14 @@ struct PackingListContainerView: View {
     @Query(filter: #Predicate<PackingList> { $0.template }) private var templates: [PackingList]
     @State private var selectedUser: User?
 
-    // AI assistant (trip context only)
-    /// Show the paywall once the assistant sheet finishes dismissing (two
-    /// sheets can't present back-to-back in the same update).
-    @State var showPaywallAfterAIDismiss: Bool = false
+    // AI assistant
     /// Regular width: the assistant is a side panel instead of a sheet. `isShowingAssistantPanel`
     /// drives the slide; `isAssistantPanelMounted` keeps the chat rendered until the slide-out finishes.
     @State var isShowingAssistantPanel: Bool = false
     @State var isAssistantPanelMounted: Bool = false
     /// Shared by the panel and the sheet so the conversation survives a wide → compact switch.
-    /// Replaced on each fresh open.
-    @State var assistantViewModel = AIAssistantViewModel()
+    /// Kept across opens; it also saves the chat, so leaving the screen keeps it too.
+    @State var assistantViewModel: AIAssistantViewModel
 
     // Single list mode state
     @State var isDeleted: Bool = false
@@ -65,6 +62,7 @@ struct PackingListContainerView: View {
         self.users = nil
         self.title = packingList.name
         _editor = State(initialValue: PackingEditor(context: .singleList(packingList)))
+        _assistantViewModel = State(initialValue: AIAssistantViewModel(context: .singleList(packingList)))
     }
 
     /// Initialize with a trip
@@ -73,6 +71,7 @@ struct PackingListContainerView: View {
         self.users = users
         self.title = title
         _editor = State(initialValue: PackingEditor(context: .trip(trip)))
+        _assistantViewModel = State(initialValue: AIAssistantViewModel(context: .trip(trip)))
     }
 
     // MARK: - Computed Properties
@@ -107,7 +106,7 @@ struct PackingListContainerView: View {
         .environment(editor)
         .navigationTitle(title ?? "Packing")
         .navigationBarTitleDisplayMode(context.isTrip ? .inline : .large)
-        .sheet(item: $activeSheet, onDismiss: activeSheetDidDismiss) { sheet in
+        .sheet(item: $activeSheet) { sheet in
             sheetContent(sheet)
         }
     }
@@ -231,7 +230,7 @@ struct PackingListContainerView: View {
                     .frame(maxWidth: .infinity)
 
                 if horizontalSizeClass == .regular {
-                    assistantPanel(trip: trip)
+                    assistantPanel
                         .frame(width: isShowingAssistantPanel ? proxy.size.width / 2 : 0)
                         .clipped()
                         .overlay(alignment: .leading) { Divider() }
