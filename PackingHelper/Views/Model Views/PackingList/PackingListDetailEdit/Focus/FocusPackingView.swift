@@ -34,6 +34,7 @@ struct FocusPackingView: View {
     @Environment(\.modelContext) private var modelContext
 
     let input: FocusPackingInput
+    @Environment(PackingEditor.self) private var editor
 
     @AppStorage(PackingStartPage.storageKey) private var startPage = PackingStartPage.firstList.rawValue
 
@@ -51,13 +52,14 @@ struct FocusPackingView: View {
     /// Until then, scroll position reports are the pager settling after a resize/reorder, not swipes
     @State private var settlingUntil = Date.distantPast
     @State private var resizeSnapTask: Task<Void, Never>?
-    @State private var pendingPacks = PendingPackTracker()
     @State private var detailItem: Item?
     /// One packing tip at a time, the first whose rules pass
     @State private var tips = TipGroup(.firstAvailable) {
         ApplyTemplateTip()
         ReorderSectionsTip()
     }
+
+    private var pendingPacks: PendingPackTracker { editor.pendingPacks }
 
     /// Every page in order: All, each section, Add a Section
     private var pages: [FocusPage] {
@@ -116,7 +118,7 @@ struct FocusPackingView: View {
                     snap(to: .all, afterResize: true)
                     return
                 }
-                let listID = input.add.targetList.wrappedValue?.persistentModelID
+                let listID = editor.targetList?.persistentModelID
                     ?? input.lists.first?.persistentModelID
                 let focus = listID.map(FocusPage.list) ?? .addSection
                 // Snap (not setPage): the pager may not be laid out yet, and snap retries once it is.
@@ -140,15 +142,15 @@ struct FocusPackingView: View {
         .onChange(of: currentPage) {
             syncTargetToPage()
         }
-        .onChange(of: input.add.targetList.wrappedValue?.persistentModelID) { _, id in
+        .onChange(of: editor.targetList?.persistentModelID) { _, id in
             // The accessory bar's section picker (or a trailing page's Add Item) brings that section on screen
             if let id, !listIDsOnScreen.contains(id) {
                 withAnimation(.smooth) { setPage(.list(id)) }
             }
         }
-        .onChange(of: input.add.isAdding) { _, isAdding in
+        .onChange(of: editor.isAdding) { _, isAdding in
             // The bottom bar's + from the "Add a List" page: bring the target section back on screen
-            if isAdding, let id = input.add.targetList.wrappedValue?.persistentModelID,
+            if isAdding, let id = editor.targetList?.persistentModelID,
                !listIDsOnScreen.contains(id) {
                 withAnimation(.smooth) { setPage(.list(id)) }
             }
@@ -356,7 +358,7 @@ struct FocusPackingView: View {
     /// New items (and the bottom bar's +) go to a section that's on screen: keep the target while
     /// it's still visible, otherwise follow the first section page showing
     private func syncTargetToPage() {
-        if let target = input.add.targetList.wrappedValue?.persistentModelID,
+        if let target = editor.targetList?.persistentModelID,
            listIDsOnScreen.contains(target) {
             return
         }
@@ -367,12 +369,12 @@ struct FocusPackingView: View {
     }
 
     private func setTarget(_ list: PackingList) {
-        guard list.persistentModelID != input.add.targetList.wrappedValue?.persistentModelID else { return }
-        if input.add.isAdding {
+        guard list.persistentModelID != editor.targetList?.persistentModelID else { return }
+        if editor.isAdding {
             // Saves anything typed for the previous section, then moves the row here
-            input.add.start(list)
+            editor.startAdding(in: list)
         } else {
-            input.add.targetList.wrappedValue = list
+            editor.targetList = list
         }
     }
 
@@ -403,6 +405,8 @@ private struct FocusBagRail: View {
     let onSelect: (PackingList) -> Void
     /// Moves a section to a slot among the other sections
     let onMove: (PackingList, Int) -> Void
+
+    @Environment(PackingEditor.self) private var editor
 
     private static let coordinateSpace = "focusBagRail"
     /// Dragging this close to either edge scrolls the rail
@@ -491,8 +495,8 @@ private struct FocusBagRail: View {
             label
         }
         .buttonStyle(PressableCardStyle(scale: 0.94))
-        .modifier(ChipReorderDrag(list: list, isEnabled: !input.isRemovingItems, draggingList: $draggingList) { label })
-        .accessibilityHint(input.isRemovingItems ? "" : "Hold and drag to reorder")
+        .modifier(ChipReorderDrag(list: list, isEnabled: !editor.isRemovingItems, draggingList: $draggingList) { label })
+        .accessibilityHint(editor.isRemovingItems ? "" : "Hold and drag to reorder")
         .accessibilityActions {
             Button("Edit List") { input.onEditList(list) }
             if let index = index(of: list) {
@@ -521,7 +525,7 @@ private struct FocusBagRail: View {
         }
         .buttonStyle(.plain)
         .popoverTip(currentTip as? ApplyTemplateTip, arrowEdge: .top)
-        .disabled(input.isRemovingItems)
+        .disabled(editor.isRemovingItems)
         .accessibilityLabel("Add List")
         .accessibilityAddTraits(isAddPageVisible ? .isSelected : [])
     }
@@ -688,6 +692,7 @@ private struct ColumnSeparator: View {
 /// The last page: swipe past the final section to add another
 private struct FocusAddSectionPage: View {
     let input: FocusPackingInput
+    @Environment(PackingEditor.self) private var editor
 
     var body: some View {
         VStack(spacing: 16) {
@@ -709,7 +714,7 @@ private struct FocusAddSectionPage: View {
                 EmptyStateButton(title: "New List", systemImage: "plus", isProminent: false, action: input.onCreateList)
             }
             .padding(.top, 8)
-            .disabled(input.isRemovingItems)
+            .disabled(editor.isRemovingItems)
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -726,13 +731,14 @@ private struct FocusBagPage: View {
     let onShowDetails: (Item) -> Void
     let onGoTo: (PackingList) -> Void
 
+    @Environment(PackingEditor.self) private var editor
     @State private var scrollTask: Task<Void, Never>?
 
     var body: some View {
         let items = input.items(in: list)
         // Remove Items mode lists packed items as cards too, so they can be removed
-        let unpacked = input.isRemovingItems ? items : pendingPacks.visibleUnpacked(items)
-        let packed = input.isRemovingItems ? [] : pendingPacks.settledPacked(items)
+        let unpacked = editor.isRemovingItems ? items : pendingPacks.visibleUnpacked(items)
+        let packed = editor.isRemovingItems ? [] : pendingPacks.settledPacked(items)
         let packedCount = items.filter(\.isPacked).count
         let isComplete = !items.isEmpty && packedCount == items.count
 
@@ -773,7 +779,7 @@ private struct FocusBagPage: View {
                         .frame(height: 160)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            if !input.isRemovingItems { input.add.tapEmpty(list) }
+                            if !editor.isRemovingItems { editor.handleTapOnEmptyArea(in: list) }
                         }
                         .accessibilityHidden(true)
                 }
@@ -783,11 +789,11 @@ private struct FocusBagPage: View {
                 .animation(.packingSpring, value: isComplete)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: input.add.isTarget(list)) { _, isTarget in
+            .onChange(of: editor.isTarget(list)) { _, isTarget in
                 if isTarget { scrollToNewRow(proxy) }
             }
             .onChange(of: items.count) {
-                if input.add.isTarget(list) { scrollToNewRow(proxy) }
+                if editor.isTarget(list) { scrollToNewRow(proxy) }
             }
         }
         .sensoryFeedback(.success, trigger: isComplete) { wasComplete, isComplete in
@@ -892,18 +898,19 @@ private struct FocusBagPage: View {
 private struct FocusSectionMenu: View {
     let list: PackingList
     let input: FocusPackingInput
+    @Environment(PackingEditor.self) private var editor
 
     var body: some View {
-        if !input.isRemovingItems {
-            Button("New Item", systemImage: "plus") { input.add.start(list) }
+        if !editor.isRemovingItems {
+            Button("New Item", systemImage: "plus") { editor.startAdding(in: list) }
         }
         Button("Edit List", systemImage: "pencil") { input.onEditList(list) }
         // Lists made on the trip; ones from a template save back through trip review instead
-        if list.isNewTemplateCandidate && !input.isRemovingItems {
+        if list.isNewTemplateCandidate && !editor.isRemovingItems {
             Button("Save as Template", systemImage: "plus.square.on.square") { input.onSaveAsTemplate(list) }
         }
-        if !input.isRemovingItems {
-            Button("Remove Items", systemImage: "minus.circle", action: input.onStartRemovingItems)
+        if !editor.isRemovingItems {
+            Button("Remove Items", systemImage: "minus.circle", action: editor.startRemoving)
         }
         Divider()
         Button("Delete List", systemImage: "trash", role: .destructive) { input.onDeleteList(list) }
@@ -913,6 +920,7 @@ private struct FocusSectionMenu: View {
 /// A section's unpacked item cards followed by its add card (inline new item row or dashed button)
 private struct FocusSectionItems: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(PackingEditor.self) private var editor
 
     let list: PackingList
     let unpacked: [Item]
@@ -929,7 +937,7 @@ private struct FocusSectionItems: View {
             ForEach(unpacked) { item in
                 FocusItemCard(
                     item: item,
-                    isRemoving: input.isRemovingItems,
+                    isRemoving: editor.isRemovingItems,
                     showsPacker: input.hasMultiplePackers,
                     otherLists: otherLists,
                     onToggle: { pendingPacks.toggle(item) },
@@ -940,7 +948,7 @@ private struct FocusSectionItems: View {
                     onDelete: {
                         withAnimation(.packingSpring) { modelContext.delete(item) }
                     },
-                    onRemove: { input.onRemoveItem(item) }
+                    onRemove: { editor.remove(item) }
                 )
                 .transition(.asymmetric(
                     insertion: .opacity,
@@ -948,7 +956,7 @@ private struct FocusSectionItems: View {
                 ))
             }
 
-            if !input.isRemovingItems {
+            if !editor.isRemovingItems {
                 addCard
             }
         }
@@ -957,18 +965,18 @@ private struct FocusSectionItems: View {
     /// The inline new item row in this section, otherwise a dashed card that starts one
     @ViewBuilder
     private var addCard: some View {
-        if input.add.isTarget(list) && showsInlineRow {
+        if editor.isTarget(list) && showsInlineRow {
             HStack(spacing: 12) {
                 PackCheckbox(isPacked: false, size: 22)
                     .opacity(0.6)
                 PersistentTextField(
-                    text: input.add.name,
-                    isFocused: input.add.isFocused,
+                    text: Bindable(editor).name,
+                    isFocused: Bindable(editor).isFieldFocused,
                     placeholder: "New Item",
-                    onSubmit: input.add.submit
+                    onSubmit: { editor.addAndContinue() }
                 )
-                if input.add.count > 1 {
-                    Text("×\(input.add.count)")
+                if editor.count > 1 {
+                    Text("×\(editor.count)")
                         .font(.subheadline.weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
@@ -984,7 +992,7 @@ private struct FocusSectionItems: View {
             .id(NewItemRow.scrollID(for: list))
         } else {
             Button {
-                input.add.start(list)
+                editor.startAdding(in: list)
             } label: {
                 Label("Add Item", systemImage: "plus")
                     .font(.body.weight(.medium))
@@ -1051,6 +1059,7 @@ private struct FocusAllItemsPage: View {
     let pendingPacks: PendingPackTracker
     let onShowDetails: (Item) -> Void
 
+    @Environment(PackingEditor.self) private var editor
     @State private var scrollTask: Task<Void, Never>?
 
     var body: some View {
@@ -1063,8 +1072,8 @@ private struct FocusAllItemsPage: View {
 
                     ForEach(input.lists) { list in
                         let items = input.items(in: list)
-                        let unpacked = input.isRemovingItems ? items : pendingPacks.visibleUnpacked(items)
-                        let packed = input.isRemovingItems ? [] : pendingPacks.settledPacked(items)
+                        let unpacked = editor.isRemovingItems ? items : pendingPacks.visibleUnpacked(items)
+                        let packed = editor.isRemovingItems ? [] : pendingPacks.settledPacked(items)
 
                         Section {
                             FocusSectionItems(
@@ -1091,7 +1100,7 @@ private struct FocusAllItemsPage: View {
                         .frame(height: 160)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            if !input.isRemovingItems { input.add.tapEmpty(nil) }
+                            if !editor.isRemovingItems { editor.handleTapOnEmptyArea(in: nil) }
                         }
                         .accessibilityHidden(true)
                 }
@@ -1099,15 +1108,15 @@ private struct FocusAllItemsPage: View {
                 .padding(.vertical, 12)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: input.add.isAdding) { _, isAdding in
+            .onChange(of: editor.isAdding) { _, isAdding in
                 if isAdding { scrollToNewRow(proxy) }
             }
-            .onChange(of: input.add.targetList.wrappedValue?.persistentModelID) {
-                if input.add.isAdding { scrollToNewRow(proxy) }
+            .onChange(of: editor.targetList?.persistentModelID) {
+                if editor.isAdding { scrollToNewRow(proxy) }
             }
             .onChange(of: input.lists.reduce(0) { $0 + ($1.items?.count ?? 0) }) {
                 // Return added an item: keep the new row above the keyboard
-                if input.add.isAdding { scrollToNewRow(proxy) }
+                if editor.isAdding { scrollToNewRow(proxy) }
             }
         }
     }
@@ -1128,7 +1137,7 @@ private struct FocusAllItemsPage: View {
     }
 
     private func scrollToNewRow(_ proxy: ScrollViewProxy) {
-        guard let target = input.add.targetList.wrappedValue else { return }
+        guard let target = editor.targetList else { return }
         scrollTask?.cancel()
         scrollTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(150))

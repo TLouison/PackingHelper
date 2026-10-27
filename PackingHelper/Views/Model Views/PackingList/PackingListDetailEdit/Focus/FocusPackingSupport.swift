@@ -21,26 +21,8 @@ enum PackingStartPage: String, CaseIterable {
 
 // MARK: - Input
 
-/// Inline add-item state owned by PackingListContainerView (the accessory bar above the
-/// keyboard edits count, packer, and target section)
-struct PackingAddFlow {
-    let isAdding: Bool
-    let targetList: Binding<PackingList?>
-    let name: Binding<String>
-    let isFocused: Binding<Bool>
-    let count: Int
-    /// Return key: save and keep the row open
-    let submit: () -> Void
-    /// Start adding in a section (nil = current target)
-    let start: (PackingList?) -> Void
-    /// Blank space: finish adding if active, otherwise start in that section
-    let tapEmpty: (PackingList?) -> Void
-
-    func isTarget(_ list: PackingList) -> Bool {
-        isAdding && targetList.wrappedValue?.persistentModelID == list.persistentModelID
-    }
-}
-
+/// What the container hands FocusPackingView. Add, Remove Items, and check-off state lives in
+/// `PackingEditor` (environment).
 struct FocusPackingInput {
     let trip: Trip
     /// Sections in display order
@@ -48,7 +30,6 @@ struct FocusPackingInput {
     let users: [User]?
     /// Packer filter from the container's user selector
     let selectedUser: User?
-    let add: PackingAddFlow
     let onEditList: (PackingList) -> Void
     let onCreateList: () -> Void
     let onApplyTemplate: () -> Void
@@ -56,11 +37,6 @@ struct FocusPackingInput {
     let onDeleteList: (PackingList) -> Void
     /// Asks for a name, then saves a list made on the trip as a new template
     let onSaveAsTemplate: (PackingList) -> Void
-    /// Remove Items mode: cards swap their checkbox for a remove button; packing and adding are off
-    let isRemovingItems: Bool
-    let onStartRemovingItems: () -> Void
-    /// Deletes right away; the toolbar's Undo puts it back
-    let onRemoveItem: (Item) -> Void
 
     var hasMultiplePackers: Bool {
         (users?.count ?? 0) > 1

@@ -5,6 +5,7 @@
 //  Container that renders the packing screen.
 //  Trip context: FocusPackingView (one page per section, swipe between).
 //  Single-list context: inline template editor.
+//  Editing state and actions live in PackingEditor.
 //
 //  Created by Claude on 1/11/26.
 //
@@ -25,7 +26,15 @@ struct PackingListContainerView: View {
     let users: [User]?
     let title: String?
 
+    /// Add, Remove Items, template editing, and check-off state (shared with the Focus pages)
+    @State private var editor: PackingEditor
     @State private var editingList: PackingList? = nil
+    @State private var showingAddListSheet: Bool = false
+    @State private var isApplyingDefaultPackingList: Bool = false
+    @State private var isShowingListSettings: Bool = false
+    @State private var isShowingTemplateInfo: Bool = false
+    @State private var showingAIAssistant: Bool = false
+    @State private var showingAIPaywall: Bool = false
     @State private var listToDelete: PackingList? = nil
     /// Trip list being saved as a new template (name asked in an alert)
     @State private var listToSaveAsTemplate: PackingList?
@@ -33,19 +42,9 @@ struct PackingListContainerView: View {
     @State private var savedTemplateCount = 0
     @Query(sort: \User.created) private var allUsers: [User]
     @Query(filter: #Predicate<PackingList> { $0.template }) private var templates: [PackingList]
-    @State private var showingAddListSheet: Bool = false
-    @State private var isApplyingDefaultPackingList: Bool = false
-    @State private var isAddingNewItem: Bool = false
     @State private var selectedUser: User?
 
-    // Remove Items mode (trip context): tap a card's minus to delete it right away
-    @State private var isRemovingItems: Bool = false
-    /// Items deleted in Remove Items mode, newest last; Undo puts back the last one
-    @State private var removedItems: [RemovedItem] = []
-
     // AI assistant (trip context only)
-    @State private var showingAIAssistant: Bool = false
-    @State private var showingAIPaywall: Bool = false
     /// Show the paywall once the assistant sheet finishes dismissing (two
     /// sheets can't present back-to-back in the same update).
     @State private var showPaywallAfterAIDismiss: Bool = false
@@ -57,24 +56,9 @@ struct PackingListContainerView: View {
     /// Replaced on each fresh open.
     @State private var assistantViewModel = AIAssistantViewModel()
 
-    // Centralized add-item state
-    @State private var newItemName = ""
-    @State private var newItemCount = 1
-    @State private var newItemUser: User? = nil
-    @State private var newItemList: PackingList? = nil
-    @State private var newItemFieldFocused = false
-    @State private var scrollToPlaceholder = false
-    /// Delayed work for the add flow; replaced (and cancelled) when it is scheduled again
-    @State private var finishAddingTask: Task<Void, Never>?
-    @State private var scrollTask: Task<Void, Never>?
-
     // Single list mode state
-    @State private var isShowingListSettings: Bool = false
-    @State private var isShowingTemplateInfo: Bool = false
     @State private var isDeleted: Bool = false
-
-    // Single list mode item editing (trip context manages this inside FocusPackingView)
-    @State private var singleListEditingItemId: PersistentIdentifier? = nil
+    @State private var singleListScrollTask: Task<Void, Never>?
 
     // MARK: - Initializers
 
@@ -83,6 +67,7 @@ struct PackingListContainerView: View {
         self.context = .singleList(packingList)
         self.users = nil
         self.title = packingList.name
+        _editor = State(initialValue: PackingEditor(context: .singleList(packingList)))
     }
 
     /// Initialize with a trip
@@ -90,17 +75,13 @@ struct PackingListContainerView: View {
         self.context = .trip(trip)
         self.users = users
         self.title = title
+        _editor = State(initialValue: PackingEditor(context: .trip(trip)))
     }
 
     // MARK: - Computed Properties
 
     private var lists: [PackingList] {
-        if let trip = context.trip {
-            return trip.lists ?? []
-        } else if let singleList = context.singleList {
-            return [singleList]
-        }
-        return []
+        editor.lists
     }
 
     private var hasMultiplePackers: Bool {
@@ -121,10 +102,12 @@ struct PackingListContainerView: View {
             packingListView
         }
         .safeAreaInset(edge: .bottom) {
-            if isAddingNewItem {
+            if editor.isAdding {
                 newItemAccessoryBar
             }
         }
+        // Outside the inset so the accessory bar and the pages both read the editor
+        .environment(editor)
         .navigationTitle(title ?? "Packing")
         .navigationBarTitleDisplayMode(context.isTrip ? .inline : .large)
         .sheet(item: $editingList) { list in
@@ -143,7 +126,7 @@ struct PackingListContainerView: View {
                     packingList: nil,
                     trip: trip,
                     onListCreated: { newList in
-                        newItemList = newList
+                        editor.targetList = newList
                     }, isDeleted: .constant(false),
                     fitsContent: true
                 )
@@ -181,7 +164,7 @@ struct PackingListContainerView: View {
                     viewModel: assistantViewModel,
                     trip: trip,
                     users: users,
-                    targetUser: $newItemUser,
+                    targetUser: Bindable(editor).user,
                     onSubscriptionLapsed: {
                         showPaywallAfterAIDismiss = true
                         showingAIAssistant = false
@@ -236,36 +219,25 @@ struct PackingListContainerView: View {
         .onChange(of: isDeleted) {
             dismiss()
         }
-        .onChange(of: newItemFieldFocused) { _, isFocused in
-            guard !isFocused && isAddingNewItem else { return }
-            // Focus drops briefly when the inline row moves to another section,
-            // so only finish if it is still unfocused after the row has re-rendered
-            finishAddingTask?.cancel()
-            finishAddingTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
-                guard !Task.isCancelled else { return }
-                if !newItemFieldFocused && isAddingNewItem {
-                    finishAddingNewItem()
-                }
-            }
+        .onChange(of: editor.isFieldFocused) { _, isFocused in
+            editor.focusChanged(to: isFocused)
         }
         .toolbar {
             containerToolbar
         }
-        .sensoryFeedback(.impact(weight: .light), trigger: removedItems.count)
+        .sensoryFeedback(.impact(weight: .light), trigger: editor.removedItems.count)
         .onAppear {
+            editor.configure(modelContext: modelContext)
             // Only seed on first appearance so returning to this view keeps the user's picks
-            if newItemUser == nil {
-                newItemUser = selectedUser ?? users?.first
+            if editor.user == nil {
+                editor.user = selectedUser ?? users?.first
             }
-            if resolvedNewItemList == nil {
-                newItemList = fallbackNewItemList
-            }
+            editor.resetTargetListIfNeeded()
         }
         .onChange(of: selectedUser) { _, user in
             // Keep new items assigned to the packer being filtered on, otherwise they vanish on add
             if let user {
-                newItemUser = user
+                editor.user = user
             }
         }
         .onChange(of: horizontalSizeClass) { _, sizeClass in
@@ -285,88 +257,8 @@ struct PackingListContainerView: View {
         }
         .onChange(of: lists.map(\.persistentModelID)) {
             // The target section was deleted; fall back so we never insert into a deleted list
-            if resolvedNewItemList == nil {
-                newItemList = fallbackNewItemList
-            }
+            editor.resetTargetListIfNeeded()
         }
-    }
-
-    /// `newItemList` if it still belongs to this trip and hasn't been deleted
-    private var resolvedNewItemList: PackingList? {
-        guard let newItemList, !newItemList.isDeleted,
-              lists.contains(where: { $0.persistentModelID == newItemList.persistentModelID }) else {
-            return nil
-        }
-        return newItemList
-    }
-
-    private var fallbackNewItemList: PackingList? {
-        lists.first(where: { $0.isDefault }) ?? sortedLists.first
-    }
-
-    /// Lists in the same order as the sections in `FocusPackingView`
-    private var sortedLists: [PackingList] {
-        PackingList.sorted(lists, sortOrder: .byCustomOrder)
-    }
-
-    // MARK: - New Item Accessory Bar
-
-    /// Sits directly above the keyboard while the inline new item row is focused
-    private var newItemAccessoryBar: some View {
-        HStack(spacing: 8) {
-            if context.isTrip {
-                listPickerMenu
-            }
-
-            if hasMultiplePackers {
-                UserPickerView(
-                    selectedUser: $newItemUser,
-                    style: .menu,
-                    allowAll: false
-                )
-            }
-
-            Spacer()
-
-            ItemCountStepper(count: $newItemCount)
-                .padding(.horizontal, 4)
-                .opaqueGlassCapsule()
-        }
-        .padding(.horizontal)
-        .padding(.bottom, 8)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-    }
-
-    private var listPickerMenu: some View {
-        Menu {
-            ForEach(sortedLists, id: \.id) { list in
-                Button {
-                    newItemList = list
-                } label: {
-                    if list.id == newItemList?.id {
-                        Label(list.name, systemImage: "checkmark")
-                    } else {
-                        ListMenuLabel(list: list)
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "list.bullet")
-                    .font(.caption)
-                Text(resolvedNewItemList?.name ?? "Select List")
-                    .fontWeight(.medium)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .opaqueGlassCapsule()
-        }
-        // Menus opening upward from the bottom reverse their items by default; keep section order
-        .menuOrder(.fixed)
-        .disabled(lists.count <= 1)
     }
 
     private var packingListView: some View {
@@ -387,41 +279,14 @@ struct PackingListContainerView: View {
         }
     }
 
-    @ViewBuilder
-    private func assistantPanel(trip: Trip) -> some View {
-        if isAssistantPanelMounted {
-            AIAssistantSheet(
-                viewModel: assistantViewModel,
-                trip: trip,
-                users: users,
-                targetUser: $newItemUser,
-                onSubscriptionLapsed: {
-                    closeAssistantPanel()
-                    showingAIPaywall = true
-                },
-                onClose: closeAssistantPanel
-            )
-        }
-    }
-
     // MARK: - Trip Packing
 
     private func tripPackingInput(trip: Trip) -> FocusPackingInput {
         FocusPackingInput(
             trip: trip,
-            lists: sortedLists,
+            lists: editor.sortedLists,
             users: users,
             selectedUser: selectedUser,
-            add: PackingAddFlow(
-                isAdding: isAddingNewItem,
-                targetList: $newItemList,
-                name: $newItemName,
-                isFocused: $newItemFieldFocused,
-                count: newItemCount,
-                submit: addNewItemAndContinue,
-                start: startAddingNewItem(in:),
-                tapEmpty: handleTapOnEmptyArea(in:)
-            ),
             onEditList: { editingList = $0 },
             onCreateList: { showingAddListSheet = true },
             onApplyTemplate: { isApplyingDefaultPackingList = true },
@@ -429,10 +294,7 @@ struct PackingListContainerView: View {
             onSaveAsTemplate: { list in
                 newTemplateName = list.name
                 listToSaveAsTemplate = list
-            },
-            isRemovingItems: isRemovingItems,
-            onStartRemovingItems: startRemovingItems,
-            onRemoveItem: removeItem
+            }
         )
     }
 
@@ -458,6 +320,115 @@ struct PackingListContainerView: View {
         }
     }
 
+    // MARK: - Assistant Panel
+
+    @ViewBuilder
+    private func assistantPanel(trip: Trip) -> some View {
+        if isAssistantPanelMounted {
+            AIAssistantSheet(
+                viewModel: assistantViewModel,
+                trip: trip,
+                users: users,
+                targetUser: Bindable(editor).user,
+                onSubscriptionLapsed: {
+                    closeAssistantPanel()
+                    showingAIPaywall = true
+                },
+                onClose: closeAssistantPanel
+            )
+        }
+    }
+
+    /// Reduce Motion swaps the panel slide for an instant change
+    private var assistantPanelAnimation: Animation? {
+        reduceMotion ? nil : .smooth(duration: 0.45)
+    }
+
+    /// Slides the assistant in from the right, pushing the packed column off the left edge
+    private func openAssistantPanel() {
+        // Reopened mid-slide-out: keep the conversation that's still on screen
+        if !isAssistantPanelMounted {
+            assistantViewModel = AIAssistantViewModel()
+        }
+        isAssistantPanelMounted = true
+        withAnimation(assistantPanelAnimation) {
+            isShowingAssistantPanel = true
+        }
+    }
+
+    private func closeAssistantPanel() {
+        withAnimation(assistantPanelAnimation) {
+            isShowingAssistantPanel = false
+        } completion: {
+            // Reopened mid-slide: keep the chat
+            if !isShowingAssistantPanel {
+                isAssistantPanelMounted = false
+            }
+        }
+    }
+
+    // MARK: - New Item Accessory Bar
+
+    /// Sits directly above the keyboard while the inline new item row is focused
+    private var newItemAccessoryBar: some View {
+        HStack(spacing: 8) {
+            if context.isTrip {
+                listPickerMenu
+            }
+
+            if hasMultiplePackers {
+                UserPickerView(
+                    selectedUser: Bindable(editor).user,
+                    style: .menu,
+                    allowAll: false
+                )
+            }
+
+            Spacer()
+
+            ItemCountStepper(count: Bindable(editor).count)
+                .padding(.horizontal, 4)
+                .opaqueGlassCapsule()
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var listPickerMenu: some View {
+        Menu {
+            ForEach(editor.sortedLists, id: \.id) { list in
+                Button {
+                    editor.targetList = list
+                } label: {
+                    if list.id == editor.targetList?.id {
+                        Label(list.name, systemImage: "checkmark")
+                    } else {
+                        ListMenuLabel(list: list)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "list.bullet")
+                    .font(.caption)
+                Text(editor.resolvedTargetList?.name ?? "Select List")
+                    .fontWeight(.medium)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .opaqueGlassCapsule()
+        }
+        // Menus opening upward from the bottom reverse their items by default; keep section order
+        .menuOrder(.fixed)
+        .disabled(editor.lists.count <= 1)
+    }
+
+    // MARK: - Single List
+
     private func singleListView(list: PackingList) -> some View {
         let items = Item.sorted(list.items ?? [], sortOrder: .byCustomOrder)
 
@@ -471,16 +442,16 @@ struct PackingListContainerView: View {
                 .padding(4)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: isAddingNewItem) { _, isAdding in
+            .onChange(of: editor.isAdding) { _, isAdding in
                 if isAdding {
                     withAnimation { proxy.scrollTo(NewItemRow.scrollID(for: list), anchor: .bottom) }
                 }
             }
-            .onChange(of: scrollToPlaceholder) { _, shouldScroll in
+            .onChange(of: editor.scrollToPlaceholder) { _, shouldScroll in
                 guard shouldScroll else { return }
-                scrollToPlaceholder = false
-                scrollTask?.cancel()
-                scrollTask = Task { @MainActor in
+                editor.scrollToPlaceholder = false
+                singleListScrollTask?.cancel()
+                singleListScrollTask = Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(200))
                     guard !Task.isCancelled else { return }
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -496,55 +467,53 @@ struct PackingListContainerView: View {
     private func singleListContent(list: PackingList, items: [Item]) -> some View {
         ReorderableItemsSection(
             items: items,
-            editingItemId: $singleListEditingItemId,
-            onUpdateItem: updateSingleListItem,
-            onDeleteItem: { item in
-                withAnimation(.packingSpring) { modelContext.delete(item) }
-            },
+            editingItemId: Bindable(editor).editingItemId,
+            onUpdateItem: { editor.updateItem($0, name: $1, count: $2) },
+            onDeleteItem: { editor.deleteItem($0) },
             onReorder: { item, newIndex in
-                withAnimation(.packingSpring) {
-                    SortOrderManager.reorderItems(in: list, moving: item, to: newIndex)
-                }
+                editor.reorderItem(item, in: list, to: newIndex)
             }
         )
 
-        if isAddingNewItem {
+        if editor.isAdding {
             NewItemRow(
-                itemName: $newItemName,
-                isFocused: $newItemFieldFocused,
-                itemCount: newItemCount,
-                onSubmitReturn: addNewItemAndContinue,
+                itemName: Bindable(editor).name,
+                isFocused: Bindable(editor).isFieldFocused,
+                itemCount: editor.count,
+                onSubmitReturn: { editor.addAndContinue() },
                 onDeleteEmpty: {
                     // Backspace on the empty new row moves editing up to the last item
                     if let lastItem = items.last {
-                        singleListEditingItemId = lastItem.persistentModelID
+                        editor.editingItemId = lastItem.persistentModelID
                     }
                 }
             )
             .id(NewItemRow.scrollID(for: list))
         }
 
-        if items.isEmpty && !isAddingNewItem {
+        if items.isEmpty && !editor.isAdding {
             EmptyStateView()
                 .padding(.top, 60)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
-                .onTapGesture { handleTapOnEmptyArea(in: nil) }
+                .onTapGesture { editor.handleTapOnEmptyArea(in: nil) }
         }
     }
 
     /// Blank space below the list: tap to add, or to finish adding
     private var singleListTapZone: some View {
         AddItemTapZone(minHeight: 120) {
-            handleTapOnEmptyArea(in: nil)
+            editor.handleTapOnEmptyArea(in: nil)
         }
     }
 
+    // MARK: - Toolbar
+
     @ToolbarContentBuilder
     private var containerToolbar: some ToolbarContent {
-        if isRemovingItems {
+        if editor.isRemovingItems {
             removingItemsToolbar
-        } else if isAddingNewItem {
+        } else if editor.isAdding {
             addingItemToolbar
         } else if context.isTrip {
             tripToolbar
@@ -563,7 +532,7 @@ struct PackingListContainerView: View {
             ToolbarSpacer(placement: .bottomBar)
             ToolbarItem(placement: .bottomBar) {
                 Button("Add Item", systemImage: "plus") {
-                    startAddingNewItem(in: nil)
+                    editor.startAdding(in: nil)
                 }
             }
         }
@@ -573,7 +542,7 @@ struct PackingListContainerView: View {
     private var addingItemToolbar: some ToolbarContent {
         ToolbarItem(placement: .confirmationAction) {
             // Title + symbol so the system has a name to show in overflow menus and expanded bars
-            Button { finishAddingNewItem() } label: {
+            Button { editor.finishAdding() } label: {
                 Label("Done", systemImage: "checkmark")
                     .fontWeight(.semibold)
             }
@@ -583,13 +552,13 @@ struct PackingListContainerView: View {
     @ToolbarContentBuilder
     private var removingItemsToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Button("Undo", systemImage: "arrow.uturn.backward", action: undoRemoveItem)
-                .disabled(removedItems.isEmpty)
-                .accessibilityHint(removedItems.last.map { "Puts back \($0.name)" } ?? "")
+            Button("Undo", systemImage: "arrow.uturn.backward", action: editor.undoRemove)
+                .disabled(editor.removedItems.isEmpty)
+                .accessibilityHint(editor.removedItems.last.map { "Puts back \($0.name)" } ?? "")
         }
         ToolbarItem(placement: .confirmationAction) {
             Button {
-                withAnimation(.packingSpring) { isRemovingItems = false }
+                editor.stopRemoving()
             } label: {
                 Label("Done", systemImage: "checkmark")
                     .fontWeight(.semibold)
@@ -652,54 +621,6 @@ struct PackingListContainerView: View {
         }
     }
 
-    // MARK: - Assistant Panel
-
-    /// Reduce Motion swaps the panel slide for an instant change
-    private var assistantPanelAnimation: Animation? {
-        reduceMotion ? nil : .smooth(duration: 0.45)
-    }
-
-    /// Slides the assistant in from the right, pushing the packed column off the left edge
-    private func openAssistantPanel() {
-        // Reopened mid-slide-out: keep the conversation that's still on screen
-        if !isAssistantPanelMounted {
-            assistantViewModel = AIAssistantViewModel()
-        }
-        isAssistantPanelMounted = true
-        withAnimation(assistantPanelAnimation) {
-            isShowingAssistantPanel = true
-        }
-    }
-
-    private func closeAssistantPanel() {
-        withAnimation(assistantPanelAnimation) {
-            isShowingAssistantPanel = false
-        } completion: {
-            // Reopened mid-slide: keep the chat
-            if !isShowingAssistantPanel {
-                isAssistantPanelMounted = false
-            }
-        }
-    }
-
-    // MARK: - Add Item Actions
-
-    /// Shows the inline new item row in `list` (or the current target list) and focuses it
-    private func startAddingNewItem(in list: PackingList?) {
-        // Items need a section; with none, the Add a Section page is the way forward
-        guard !(context.isTrip && lists.isEmpty) else { return }
-        if let list, list.persistentModelID != newItemList?.persistentModelID {
-            // Save anything typed for the previous list before the row moves
-            insertNewItem()
-            newItemList = list
-        }
-        newItemFieldFocused = true
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-            isAddingNewItem = true
-        }
-    }
-
-    /// Reminders-style: tapping blank space finishes the current entry, or starts a new one
     /// Copies the list's names and counts into a new template and links the list to it
     private func saveAsTemplate(_ list: PackingList) {
         let name = newTemplateName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -707,94 +628,5 @@ struct PackingListContainerView: View {
         list.saveAsNewTemplate(named: name, owner: allUsers.first, in: modelContext)
         try? modelContext.save()
         savedTemplateCount += 1
-    }
-
-    private func handleTapOnEmptyArea(in list: PackingList?) {
-        if isAddingNewItem {
-            finishAddingNewItem()
-        } else {
-            startAddingNewItem(in: list)
-        }
-    }
-
-    /// Return key: save and keep the row open for the next item; Return on an empty row closes it
-    private func addNewItemAndContinue() {
-        guard !newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            finishAddingNewItem()
-            return
-        }
-        insertNewItem()
-        scrollToPlaceholder = true
-    }
-
-    /// Saves any typed text, then dismisses the keyboard before animating the row away
-    private func finishAddingNewItem() {
-        insertNewItem()
-        newItemFieldFocused = false
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-            newItemName = ""
-            newItemCount = 1
-            isAddingNewItem = false
-        }
-    }
-
-    private func insertNewItem() {
-        guard let list = context.isTrip ? (resolvedNewItemList ?? fallbackNewItemList) : context.singleList else { return }
-        let name = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-
-        withAnimation(.packingSpring) {
-            let newItem = Item(
-                name: name,
-                category: "",
-                count: newItemCount,
-                isPacked: false,
-                sortOrder: SortOrderManager.nextSortOrder(for: list)
-            )
-            newItem.user = context.isTrip ? newItemUser : nil
-            modelContext.insert(newItem)
-            list.addItem(newItem)
-
-            newItemName = ""
-            newItemCount = 1
-        }
-    }
-
-    // MARK: - Remove Items Actions
-
-    private func startRemovingItems() {
-        if isAddingNewItem {
-            finishAddingNewItem()
-        }
-        withAnimation(.packingSpring) { isRemovingItems = true }
-    }
-
-    private func removeItem(_ item: Item) {
-        if let removed = RemovedItem(item) {
-            removedItems.append(removed)
-        }
-        withAnimation(.packingSpring) { modelContext.delete(item) }
-    }
-
-    /// Puts back the most recently removed item whose section still exists
-    private func undoRemoveItem() {
-        while let removed = removedItems.popLast() {
-            guard !removed.list.isDeleted,
-                  lists.contains(where: { $0.persistentModelID == removed.list.persistentModelID })
-            else { continue }
-            withAnimation(.packingSpring) { removed.restore(in: modelContext) }
-            return
-        }
-    }
-
-    private func updateSingleListItem(_ item: Item, name: String, count: Int) {
-        withAnimation {
-            item.name = name
-            item.count = count
-            // Only clear if another row hasn't already taken over editing
-            if singleListEditingItemId == item.persistentModelID {
-                singleListEditingItemId = nil
-            }
-        }
     }
 }
