@@ -90,9 +90,10 @@ final class AIAssistantViewModel {
             save()
         } catch {
             // Take the message back out so the history never has two user turns in a row,
-            // and put it back in the composer to retry (e.g. after subscribing)
+            // and put typed text back in the composer to retry (e.g. after subscribing). Starter
+            // prompts stay out of it: their buttons come back with the empty state
             entries.removeAll { $0.id == userEntry.id }
-            if composerText.isEmpty { composerText = prompt }
+            if text == nil, composerText.isEmpty { composerText = prompt }
             if let error = error as? AIAssistantError {
                 handle(error)
             } else {

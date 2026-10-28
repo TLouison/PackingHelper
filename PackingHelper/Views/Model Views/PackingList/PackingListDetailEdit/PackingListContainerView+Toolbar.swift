@@ -72,7 +72,7 @@ extension PackingListContainerView {
         }
     }
 
-    /// Opens the assistant even without Plus: the chat shows the paywall over itself, so buying
+    /// Opens the assistant even without Plus: it hides the chat and opens the paywall, so buying
     /// lands the user in it. Trips at regular width get the side panel; everything else a sheet.
     private var assistantButton: some View {
         Button {
