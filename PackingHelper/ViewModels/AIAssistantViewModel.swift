@@ -4,8 +4,8 @@
 //
 //  Drives the AI packing chat for one trip or template: sends the running conversation and
 //  fresh context to the Worker, drops suggestions the user already has, inserts tapped
-//  suggestions into the user's lists, and saves the conversation (`AIConversation`) until the
-//  user starts a New Chat.
+//  suggestions into the user's lists, applies an offered template (trip only), and saves the
+//  conversation (`AIConversation`) until the user starts a New Chat.
 //
 
 import Foundation
@@ -20,8 +20,36 @@ final class AIAssistantViewModel {
         var text: String
         var suggestions: [AISuggestedItem]
         var addedNames: Set<String> = []
+        /// A template the reply offers to add to the trip
+        var template: TemplateOffer?
 
         enum Role: String, Codable { case user, assistant }
+    }
+
+    /// A template offered in a reply. Name, kind, and count are snapshots, so the row still
+    /// reads right if the template is renamed or deleted
+    struct TemplateOffer: Codable {
+        let templateID: UUID
+        let name: String
+        let kind: ListKind
+        let isDayOf: Bool
+        let itemCount: Int
+        let reason: String
+        var state: State
+
+        enum State: Codable, Equatable {
+            case pending
+            case added(newItems: Int)
+            case dismissed
+        }
+    }
+
+    /// How an offer row shows right now
+    enum TemplateOfferStatus: Equatable {
+        case available
+        case added(newItems: Int)
+        /// Deleted, another packer's, or applied by hand since; the caption says which
+        case unavailable(String)
     }
 
     /// The trip, or the template being built
@@ -38,6 +66,9 @@ final class AIAssistantViewModel {
     private(set) var subscriptionLapsed = false
     /// The packer new items go to; the sheet keeps it in sync with its picker (trip only)
     var targetUser: User?
+    /// Whether any template could be offered on this trip, for the "Do any of my templates
+    /// fit?" starter (`refreshTemplateCandidates()`)
+    private(set) var hasTemplateCandidates = false
 
     private var isPrepared = false
     private var weather: AIWeatherContext?
@@ -89,7 +120,8 @@ final class AIAssistantViewModel {
             entries.append(ChatEntry(
                 role: .assistant,
                 text: response.message,
-                suggestions: resolvingListIDs(freshSuggestions(response.items), sentLists: request.tripContext?.lists)
+                suggestions: resolvingListIDs(freshSuggestions(response.items), sentLists: request.tripContext?.lists),
+                template: templateOffer(response.template, sentCandidates: request.tripContext?.templateCandidates)
             ))
             remaining = response.remaining
             save()
@@ -113,6 +145,8 @@ final class AIAssistantViewModel {
         composerText = ""
         errorMessage = nil
         pastTripsSnapshot = nil
+        // Offers from the old chat no longer hold templates back
+        refreshTemplateCandidates()
         guard let conversation, let modelContext else { return }
         // Unlink first so a send before the next save makes a fresh conversation
         switch context {
@@ -120,6 +154,15 @@ final class AIAssistantViewModel {
         case .singleList(let list): list.aiConversation = nil
         }
         modelContext.delete(conversation)
+    }
+
+    /// Recomputes `hasTemplateCandidates`: on appear and when the packer changes (trip only)
+    func refreshTemplateCandidates() {
+        guard let trip = context.trip else {
+            hasTemplateCandidates = false
+            return
+        }
+        hasTemplateCandidates = !AITemplateCandidatesBuilder.build(for: trip, targetUser: targetUser, excluding: offeredTemplateIDs).isEmpty
     }
 
     /// Plus became active (bought from the paywall over the chat)
@@ -160,7 +203,78 @@ final class AIAssistantViewModel {
         return addedHere || alreadyHas(suggestion)
     }
 
+    // MARK: - Template offers
+
+    func templateOfferStatus(for offer: TemplateOffer) -> TemplateOfferStatus {
+        switch offer.state {
+        case .added(let newItems):
+            return .added(newItems: newItems)
+        case .pending, .dismissed:
+            guard let trip = context.trip, let template = template(withID: offer.templateID) else {
+                return .unavailable("No longer available")
+            }
+            switch AITemplateCandidatesBuilder.unavailableReason(for: template, on: trip, targetUser: targetUser) {
+            case .alreadyOnTrip: return .unavailable("Already on this trip")
+            case .gone: return .unavailable("No longer available")
+            case nil: return .available
+            }
+        }
+    }
+
+    /// Applies the offered template as a new list, skipping items the packer already has.
+    /// Nothing is added when every item is covered
+    func addTemplate(from entryID: UUID) {
+        guard let index = entries.firstIndex(where: { $0.id == entryID }),
+              let offer = entries[index].template, offer.state == .pending,
+              templateOfferStatus(for: offer) == .available,
+              let trip = context.trip, let modelContext,
+              let template = template(withID: offer.templateID) else { return }
+
+        let recipient = AITemplateCandidatesBuilder.recipient(of: template, targetUser: targetUser)
+        let existing = Set(AITripContextBuilder.itemsBelonging(to: recipient, in: trip).map { AITripContextBuilder.matchKey($0.name) })
+        let added = PackingList.apply(template, to: trip, packer: targetUser, skipping: existing, in: modelContext)
+        entries[index].template?.state = .added(newItems: added)
+        save()
+    }
+
+    /// Not Now: hides the offer, and the template isn't offered again in this chat
+    func dismissTemplate(from entryID: UUID) {
+        guard let index = entries.firstIndex(where: { $0.id == entryID }),
+              entries[index].template?.state == .pending else { return }
+        entries[index].template?.state = .dismissed
+        save()
+    }
+
     // MARK: - Private
+
+    /// Every template offered in this chat, in any state; they're never offered again
+    private var offeredTemplateIDs: Set<UUID> {
+        Set(entries.compactMap { $0.template?.templateID })
+    }
+
+    private func template(withID id: UUID) -> PackingList? {
+        guard let modelContext = modelContext ?? context.trip?.modelContext else { return nil }
+        var descriptor = FetchDescriptor<PackingList>(predicate: #Predicate { $0.uuid == id && $0.template == true })
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
+    }
+
+    /// Keeps the reply's template only if it names a candidate from the request that got it.
+    /// The model can only pick a pre-filtered template, so this just guards against a bad id
+    private func templateOffer(_ match: AITemplateMatch?, sentCandidates: [AITemplateCandidate]?) -> TemplateOffer? {
+        guard let match, let sentCandidates else { return nil }
+        let id = match.id.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let candidate = sentCandidates.first(where: { $0.id.uppercased() == id }) else { return nil }
+        return TemplateOffer(
+            templateID: candidate.templateUUID,
+            name: candidate.name,
+            kind: ListKind(rawValue: candidate.kind) ?? .packing,
+            isDayOf: candidate.isDayOf,
+            itemCount: candidate.itemCount,
+            reason: match.reason.trimmingCharacters(in: .whitespacesAndNewlines),
+            state: .pending
+        )
+    }
 
     private var conversation: AIConversation? {
         switch context {
@@ -189,7 +303,8 @@ final class AIAssistantViewModel {
                     for: trip,
                     targetUser: targetUser,
                     weather: weather,
-                    pastTrips: pastTrips { AITripContextBuilder.pastTrips(for: trip, targetUser: targetUser) }
+                    pastTrips: pastTrips { AITripContextBuilder.pastTrips(for: trip, targetUser: targetUser) },
+                    offeredTemplates: offeredTemplateIDs
                 ),
                 templateContext: nil,
                 messages: messages

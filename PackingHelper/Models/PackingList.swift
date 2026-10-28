@@ -353,6 +353,39 @@ extension PackingList {
         }
         return newList
     }
+
+    /// Applies `template` to `trip` like `copy(_:for:with:)` (owner rule, `countAsDays` scaling,
+    /// linked to the template), leaving out items whose `AITripContextBuilder.matchKey` is in
+    /// `skipping`. Returns the number of items added; when that's 0 no list is made.
+    @discardableResult
+    static func apply(_ template: PackingList, to trip: Trip, packer: User?, skipping skipKeys: Set<String>, in context: ModelContext) -> Int {
+        var seen = skipKeys
+        let sourceItems = (template.items ?? [])
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .filter { seen.insert(AITripContextBuilder.matchKey($0.name)).inserted }
+        guard !sourceItems.isEmpty else { return 0 }
+
+        let list = PackingList(kind: template.kind, isDayOf: template.isDayOf, template: false, name: template.name, countAsDays: template.countAsDays)
+        context.insert(list)
+        list.appliedFromTemplate = template
+        // An owned template's items always go to its owner; the chosen packer only applies to shared templates
+        let user = template.user ?? packer
+        for (order, source) in sourceItems.enumerated() {
+            let item = Item(
+                name: source.name,
+                category: source.category,
+                count: template.countAsDays ? trip.duration : source.count,
+                isPacked: false,
+                sortOrder: order
+            )
+            context.insert(item)
+            item.user = user
+            list.addItem(item)
+        }
+        trip.addList(list)
+        AppLogger.packingList.info("Applied template \(template.name) to trip \(trip.name) with \(sourceItems.count) new items")
+        return sourceItems.count
+    }
 }
 
 // MARK: - Saving trip items back to templates

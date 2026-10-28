@@ -3,7 +3,8 @@
 //  PackingHelper
 //
 //  Assembles the context sent to the AI assistant: core trip facts, existing item names
-//  (for dedupe + accessory reasoning), similar past trips (`AIPastTripsBuilder`), and live
+//  (for dedupe + accessory reasoning), similar past trips (`AIPastTripsBuilder`), templates
+//  that may fit (`AITemplateCandidatesBuilder`), and live
 //  weather when it's available within the forecast window. Also the template-mode context and the item-name matching used to drop
 //  suggestions the user already has.
 //
@@ -30,8 +31,15 @@ enum AITripContextBuilder {
     /// Built on every send so items added since the last message (by hand or from a
     /// suggestion) and packer changes are included. Weather and `pastTrips` come from the
     /// caller, which keeps them for the session so the Worker's cached prompt prefix holds.
+    /// `offeredTemplates` are templates already offered in this chat, which aren't sent again.
     @MainActor
-    static func build(for trip: Trip, targetUser: User?, weather: AIWeatherContext?, pastTrips: [AIPastTrip]) -> AITripContext {
+    static func build(
+        for trip: Trip,
+        targetUser: User?,
+        weather: AIWeatherContext?,
+        pastTrips: [AIPastTrip],
+        offeredTemplates: Set<UUID>
+    ) -> AITripContext {
         // With multiple packers off, the trip is packed as one person's
         let multiplePackers = FeatureFlags.shared.showingMultiplePackers
         let targetUser = multiplePackers ? targetUser : nil
@@ -56,6 +64,7 @@ enum AITripContextBuilder {
             lists: tripLists(for: trip, items: mine),
             otherPackersItems: uniqueNames(others).filter { !mineKeys.contains(matchKey($0)) },
             pastTrips: pastTrips,
+            templateCandidates: AITemplateCandidatesBuilder.build(for: trip, targetUser: targetUser, excluding: offeredTemplates),
             weather: weather
         )
     }

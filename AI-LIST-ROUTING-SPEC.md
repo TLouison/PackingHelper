@@ -22,7 +22,7 @@ repo).
 | §1 List routing | **Done**, app + Worker. Not compiled or tested on device yet |
 | §4 Prompt layout / caching | **Done** (Worker). Not yet verified against the live API |
 | Past trips cost cap | **Done**: ≤ 3 trips with similarity ≥ 3 in trip mode (template mode keeps its applied-first, then most-recent ranking). Built once per chat session |
-| §2 Template matches | **Not started**. Nothing in §2 exists in code, including the starter prompt |
+| §2 Template matches | **Done**, app + Worker (2026-10-27). Not compiled or tested on device yet |
 
 ### What was built
 
@@ -81,13 +81,39 @@ repo).
      tap creates Default.
    - **Caching:** in the Worker log, `cacheRead` is most of `in` from the second message on.
 
-### Next: §2 Template matches
-Build it as specified, with these updates:
-- List ids are now short (`L1`…). Use `T1`… for template candidates the same way, and map
-  them back on receipt.
-- Candidates go in `currentState`, not the cached context (§2c, §4).
-- There's no `AITemplateCandidatesBuilder` yet, and `AIPastTripsBuilder.similarity` is still
-  `private`.
+### §2 Template matches: what was built
+Built as specified in §2, with these changes:
+- **Short ids.** `AITemplateCandidate.id` is `T1`, `T2`, … in rank order; `templateUUID` is
+  not encoded. `AIAssistantViewModel.templateOffer(_:sentCandidates:)` maps the reply's id back
+  using the candidates from *that* request and drops unknown ids. The Worker also drops a
+  `template` whose id wasn't sent (`anthropic.ts` `offeredTemplate`), and caps candidates at
+  5 × 25 items in `index.ts`.
+- **Placement.** The template rules are static text in `TRIP_INSTRUCTIONS` (cached, phrased
+  "when a 'Templates they could add' block is present"); the candidates block is in
+  `currentState`.
+- **Applying** is a new `PackingList.apply(_:to:packer:skipping:in:)`, not
+  `PackingList.copy`: `copy` goes through `Item.copy`, which points each new item at the
+  template before it's moved, so filtering after the copy could leave stray items. `apply`
+  follows the same rules (owner, `countAsDays` → `trip.duration`, `appliedFromTemplate`,
+  `trip.addList`) and inserts only the items that survive the skip.
+- **`TemplateOffer`** also snapshots `kind`, `isDayOf`, and `itemCount` for the row's glyph
+  and "14 items". An offer for another packer's template (packer switched) shows
+  "No longer available"; switching back makes it available again.
+- **Eligibility helpers** live on the builder: `unavailableReason(for:on:targetUser:)`
+  (re-checked on every render and on tap) and `recipient(of:targetUser:)`.
+- **Glyph.** A plain packing template uses `suitcaseIcon` (the Templates tab's symbol)
+  instead of `list.bullet.rectangle`. Still needs design sign-off.
+- **Starter** visibility is `AIAssistantViewModel.hasTemplateCandidates`, refreshed when the
+  packer changes (including on appear) and on New Chat.
+
+Files: `Services/AITemplateCandidatesBuilder.swift` (new), `Views/AI/AITemplateOfferRow.swift`
+(new), `Services/AIAssistantService.swift`, `Services/AIPastTripsBuilder.swift`,
+`Services/AITripContextBuilder.swift`, `Models/PackingList.swift`,
+`ViewModels/AIAssistantViewModel.swift`, `Views/AI/AIAssistantSheet.swift`, `CLAUDE.md`;
+Worker `src/types.ts`, `src/prompt.ts`, `src/anthropic.ts`, `src/index.ts`, `README.md`.
+
+Before testing §2: deploy the Worker (the old one ignores `templateCandidates` and never
+returns `template`, so it's safe, but nothing will be offered), build, then run §7 checks 4–10.
 
 ---
 

@@ -48,6 +48,8 @@ struct AITripContext: Encodable {
     let otherPackersItems: [String]
     /// The packer's most similar other trips (`AIPastTripsBuilder`)
     let pastTrips: [AIPastTrip]
+    /// Templates that may fit this trip (`AITemplateCandidatesBuilder`); the model can offer one
+    let templateCandidates: [AITemplateCandidate]
     let weather: AIWeatherContext?  // nil → omitted (synthesized encoder uses encodeIfPresent)
 }
 
@@ -69,6 +71,26 @@ struct AITripList: Encodable {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, kind, isDayOf, isDefault, fromTemplate, items
+    }
+}
+
+/// A template the user could add to the trip, sent only when there's a solid reason it may fit
+struct AITemplateCandidate: Encodable {
+    /// A short per-request id ("T1", "T2", …) the reply names its pick with (`AITemplateMatch.id`)
+    let id: String
+    /// The template `id` stands for; not sent
+    let templateUUID: UUID
+    let name: String
+    let kind: String  // "packing" | "tasks"
+    let isDayOf: Bool
+    let itemCount: Int
+    /// The first items, in order
+    let items: [String]
+    /// Why it may fit, in words the model can quote ("used on \"Maui\", a similar trip")
+    let signals: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, kind, isDayOf, itemCount, items, signals
     }
 }
 
@@ -124,7 +146,16 @@ struct AIChatMessageDTO: Codable {
 struct AIAssistantResponse: Decodable {
     let message: String
     let items: [AISuggestedItem]
+    /// A template the model thinks fits the trip (trip mode only, usually absent)
+    let template: AITemplateMatch?
     let remaining: Int
+}
+
+struct AITemplateMatch: Decodable {
+    /// An `AITemplateCandidate.id` from the request
+    let id: String
+    /// One short line, e.g. "You used it on Maui, another warm beach trip"
+    let reason: String
 }
 
 /// Decoded from the Worker and also saved with the conversation (`AIConversation`), which is

@@ -70,6 +70,7 @@ struct AIAssistantSheet: View {
         }
         .onChange(of: targetUser?.persistentModelID, initial: true) {
             viewModel.targetUser = targetUser
+            viewModel.refreshTemplateCandidates()
         }
         .onChange(of: viewModel.subscriptionLapsed) { _, lapsed in
             guard lapsed else { return }
@@ -201,6 +202,16 @@ struct AIAssistantSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             AIChatBubbleView(role: entry.role, text: entry.text)
 
+                            if entry.role == .assistant, let offer = entry.template, offer.state != .dismissed {
+                                AITemplateOfferRow(
+                                    offer: offer,
+                                    status: viewModel.templateOfferStatus(for: offer),
+                                    onAdd: { withAnimation(.packingSpring) { viewModel.addTemplate(from: entry.id) } },
+                                    onDismiss: { withAnimation(.packingSpring) { viewModel.dismissTemplate(from: entry.id) } }
+                                )
+                                .transition(.opacity)
+                            }
+
                             if entry.role == .assistant {
                                 AISuggestedItemList(
                                     suggestions: entry.suggestions,
@@ -252,7 +263,7 @@ struct AIAssistantSheet: View {
                 starterButtons([
                     "What am I missing?",
                     "What should I do before I leave?"
-                ])
+                ] + (viewModel.hasTemplateCandidates ? ["Do any of my templates fit?"] : []))
             }
         }
         .padding(.top, 24)

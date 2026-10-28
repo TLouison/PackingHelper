@@ -18,6 +18,9 @@ enum AIPastTripsBuilder {
     /// Below this a trip isn't really alike (e.g. it only shares a transport type), so it's left out
     private static let minSimilarity = 3
     private static let maxItemsPerTrip = 80
+    /// A trip this alike is a strong sign (`AITemplateCandidatesBuilder`): the same place, or
+    /// several of season, transport, stays, and list names in common
+    static let similarTripScore = 5
 
     private static let monthFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -70,7 +73,7 @@ enum AIPastTripsBuilder {
     /// Higher is more alike: same place, season and climate, transport, stays, and list names
     /// (a "Beach" list on both says more than anything else)
     @MainActor
-    private static func similarity(of other: Trip, to trip: Trip, listKeys: Set<String>) -> Int {
+    static func similarity(of other: Trip, to trip: Trip, listKeys: Set<String>) -> Int {
         var score = 0
 
         if let a = trip.destination, let b = other.destination {
