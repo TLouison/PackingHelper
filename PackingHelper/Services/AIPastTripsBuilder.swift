@@ -14,7 +14,9 @@ import SwiftData
 
 enum AIPastTripsBuilder {
     /// Enough to spot habits without crowding the prompt
-    private static let maxTrips = 6
+    private static let maxTrips = 3
+    /// Below this a trip isn't really alike (e.g. it only shares a transport type), so it's left out
+    private static let minSimilarity = 3
     private static let maxItemsPerTrip = 80
 
     private static let monthFormatter: DateFormatter = {
@@ -24,13 +26,14 @@ enum AIPastTripsBuilder {
         return f
     }()
 
-    /// Other trips ranked by similarity to `trip`, skipping items already on it
+    /// The most similar other trips to `trip` (none when nothing is alike), skipping items already on it
     @MainActor
     static func build(similarTo trip: Trip, targetUser: User?, excluding existingKeys: Set<String>) -> [AIPastTrip] {
         let candidates = otherTrips(in: trip.modelContext).filter { $0.uuid != trip.uuid }
         let tripListKeys = Set((trip.lists ?? []).map { AITripContextBuilder.matchKey($0.name) })
         let ranked = candidates
             .map { ($0, similarity(of: $0, to: trip, listKeys: tripListKeys)) }
+            .filter { $0.1 >= minSimilarity }
             .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.startDate > $1.0.startDate }
             .map(\.0)
         return summaries(of: ranked, targetUser: targetUser, excluding: existingKeys)

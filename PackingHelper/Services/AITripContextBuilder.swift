@@ -28,9 +28,10 @@ enum AITripContextBuilder {
     }
 
     /// Built on every send so items added since the last message (by hand or from a
-    /// suggestion) and packer changes are included. Weather is fetched once per session.
+    /// suggestion) and packer changes are included. Weather and `pastTrips` come from the
+    /// caller, which keeps them for the session so the Worker's cached prompt prefix holds.
     @MainActor
-    static func build(for trip: Trip, targetUser: User?, weather: AIWeatherContext?) -> AITripContext {
+    static func build(for trip: Trip, targetUser: User?, weather: AIWeatherContext?, pastTrips: [AIPastTrip]) -> AITripContext {
         // With multiple packers off, the trip is packed as one person's
         let multiplePackers = FeatureFlags.shared.showingMultiplePackers
         let targetUser = multiplePackers ? targetUser : nil
@@ -52,25 +53,60 @@ enum AITripContextBuilder {
             tripType: trip.typesName.lowercased(),
             accommodation: trip.accomodationsName.lowercased(),
             packerCount: multiplePackers ? max(trip.packers.count, 1) : 1,
-            listNames: PackingList.sorted(trip.lists ?? [], sortOrder: .byCustomOrder).map(\.name),
-            existingItems: uniqueNames(mine),
+            lists: tripLists(for: trip, items: mine),
             otherPackersItems: uniqueNames(others).filter { !mineKeys.contains(matchKey($0)) },
-            pastTrips: AIPastTripsBuilder.build(similarTo: trip, targetUser: targetUser, excluding: mineKeys),
+            pastTrips: pastTrips,
             weather: weather
         )
     }
 
     @MainActor
-    static func build(for template: PackingList) -> AITemplateContext {
-        let items = template.items ?? []
-        return AITemplateContext(
+    static func build(for template: PackingList, pastTrips: [AIPastTrip]) -> AITemplateContext {
+        AITemplateContext(
             name: template.name,
             listKind: template.kind.rawValue,
             isDayOf: template.isDayOf,
             countAsDays: template.countAsDays,
-            existingItems: uniqueNames(items),
-            pastTrips: AIPastTripsBuilder.build(for: template, excluding: Set(items.map(\.name).map(matchKey)))
+            existingItems: uniqueNames(template.items ?? []),
+            pastTrips: pastTrips
         )
+    }
+
+    /// The packer's most similar other trips, minus what's on their lists right now
+    @MainActor
+    static func pastTrips(for trip: Trip, targetUser: User?) -> [AIPastTrip] {
+        let targetUser = FeatureFlags.shared.showingMultiplePackers ? targetUser : nil
+        let mineKeys = Set(itemsBelonging(to: targetUser, in: trip).map(\.name).map(matchKey))
+        return AIPastTripsBuilder.build(similarTo: trip, targetUser: targetUser, excluding: mineKeys)
+    }
+
+    @MainActor
+    static func pastTrips(for template: PackingList) -> [AIPastTrip] {
+        AIPastTripsBuilder.build(for: template, excluding: Set((template.items ?? []).map(\.name).map(matchKey)))
+    }
+
+    /// Every list, including ones with none of `items` (an empty Beach list can still take suggestions)
+    @MainActor
+    private static func tripLists(for trip: Trip, items: [Item]) -> [AITripList] {
+        let included = Set(items.map(\.persistentModelID))
+        return PackingList.sorted(trip.lists ?? [], sortOrder: .byCustomOrder).enumerated().map { index, list in
+            var seen = Set<String>()
+            let names = (list.items ?? [])
+                .filter { included.contains($0.persistentModelID) }
+                .sorted { $0.sortOrder < $1.sortOrder }
+                .map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && seen.insert(matchKey($0)).inserted }
+            return AITripList(
+                id: "L\(index + 1)",
+                listUUID: list.uuid,
+                name: list.name,
+                kind: list.kind.rawValue,
+                isDayOf: list.isDayOf,
+                isDefault: list.isDefault,
+                fromTemplate: list.appliedFromTemplate?.name,
+                items: names
+            )
+        }
     }
 
     /// The packer's items plus unassigned ones (everything when there's no packer)

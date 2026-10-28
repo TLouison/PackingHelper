@@ -4,16 +4,29 @@
 //
 //  Renders an assistant reply's suggested items as a list grouped into
 //  category sections, each with its own "Add all" affordance. Tapping a row
-//  adds to the automatic destination; when the trip has multiple lists,
-//  long-press (row) or the Add all menu picks one.
+//  adds to the automatic destination (the list the assistant picked, or the
+//  Default list, made if missing), which the row names when the trip has
+//  multiple lists or the list would be new;
+//  long-press (row) or the Add all menu picks another.
 //
 
 import SwiftUI
+
+/// The list a suggestion goes to when tapped, possibly one that tapping creates
+struct AISuggestionDestination {
+    let name: String
+    let kind: ListKind
+    let isDayOf: Bool
+    /// The trip has no such list yet; tapping makes it (Default or Tasks)
+    let isNew: Bool
+}
 
 struct AISuggestedItemList: View {
     let suggestions: [AISuggestedItem]
     let lists: [PackingList]
     let isAdded: (AISuggestedItem) -> Bool
+    /// The automatic destination, shown when there's more than one list to choose from
+    let destination: (AISuggestedItem) -> AISuggestionDestination?
     /// `nil` list = automatic destination.
     let onAdd: (AISuggestedItem, PackingList?) -> Void
     /// Adds every not-yet-added item in one section.
@@ -101,11 +114,7 @@ struct AISuggestedItemList: View {
                     Text(suggestion.name)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(added ? .secondary : .primary)
-                    if let detail = detail(for: suggestion) {
-                        Text(detail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    detailLine(for: suggestion, added: added)
                 }
 
                 Spacer(minLength: 8)
@@ -134,6 +143,42 @@ struct AISuggestedItemList: View {
             }
         }
         .accessibilityLabel(accessibilityLabel(for: suggestion, added: added))
+    }
+
+    /// "for Laptop, packed on Maui · Beach". The list is left off once added, since
+    /// "Add to" may have put it somewhere else
+    @ViewBuilder
+    private func detailLine(for suggestion: AISuggestedItem, added: Bool) -> some View {
+        let detail = detail(for: suggestion)
+        let destination = added ? nil : shownDestination(for: suggestion)
+        if detail != nil || destination != nil {
+            HStack(spacing: 4) {
+                if let detail {
+                    Text(detail)
+                }
+                if detail != nil, destination != nil {
+                    Text("·")
+                }
+                if let destination {
+                    HStack(spacing: 4) {
+                        if destination.isNew {
+                            Text("New list:")
+                        }
+                        ListNameLabel(name: destination.name, kind: destination.kind, isDayOf: destination.isDayOf)
+                    }
+                    .layoutPriority(1)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+    }
+
+    /// Named when there's a choice of lists, or when tapping would create one
+    private func shownDestination(for suggestion: AISuggestedItem) -> AISuggestionDestination? {
+        guard let destination = destination(suggestion) else { return nil }
+        return lists.count > 1 || destination.isNew ? destination : nil
     }
 
     // MARK: - Add all
@@ -181,6 +226,9 @@ struct AISuggestedItemList: View {
         var parts = [suggestion.name]
         if suggestion.count > 1 { parts.append("quantity \(suggestion.count)") }
         if let detail = detail(for: suggestion) { parts.append(detail) }
+        if !added, let destination = shownDestination(for: suggestion) {
+            parts.append(destination.isNew ? "adds to a new \(destination.name) list" : "adds to \(destination.name)")
+        }
         parts.append(added ? "added" : "tap to add")
         return parts.joined(separator: ", ")
     }

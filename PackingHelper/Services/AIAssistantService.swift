@@ -41,15 +41,35 @@ struct AITripContext: Encodable {
     let tripType: String
     let accommodation: String
     let packerCount: Int
-    /// The trip's list names (e.g. "Ski Gear"), which hint at plans
-    let listNames: [String]
-    /// The packer's items plus unassigned ones, packed or not
-    let existingItems: [String]
+    /// Every list on the trip, so the model can say which one each suggestion goes on.
+    /// Names hint at plans ("Ski Gear"); items are for dedupe and accessory reasoning
+    let lists: [AITripList]
     /// What the trip's other packers are bringing, so shared items aren't doubled up
     let otherPackersItems: [String]
     /// The packer's most similar other trips (`AIPastTripsBuilder`)
     let pastTrips: [AIPastTrip]
     let weather: AIWeatherContext?  // nil → omitted (synthesized encoder uses encodeIfPresent)
+}
+
+struct AITripList: Encodable {
+    /// A short per-request id ("L1", "L2", …) that suggestions name their list with
+    /// (`AISuggestedItem.listId`). Short because the model writes it once per suggestion, and a
+    /// UUID costs ~25 output tokens each time
+    let id: String
+    /// The list `id` stands for; not sent. The view model swaps it in when the reply arrives
+    let listUUID: UUID
+    let name: String
+    let kind: String  // "packing" | "tasks"
+    let isDayOf: Bool
+    let isDefault: Bool
+    /// The template it was applied from; nil for lists made on this trip
+    let fromTemplate: String?
+    /// The packer's items plus unassigned ones on this list, packed or not
+    let items: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, kind, isDayOf, isDefault, fromTemplate, items
+    }
 }
 
 struct AITemplateContext: Encodable {
@@ -118,13 +138,16 @@ struct AISuggestedItem: Codable, Identifiable {
     let accessoryFor: String?
     /// The past trip this was brought on, when the suggestion comes from one
     let fromTrip: String?
+    /// The trip list the model picked: a short `AITripList.id` on the wire, replaced with the
+    /// list's UUID string before the suggestion is shown or saved. Checked again before use
+    var listId: String?
 
     enum Kind: String, Codable {
         case packing, task
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, category, count, kind, accessoryFor, fromTrip
+        case id, name, category, count, kind, accessoryFor, fromTrip, listId
     }
 
     init(from decoder: Decoder) throws {
@@ -139,6 +162,7 @@ struct AISuggestedItem: Codable, Identifiable {
         kind = Kind(rawValue: kindName) ?? .packing
         accessoryFor = try container.decodeIfPresent(String.self, forKey: .accessoryFor)
         fromTrip = try container.decodeIfPresent(String.self, forKey: .fromTrip)
+        listId = try container.decodeIfPresent(String.self, forKey: .listId)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -150,6 +174,7 @@ struct AISuggestedItem: Codable, Identifiable {
         try container.encode(kind, forKey: .kind)
         try container.encodeIfPresent(accessoryFor, forKey: .accessoryFor)
         try container.encodeIfPresent(fromTrip, forKey: .fromTrip)
+        try container.encodeIfPresent(listId, forKey: .listId)
     }
 }
 

@@ -206,6 +206,7 @@ struct AIAssistantSheet: View {
                                     suggestions: entry.suggestions,
                                     lists: lists,
                                     isAdded: { viewModel.isAdded($0, in: entry.id) },
+                                    destination: { viewModel.destination(for: $0) },
                                     onAdd: { suggestion, list in viewModel.add(suggestion, from: entry.id, to: list) },
                                     onAddAll: { items, list in withAnimation(.packingSpring) { viewModel.addAll(items, from: entry.id, to: list) } }
                                 )

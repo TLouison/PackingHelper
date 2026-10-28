@@ -17,7 +17,7 @@ Other commands (e.g. `git`, file inspection, search) are fine to run.
 
 ### Data Model (SwiftData)
 
-The app uses SwiftData with seven models. All models have a `uuid`; use it (not `persistentModelID.hashValue`, which is reseeded every launch) for any key that must survive relaunch.
+The app uses SwiftData with seven models. All models except `User` have a `uuid`; use it (not `persistentModelID.hashValue`, which is reseeded every launch) for any key that must survive relaunch.
 
 **Trip** (root entity)
 - Properties: `name`, `startDate`, `endDate`, `types` (plane/car/train/boat/ferry; multi-select, `primaryType` is the icon), `accomodations` (multi-select)
@@ -154,7 +154,8 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 - Two modes: **trip** (fill gaps in the trip's lists, using destination, season, transport, stays, weather, and other packers' items) and **template** (a reusable starting point for a template list; opened from the template editor's toolbar, always as a sheet)
 - The paywall opens over the chat (not instead of it), so buying lands the user back in the conversation; without Plus the composer becomes an Unlock bar
 - The container keeps one `AIAssistantViewModel` per trip/template; it saves to `AIConversation`, so closing the assistant or leaving the screen keeps the chat until New Chat (the sheet's ⋯ menu; a button in the side panel header)
-- Context is rebuilt on every send (weather once per session). It includes the packer's most similar other trips (`AIPastTripsBuilder`: place, season, transport, stays, shared list names; templates rank trips they were applied to first) with their lists and items, so habits like a hand-made Snacks list carry over; those suggestions come back with `fromTrip`. Suggestions matching something the packer already has (`AITripContextBuilder.matchKey`: case, punctuation, simple plurals) are dropped client-side, and adding skips them
+- Context is rebuilt on every send (weather and past trips once per session, so the Worker's cached prompt prefix holds; it caches the instructions, trip context, and history, and sends current list contents last). It includes the packer's up to 3 most similar other trips (`AIPastTripsBuilder`: place, season, transport, stays, shared list names, with a minimum score; templates rank trips they were applied to first) with their lists and items, so habits like a hand-made Snacks list carry over; those suggestions come back with `fromTrip`. Suggestions matching something the packer already has (`AITripContextBuilder.matchKey`: case, punctuation, simple plurals) are dropped client-side, and adding skips them
+- Suggestions are routed to lists: the context sends every trip list (`AITripList`: short id `L1`…, kind, day-of, items) and each suggestion comes back with a `listId`, which the view model maps back to the list uuid on receipt. `AIAssistantViewModel.destinationList(for:)` uses it only if the list still exists and its kind matches, else falls back (packing → Default, tasks → first everyday Tasks list, either created if missing; never some other list). The row names the destination when the trip has 2+ lists or the list would be new ("New list: Default"); long-press "Add to" overrides
 - The prompt lives in the Worker repo (`PackingHelperWorkers`, `src/prompt.ts`); request DTOs in `AIAssistantService.swift` must stay in sync with its README contract
 - The Worker rejects history entries with empty content and conversations over 40 messages, so the client filters and trims history
 

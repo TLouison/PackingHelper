@@ -41,6 +41,10 @@ final class AIAssistantViewModel {
 
     private var isPrepared = false
     private var weather: AIWeatherContext?
+    /// Past trips, built on the first send and again only when the packer changes. Rebuilding
+    /// them on every send would drop newly added items from them, which changes the prompt
+    /// prefix the Worker caches; items already on the lists are dropped client-side anyway.
+    private var pastTripsSnapshot: (packerID: PersistentIdentifier?, trips: [AIPastTrip])?
     private var modelContext: ModelContext?
 
     init(context: PackingListContext) {
@@ -80,11 +84,12 @@ final class AIAssistantViewModel {
         defer { isLoading = false }
 
         do {
-            let response = try await AIAssistantService.shared.sendMessage(makeRequest())
+            let request = makeRequest()
+            let response = try await AIAssistantService.shared.sendMessage(request)
             entries.append(ChatEntry(
                 role: .assistant,
                 text: response.message,
-                suggestions: freshSuggestions(response.items)
+                suggestions: resolvingListIDs(freshSuggestions(response.items), sentLists: request.tripContext?.lists)
             ))
             remaining = response.remaining
             save()
@@ -107,6 +112,7 @@ final class AIAssistantViewModel {
         entries = []
         composerText = ""
         errorMessage = nil
+        pastTripsSnapshot = nil
         guard let conversation, let modelContext else { return }
         // Unlink first so a send before the next save makes a fresh conversation
         switch context {
@@ -179,7 +185,12 @@ final class AIAssistantViewModel {
             return AIAssistantRequest(
                 rcAppUserId: AITripContextBuilder.rcAppUserId,
                 mode: .trip,
-                tripContext: AITripContextBuilder.build(for: trip, targetUser: targetUser, weather: weather),
+                tripContext: AITripContextBuilder.build(
+                    for: trip,
+                    targetUser: targetUser,
+                    weather: weather,
+                    pastTrips: pastTrips { AITripContextBuilder.pastTrips(for: trip, targetUser: targetUser) }
+                ),
                 templateContext: nil,
                 messages: messages
             )
@@ -188,10 +199,24 @@ final class AIAssistantViewModel {
                 rcAppUserId: AITripContextBuilder.rcAppUserId,
                 mode: .template,
                 tripContext: nil,
-                templateContext: AITripContextBuilder.build(for: list),
+                templateContext: AITripContextBuilder.build(
+                    for: list,
+                    pastTrips: pastTrips { AITripContextBuilder.pastTrips(for: list) }
+                ),
                 messages: messages
             )
         }
+    }
+
+    /// The session's past trips for the current packer, built with `make` the first time
+    private func pastTrips(_ make: () -> [AIPastTrip]) -> [AIPastTrip] {
+        let packerID = isTemplate ? nil : targetUser?.persistentModelID
+        if let pastTripsSnapshot, pastTripsSnapshot.packerID == packerID {
+            return pastTripsSnapshot.trips
+        }
+        let trips = make()
+        pastTripsSnapshot = (packerID, trips)
+        return trips
     }
 
     /// Names already on the packer's lists (trip) or the template, as match keys
@@ -215,6 +240,21 @@ final class AIAssistantViewModel {
         return suggestions.filter { seen.insert(AITripContextBuilder.matchKey($0.name)).inserted }
     }
 
+    /// Swaps each short list id ("L2") for the UUID it stood for in the request that got this
+    /// reply, so a saved chat keeps pointing at the right list after lists are added or moved.
+    /// Unknown ids are cleared, and the suggestion falls back to the default destination
+    private func resolvingListIDs(_ suggestions: [AISuggestedItem], sentLists: [AITripList]?) -> [AISuggestedItem] {
+        guard let sentLists else { return suggestions }
+        let uuids = Dictionary(sentLists.map { ($0.id.uppercased(), $0.listUUID) }, uniquingKeysWith: { first, _ in first })
+        return suggestions.map { suggestion in
+            var suggestion = suggestion
+            suggestion.listId = suggestion.listId
+                .flatMap { uuids[$0.trimmingCharacters(in: .whitespaces).uppercased()] }?
+                .uuidString
+            return suggestion
+        }
+    }
+
     private func insert(_ suggestion: AISuggestedItem, into list: PackingList) {
         guard let modelContext else { return }
         let item = Item(
@@ -229,19 +269,47 @@ final class AIAssistantViewModel {
         list.addItem(item)
     }
 
-    /// Templates take everything. On a trip, task suggestions go to the first everyday (not
-    /// day-of) Tasks list, made on first use if there isn't one; everything else goes to the
-    /// trip's default list.
+    /// Where tapping a suggestion puts it, for the row's caption (trip only). Matches
+    /// `destinationList(for:)`, including a Default or Tasks list that tapping would create.
+    func destination(for suggestion: AISuggestedItem) -> AISuggestionDestination? {
+        guard case .trip(let trip) = context else { return nil }
+        if let list = routedList(for: suggestion, in: trip) ?? fallbackList(for: suggestion, in: trip) {
+            return AISuggestionDestination(name: list.name, kind: list.kind, isDayOf: list.isDayOf, isNew: false)
+        }
+        return suggestion.kind == .task
+            ? AISuggestionDestination(name: "Tasks", kind: .tasks, isDayOf: false, isNew: true)
+            : AISuggestionDestination(name: PackingList.defaultListName, kind: .packing, isDayOf: false, isNew: true)
+    }
+
+    /// Templates take everything. On a trip, the list the model picked, if it still exists and
+    /// is the right kind; otherwise tasks go to the first everyday (not day-of) Tasks list and
+    /// everything else to the trip's Default list, either made on first use if it's missing.
+    /// Never another list: a toothbrush has no business on a Clothes list.
     private func destinationList(for suggestion: AISuggestedItem) -> PackingList? {
         switch context {
         case .singleList(let list):
             return list
         case .trip(let trip):
-            if suggestion.kind == .task {
-                return trip.sortedLists(of: .tasks).first { !$0.isDayOf } ?? makeTasksList(for: trip)
+            if let list = routedList(for: suggestion, in: trip) ?? fallbackList(for: suggestion, in: trip) {
+                return list
             }
-            return trip.defaultPackingList ?? trip.lists?.first
+            return suggestion.kind == .task ? makeTasksList(for: trip) : makeDefaultList(for: trip)
         }
+    }
+
+    /// The model's pick. Ignored when the list is gone (a saved chat), unknown, or the wrong kind
+    private func routedList(for suggestion: AISuggestedItem, in trip: Trip) -> PackingList? {
+        guard let listId = suggestion.listId, let id = UUID(uuidString: listId),
+              let list = trip.lists?.first(where: { $0.uuid == id }) else { return nil }
+        let kind: ListKind = suggestion.kind == .task ? .tasks : .packing
+        return list.kind == kind ? list : nil
+    }
+
+    private func fallbackList(for suggestion: AISuggestedItem, in trip: Trip) -> PackingList? {
+        if suggestion.kind == .task {
+            return trip.sortedLists(of: .tasks).first { !$0.isDayOf }
+        }
+        return trip.defaultPackingList
     }
 
     private func makeTasksList(for trip: Trip) -> PackingList? {
@@ -250,6 +318,11 @@ final class AIAssistantViewModel {
         modelContext.insert(list)
         trip.addList(list)
         return list
+    }
+
+    private func makeDefaultList(for trip: Trip) -> PackingList? {
+        guard let modelContext else { return nil }
+        return PackingList.createDefaultList(for: trip, in: modelContext)
     }
 
     private func markAdded(_ name: String, in entryID: UUID) {
