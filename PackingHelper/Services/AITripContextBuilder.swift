@@ -3,8 +3,8 @@
 //  PackingHelper
 //
 //  Assembles the context sent to the AI assistant: core trip facts, existing item names
-//  (for dedupe + accessory reasoning), and live weather when it's available within the
-//  forecast window. Also the template-mode context and the item-name matching used to drop
+//  (for dedupe + accessory reasoning), similar past trips (`AIPastTripsBuilder`), and live
+//  weather when it's available within the forecast window. Also the template-mode context and the item-name matching used to drop
 //  suggestions the user already has.
 //
 
@@ -52,18 +52,21 @@ enum AITripContextBuilder {
             listNames: PackingList.sorted(trip.lists ?? [], sortOrder: .byCustomOrder).map(\.name),
             existingItems: uniqueNames(mine),
             otherPackersItems: uniqueNames(others).filter { !mineKeys.contains(matchKey($0)) },
+            pastTrips: AIPastTripsBuilder.build(similarTo: trip, targetUser: targetUser, excluding: mineKeys),
             weather: weather
         )
     }
 
     @MainActor
     static func build(for template: PackingList) -> AITemplateContext {
-        AITemplateContext(
+        let items = template.items ?? []
+        return AITemplateContext(
             name: template.name,
             listKind: template.kind.rawValue,
             isDayOf: template.isDayOf,
             countAsDays: template.countAsDays,
-            existingItems: uniqueNames(template.items ?? [])
+            existingItems: uniqueNames(items),
+            pastTrips: AIPastTripsBuilder.build(for: template, excluding: Set(items.map(\.name).map(matchKey)))
         )
     }
 

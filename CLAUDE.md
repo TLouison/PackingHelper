@@ -154,7 +154,7 @@ Wide screens (iPad / unfolded) get split layouts for the trip list, templates, a
 - Two modes: **trip** (fill gaps in the trip's lists, using destination, season, transport, stays, weather, and other packers' items) and **template** (a reusable starting point for a template list; opened from the template editor's toolbar, always as a sheet)
 - The paywall opens over the chat (not instead of it), so buying lands the user back in the conversation; without Plus the composer becomes an Unlock bar
 - The container keeps one `AIAssistantViewModel` per trip/template; it saves to `AIConversation`, so closing the assistant or leaving the screen keeps the chat until New Chat (the chat's ⋯ menu)
-- Context is rebuilt on every send (weather once per session). Suggestions matching something the packer already has (`AITripContextBuilder.matchKey`: case, punctuation, simple plurals) are dropped client-side, and adding skips them
+- Context is rebuilt on every send (weather once per session). It includes the packer's most similar other trips (`AIPastTripsBuilder`: place, season, transport, stays, shared list names; templates rank trips they were applied to first) with their lists and items, so habits like a hand-made Snacks list carry over; those suggestions come back with `fromTrip`. Suggestions matching something the packer already has (`AITripContextBuilder.matchKey`: case, punctuation, simple plurals) are dropped client-side, and adding skips them
 - The prompt lives in the Worker repo (`PackingHelperWorkers`, `src/prompt.ts`); request DTOs in `AIAssistantService.swift` must stay in sync with its README contract
 - The Worker rejects history entries with empty content and conversations over 40 messages, so the client filters and trims history
 
@@ -184,7 +184,7 @@ PackingHelper/           # Xcode synchronized folder — new files are added to 
 │   └── Settings/        # App settings + Developer Menu
 ├── Utilities/           # Cross-cutting concerns (Color, Calendar, Style, Purchase, etc.)
 └── PackingEngine/       # ML categorization
-scripts/run-on-device.sh # Build, install, launch on a physical iPhone (works over Wi-Fi)
+scripts/run-on-device.sh # Build, install, launch on a physical iPhone (works over Wi-Fi); from Linux, rsyncs to the Mac (MAC_HOST) and builds there
 scripts/run-on-simulator.sh # Same for a Simulator; from Linux, rsyncs to the Mac (MAC_HOST) and builds there
 ```
 Config values (`REVENUECAT_API_KEY`, `WORKER_URL`) come from the gitignored `Config.xcconfig` (template: `Config.xcconfig.example`) via Info.plist.

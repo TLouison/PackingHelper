@@ -47,6 +47,8 @@ struct AITripContext: Encodable {
     let existingItems: [String]
     /// What the trip's other packers are bringing, so shared items aren't doubled up
     let otherPackersItems: [String]
+    /// The packer's most similar other trips (`AIPastTripsBuilder`)
+    let pastTrips: [AIPastTrip]
     let weather: AIWeatherContext?  // nil → omitted (synthesized encoder uses encodeIfPresent)
 }
 
@@ -57,6 +59,27 @@ struct AITemplateContext: Encodable {
     /// Item counts become the trip's length when applied, so counts don't matter
     let countAsDays: Bool
     let existingItems: [String]
+    /// Trips this template was used on first, then recent ones (`AIPastTripsBuilder`)
+    let pastTrips: [AIPastTrip]
+}
+
+/// What a packer brought on another trip, minus items already on the current trip or template
+struct AIPastTrip: Encodable {
+    let name: String
+    let destinationName: String
+    let month: String  // yyyy-MM
+    let durationDays: Int
+    let tripType: String
+    let accommodation: String
+    let lists: [AIPastTripList]
+}
+
+struct AIPastTripList: Encodable {
+    let name: String
+    let kind: String  // "packing" | "tasks"
+    /// The template it was applied from; nil for lists made on that trip
+    let fromTemplate: String?
+    let items: [String]
 }
 
 struct AIWeatherContext: Encodable {
@@ -93,13 +116,15 @@ struct AISuggestedItem: Codable, Identifiable {
     let count: Int
     let kind: Kind
     let accessoryFor: String?
+    /// The past trip this was brought on, when the suggestion comes from one
+    let fromTrip: String?
 
     enum Kind: String, Codable {
         case packing, task
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, category, count, kind, accessoryFor
+        case id, name, category, count, kind, accessoryFor, fromTrip
     }
 
     init(from decoder: Decoder) throws {
@@ -113,6 +138,7 @@ struct AISuggestedItem: Codable, Identifiable {
         let kindName = try container.decodeIfPresent(String.self, forKey: .kind) ?? ""
         kind = Kind(rawValue: kindName) ?? .packing
         accessoryFor = try container.decodeIfPresent(String.self, forKey: .accessoryFor)
+        fromTrip = try container.decodeIfPresent(String.self, forKey: .fromTrip)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -123,6 +149,7 @@ struct AISuggestedItem: Codable, Identifiable {
         try container.encode(count, forKey: .count)
         try container.encode(kind, forKey: .kind)
         try container.encodeIfPresent(accessoryFor, forKey: .accessoryFor)
+        try container.encodeIfPresent(fromTrip, forKey: .fromTrip)
     }
 }
 

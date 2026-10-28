@@ -77,7 +77,7 @@ struct AIAssistantSheet: View {
                     // RevenueCat still says active (the Worker's lookup failed): keep the error
                     // showing but let the next rejection try again
                     viewModel.subscriptionRestored()
-                    viewModel.errorMessage = AIAssistantError.server(401).errorDescription
+                    viewModel.errorMessage = "Couldn't confirm your Plus subscription. Try again in a moment."
                 } else {
                     showingPaywall = true
                 }

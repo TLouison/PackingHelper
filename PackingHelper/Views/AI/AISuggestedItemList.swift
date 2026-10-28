@@ -101,8 +101,8 @@ struct AISuggestedItemList: View {
                     Text(suggestion.name)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(added ? .secondary : .primary)
-                    if let accessoryFor = suggestion.accessoryFor, !accessoryFor.isEmpty {
-                        Text("for \(accessoryFor)")
+                    if let detail = detail(for: suggestion) {
+                        Text(detail)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -169,10 +169,18 @@ struct AISuggestedItemList: View {
 
     // MARK: - Helpers
 
+    /// "for Laptop" and/or "packed on Maui"
+    private func detail(for suggestion: AISuggestedItem) -> String? {
+        var parts: [String] = []
+        if let accessoryFor = suggestion.accessoryFor, !accessoryFor.isEmpty { parts.append("for \(accessoryFor)") }
+        if let fromTrip = suggestion.fromTrip, !fromTrip.isEmpty { parts.append("packed on \(fromTrip)") }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+
     private func accessibilityLabel(for suggestion: AISuggestedItem, added: Bool) -> String {
         var parts = [suggestion.name]
         if suggestion.count > 1 { parts.append("quantity \(suggestion.count)") }
-        if let accessoryFor = suggestion.accessoryFor, !accessoryFor.isEmpty { parts.append("for \(accessoryFor)") }
+        if let detail = detail(for: suggestion) { parts.append(detail) }
         parts.append(added ? "added" : "tap to add")
         return parts.joined(separator: ", ")
     }
