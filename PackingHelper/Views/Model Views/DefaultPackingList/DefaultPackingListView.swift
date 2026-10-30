@@ -25,9 +25,11 @@ struct DefaultPackingListView: View {
     
     @State private var searchText = ""
     @State private var showingAddSheet = false
-    /// Shared by both layouts so the open template survives a compact ↔ regular switch
-    /// (e.g. folding/unfolding the Duo): sidebar selection when wide, pushed list when compact.
+    /// The open template: sidebar selection when wide, pushed page when collapsed (compact).
+    /// One split view serves both widths, so it survives folding/unfolding the Duo.
     @State private var selectedList: PackingList?
+    /// Which column shows when the split view is collapsed; kept in step with `selectedList`
+    @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var showingReviewSheet = false
     /// Opened whenever no template is selected, so portrait iPad isn't left with an empty detail column.
     /// Starts `.automatic` (what portrait actually shows) so the first visit animates it open too.
@@ -39,15 +41,30 @@ struct DefaultPackingListView: View {
 
     private var hasActiveFilters: Bool { !searchQuery.isEmpty }
 
+    /// Finder-style A–Z: case-insensitive, numbers by value ("Trip 2" before "Trip 10")
+    private var sortedLists: [PackingList] {
+        defaultPackingLists.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
     /// Templates matching the search by name or by any item, each once: name matches first
     private var searchResults: [TemplateSearchResult] {
         guard hasActiveFilters else { return [] }
-        let results = defaultPackingLists.compactMap { TemplateSearchResult(list: $0, query: searchQuery) }
+        let results = sortedLists.compactMap { TemplateSearchResult(list: $0, query: searchQuery) }
         return results.filter(\.nameMatches) + results.filter { !$0.nameMatches }
     }
 
     private var filteredLists: [PackingList] {
-        hasActiveFilters ? searchResults.map(\.list) : defaultPackingLists
+        hasActiveFilters ? searchResults.map(\.list) : sortedLists
+    }
+
+    /// Groups shown when not searching: one per list type (empty types left out).
+    /// A single untitled group when every template is the same type, so a lone header doesn't sit over the whole list.
+    private var listGroups: [TemplateGroup] {
+        let byType = Dictionary(grouping: sortedLists, by: TemplateListType.init(list:))
+        guard byType.count > 1 else { return [TemplateGroup(type: nil, lists: sortedLists)] }
+        return TemplateListType.allCases.compactMap { type in
+            byType[type].map { TemplateGroup(type: type, lists: $0) }
+        }
     }
     
     /// Past trips with items that could be saved back to their templates
@@ -56,106 +73,16 @@ struct DefaultPackingListView: View {
     }
     
     var body: some View {
-        Group {
-            if horizontalSizeClass == .regular {
-                splitView
-            } else {
-                stackView
-            }
-        }
-        .sheet(isPresented: $showingAddSheet) {
-            PackingListEditView(
-                isTemplate: true,
-                onListCreated: { newList in
-                    // Open the new template right away (pushed, or in the detail column when wide)
-                    selectedList = newList
-                },
-                isDeleted: .constant(false),
-                fitsContent: true
-            )
-        }
-        .sheet(isPresented: $showingReviewSheet) {
-            TemplateReviewTripsSheet()
-        }
-        .onChange(of: defaultPackingLists.map(\.persistentModelID)) { _, ids in
-            // The selected template was deleted (from its settings sheet or elsewhere)
-            if let selectedList, !ids.contains(selectedList.persistentModelID) {
-                self.selectedList = nil
-            }
-        }
-    }
-    
-    // MARK: - Compact
-    
-    private var stackView: some View {
-        NavigationStack {
-            Group {
-                if filteredLists.isEmpty {
-                    emptyState
-                        .frame(maxHeight: .infinity)
-                } else {
-                    // The scroll view sits directly under the nav bar so the large title collapses with it
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            if hasActiveFilters {
-                                ForEach(searchResults) { result in
-                                    TemplateSearchResultCard(result: result, query: searchQuery) {
-                                        selectedList = result.list
-                                    }
-                                }
-                            } else {
-                                ForEach(filteredLists) { list in
-                                    PackingListCard(list: list) {
-                                        selectedList = list
-                                    }
-                                }
-                            }
-                        }
-                        // Both modes key cards by template, so give each mode its own stack; otherwise
-                        // the lazy stack can keep showing a plain card where a search result belongs
-                        .id(hasActiveFilters)
-                        .padding(.horizontal)
-                        .padding(.top)
-                    }
-                }
-            }
-            // System search under the title; Cancel clears it and returns to the full list
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Search templates and items"
-            )
-            .safeAreaInset(edge: .bottom) { reviewBanner }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Template Lists")
-            .toolbar { listToolbar }
-            .navigationDestination(item: $selectedList) { list in
-                PackingListContainerView(packingList: list)
-            }
-        }
-    }
-    
-    // MARK: - Regular
-    
-    private var splitView: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            List(filteredLists, selection: $selectedList) { list in
-                TemplateSidebarRow(
-                    list: list,
-                    match: searchResults.first { $0.id == list.persistentModelID },
-                    query: searchQuery
-                )
-                .tag(list)
-            }
-            .overlay {
-                if filteredLists.isEmpty && hasActiveFilters {
-                    ContentUnavailableView.search(text: searchQuery)
-                }
-            }
-            .searchable(text: $searchText, placement: .sidebar, prompt: "Search templates and items")
-            .safeAreaInset(edge: .bottom) { reviewBanner }
-            .navigationTitle("Template Lists")
-            .toolbar { listToolbar }
+        // A single split view for both widths: it collapses into a stack when compact, keeping
+        // the open template and its nav bar. Swapping in a separate NavigationStack on a size-class
+        // change (folding the Duo) pushed the template during the stack's first render, which
+        // dropped its toolbar and back button.
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $compactColumn) {
+            sidebar
+                .searchable(text: $searchText, placement: searchPlacement, prompt: "Search templates and items")
+                .safeAreaInset(edge: .bottom) { reviewBanner }
+                .navigationTitle("Templates")
+                .toolbar { listToolbar }
         } detail: {
             NavigationStack {
                 if let selectedList {
@@ -189,14 +116,138 @@ struct DefaultPackingListView: View {
             }
         }
         .onChange(of: selectedList) { _, newValue in
+            // Collapsed: push the template that was opened, or return to the list when it closes
+            compactColumn = newValue == nil ? .sidebar : .detail
             if newValue == nil {
                 withAnimation {
                     columnVisibility = .all
                 }
             }
         }
+        .onChange(of: compactColumn) { _, column in
+            // Back button or swipe back while collapsed closes the template
+            if horizontalSizeClass == .compact, column == .sidebar {
+                selectedList = nil
+            }
+        }
+        .sheet(isPresented: $showingAddSheet) {
+            PackingListEditView(
+                isTemplate: true,
+                onListCreated: { newList in
+                    // Open the new template right away (pushed, or in the detail column when wide)
+                    selectedList = newList
+                },
+                isDeleted: .constant(false),
+                fitsContent: true
+            )
+        }
+        .sheet(isPresented: $showingReviewSheet) {
+            TemplateReviewTripsSheet()
+        }
+        .onChange(of: defaultPackingLists.map(\.persistentModelID)) { _, ids in
+            // The selected template was deleted (from its settings sheet or elsewhere)
+            if let selectedList, !ids.contains(selectedList.persistentModelID) {
+                self.selectedList = nil
+            }
+        }
     }
-    
+
+    /// Sidebar list when wide; full-width cards when collapsed
+    @ViewBuilder
+    private var sidebar: some View {
+        if horizontalSizeClass == .regular {
+            sidebarList
+        } else {
+            cardList
+        }
+    }
+
+    /// Sidebar search when wide; system search under the title when collapsed (Cancel clears it)
+    private var searchPlacement: SearchFieldPlacement {
+        horizontalSizeClass == .regular ? .sidebar : .navigationBarDrawer(displayMode: .always)
+    }
+
+    // MARK: - Compact
+
+    private var cardList: some View {
+        Group {
+            if filteredLists.isEmpty {
+                emptyState
+                    .frame(maxHeight: .infinity)
+            } else {
+                // The scroll view sits directly under the nav bar so the large title collapses with it
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        if hasActiveFilters {
+                            ForEach(searchResults) { result in
+                                TemplateSearchResultCard(result: result, query: searchQuery) {
+                                    selectedList = result.list
+                                }
+                            }
+                        } else {
+                            let groups = listGroups
+                            ForEach(groups) { group in
+                                if let type = group.type {
+                                    TemplateGroupHeader(type: type)
+                                        .padding(.horizontal)
+                                        .padding(.top, group.id == groups.first?.id ? 0 : 12)
+                                }
+                                ForEach(group.lists) { list in
+                                    PackingListCard(list: list) {
+                                        selectedList = list
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Both modes key cards by template, so give each mode its own stack; otherwise
+                    // the lazy stack can keep showing a plain card where a search result belongs
+                    .id(hasActiveFilters)
+                    .padding(.horizontal)
+                    .padding(.top)
+                }
+            }
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: - Regular
+
+    private var sidebarList: some View {
+        List(selection: $selectedList) {
+            if hasActiveFilters {
+                ForEach(searchResults) { result in
+                    TemplateSidebarRow(list: result.list, match: result, query: searchQuery)
+                        .tag(result.list)
+                }
+            } else {
+                ForEach(listGroups) { group in
+                    if let type = group.type {
+                        Section {
+                            sidebarRows(group.lists)
+                        } header: {
+                            TemplateGroupHeader(type: type)
+                        }
+                    } else {
+                        sidebarRows(group.lists)
+                    }
+                }
+            }
+        }
+        .overlay {
+            if filteredLists.isEmpty && hasActiveFilters {
+                ContentUnavailableView.search(text: searchQuery)
+            }
+        }
+    }
+
+    private func sidebarRows(_ lists: [PackingList]) -> some View {
+        ForEach(lists) { list in
+            TemplateSidebarRow(list: list)
+                .tag(list)
+        }
+    }
+
     // MARK: - Shared
     
     /// Pinned below the template list so it stays put while the list scrolls
@@ -286,6 +337,54 @@ struct DefaultPackingListView: View {
             }
             .accessibilityLabel("Create Template")
         }
+    }
+}
+
+/// A template's type for grouping: kind plus day-of, in the order lists sit on a trip
+/// (and in Apply Templates)
+private enum TemplateListType: CaseIterable, Identifiable {
+    case packing, tasks, dayOfPacking, dayOfTasks
+
+    var id: Self { self }
+
+    init(list: PackingList) {
+        switch (list.kind, list.isDayOf) {
+        case (.packing, false): self = .packing
+        case (.packing, true): self = .dayOfPacking
+        case (.tasks, false): self = .tasks
+        case (.tasks, true): self = .dayOfTasks
+        }
+    }
+
+    var kind: ListKind {
+        switch self {
+        case .packing, .dayOfPacking: .packing
+        case .tasks, .dayOfTasks: .tasks
+        }
+    }
+
+    var isDayOf: Bool { self == .dayOfPacking || self == .dayOfTasks }
+}
+
+private struct TemplateGroup: Identifiable {
+    /// nil when every template is the same type
+    let type: TemplateListType?
+    let lists: [PackingList]
+
+    var id: TemplateListType? { type }
+}
+
+/// Section title for a group of templates, styled like Apply Templates' headers
+private struct TemplateGroupHeader: View {
+    let type: TemplateListType
+
+    var body: some View {
+        Text(type.kind.displayName(isDayOf: type.isDayOf))
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
