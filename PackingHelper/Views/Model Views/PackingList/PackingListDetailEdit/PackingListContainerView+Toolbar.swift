@@ -2,7 +2,7 @@
 //  PackingListContainerView+Toolbar.swift
 //  PackingHelper
 //
-//  The container's toolbars: trip, template, adding an item, and Remove Items mode.
+//  The container's toolbars: trip, template, adding an item, and Edit Mode.
 //
 
 import SwiftUI
@@ -10,8 +10,8 @@ import SwiftUI
 extension PackingListContainerView {
     @ToolbarContentBuilder
     var containerToolbar: some ToolbarContent {
-        if editor.isRemovingItems {
-            removingItemsToolbar
+        if editor.isEditing {
+            editingToolbar
         } else if editor.isAdding {
             addingItemToolbar
         } else if context.isTrip {
@@ -48,27 +48,62 @@ extension PackingListContainerView {
         }
     }
 
+    /// Edit Mode: Undo + Done up top, bulk actions on the selection in the bottom bar
     @ToolbarContentBuilder
-    private var removingItemsToolbar: some ToolbarContent {
+    private var editingToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Button("Undo", systemImage: "arrow.uturn.backward", action: editor.undoRemove)
-                .disabled(editor.removedItems.isEmpty)
-                .accessibilityHint(editor.removedItems.last.map { "Puts back \($0.name)" } ?? "")
+            Button("Undo", systemImage: "arrow.uturn.backward", action: editor.undoDelete)
+                .disabled(editor.removedBatches.isEmpty)
+                .accessibilityHint(undoHint)
         }
         ToolbarItem(placement: .confirmationAction) {
             Button {
-                editor.stopRemoving()
+                editor.stopEditing()
             } label: {
                 Label("Done", systemImage: "checkmark")
                     .fontWeight(.semibold)
             }
         }
+
+        let hasSelection = !editor.selectedItemIDs.isEmpty
+        ToolbarItem(placement: .bottomBar) {
+            Menu {
+                ForEach(editor.sortedLists) { list in
+                    Button { editor.moveSelected(to: list) } label: { ListMenuLabel(list: list) }
+                }
+            } label: {
+                Label("Move To", systemImage: "arrow.right.square")
+            }
+            .disabled(!hasSelection || lists.count < 2)
+        }
+        ToolbarSpacer(placement: .bottomBar)
+        ToolbarItem(placement: .bottomBar) {
+            Button("Mark as Packed", systemImage: "checkmark.circle", action: editor.packSelected)
+                .disabled(!hasSelection)
+        }
+        ToolbarSpacer(placement: .bottomBar)
+        ToolbarItem(placement: .bottomBar) {
+            Button("Delete", systemImage: "trash", role: .destructive, action: editor.deleteSelected)
+                .disabled(!hasSelection)
+        }
+    }
+
+    private var undoHint: String {
+        guard let batch = editor.removedBatches.last, let first = batch.first else { return "" }
+        return batch.count == 1 ? "Puts back \(first.name)" : "Puts back \(batch.count) items"
     }
 
     @ToolbarContentBuilder
     private var tripToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             assistantButton
+        }
+        // Nothing to select or reorder without a section
+        if !lists.isEmpty {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Edit Mode", systemImage: "pencil", action: editor.startEditing)
+                    .accessibilityHint("Select items to move, pack, or delete, and drag to reorder")
+            }
         }
     }
 
@@ -102,6 +137,8 @@ extension PackingListContainerView {
                     }
             }
         }
+        // Toolbar icons are monochrome unless tinted; color makes the assistant stand out
+        .tint(.teal)
         .accessibilityHint(purchaseManager.isPlusActive ? "" : "Requires Packing Helper Plus")
     }
 

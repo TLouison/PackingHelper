@@ -2,8 +2,9 @@
 //  PackingEditor.swift
 //  PackingHelper
 //
-//  The packing screen's editing state and actions: the inline add-item flow, Remove Items
-//  mode and its undo stack, template item editing, and the check-off tracker. Owned by
+//  The packing screen's editing state and actions: the inline add-item flow, Edit Mode
+//  (selection, bulk actions, item drag, and the delete undo stack), template item editing,
+//  and the check-off tracker. Owned by
 //  PackingListContainerView and shared with the Focus pages through the environment.
 //
 
@@ -29,12 +30,19 @@ final class PackingEditor {
     /// Template editor: scroll the new item row into view after Return
     var scrollToPlaceholder = false
 
-    // MARK: - Remove Items (trip packing)
+    // MARK: - Edit Mode (trip packing)
 
-    /// Tap a card's minus to delete it right away
-    var isRemovingItems = false
-    /// Items deleted in Remove Items mode, newest last; Undo puts back the last one
-    var removedItems: [RemovedItem] = []
+    /// Tapping a card selects it instead of checking it off; handles reorder items, chips jiggle
+    var isEditing = false
+    /// Selected items (unpacked only; packed items are hidden while editing)
+    var selectedItemIDs: Set<PersistentIdentifier> = []
+    /// Item whose handle is being dragged; drop targets only accept our own drags
+    var draggingItem: Item?
+    /// The card a live drag last swapped with, and when its slide finishes
+    @ObservationIgnored private var lastDragSwap: (id: PersistentIdentifier, until: Date)?
+    private static let dragSwapSettle: TimeInterval = 0.35
+    /// Bulk deletes, newest last; Undo puts back the last batch
+    var removedBatches: [[RemovedItem]] = []
 
     // MARK: - Template Editing
 
@@ -184,35 +192,131 @@ final class PackingEditor {
         }
     }
 
-    // MARK: - Remove Items Actions
+    // MARK: - Edit Mode Actions
 
-    func startRemoving() {
+    func startEditing() {
         if isAdding {
             finishAdding()
         }
-        withAnimation(.packingSpring) { isRemovingItems = true }
+        withAnimation(.packingSpring) { isEditing = true }
     }
 
-    func stopRemoving() {
-        withAnimation(.packingSpring) { isRemovingItems = false }
-    }
-
-    func remove(_ item: Item) {
-        if let removed = RemovedItem(item) {
-            removedItems.append(removed)
+    func stopEditing() {
+        draggingItem = nil
+        withAnimation(.packingSpring) {
+            selectedItemIDs = []
+            isEditing = false
         }
-        withAnimation(.packingSpring) { modelContext?.delete(item) }
     }
 
-    /// Puts back the most recently removed item whose section still exists
-    func undoRemove() {
+    func isSelected(_ item: Item) -> Bool {
+        selectedItemIDs.contains(item.persistentModelID)
+    }
+
+    func toggleSelection(_ item: Item) {
+        if selectedItemIDs.remove(item.persistentModelID) == nil {
+            selectedItemIDs.insert(item.persistentModelID)
+        }
+    }
+
+    /// Selected items that still exist, in section order then manual order
+    var selectedItems: [Item] {
+        guard !selectedItemIDs.isEmpty else { return [] }
+        return sortedLists.flatMap { list in
+            Item.sorted(list.items ?? [], sortOrder: .byCustomOrder)
+                .filter { !$0.isPacked && selectedItemIDs.contains($0.persistentModelID) }
+        }
+    }
+
+    /// Moves the selection to the end of `list`, keeping its order
+    func moveSelected(to list: PackingList) {
+        let items = selectedItems
+        withAnimation(.packingSpring) {
+            for item in items {
+                PackingItemActions.moveToList(item, list)
+            }
+            selectedItemIDs = []
+        }
+    }
+
+    func packSelected() {
+        let items = selectedItems
+        withAnimation(.packingSpring) {
+            for item in items {
+                item.isPacked = true
+            }
+            selectedItemIDs = []
+        }
+    }
+
+    func deleteSelected() {
+        let items = selectedItems
+        guard !items.isEmpty else { return }
+        removedBatches.append(items.compactMap(RemovedItem.init))
+        withAnimation(.packingSpring) {
+            for item in items {
+                modelContext?.delete(item)
+            }
+            selectedItemIDs = []
+        }
+    }
+
+    /// Puts back the most recent bulk delete (skipping items whose section is gone)
+    func undoDelete() {
         guard let modelContext else { return }
-        while let removed = removedItems.popLast() {
-            guard !removed.list.isDeleted,
-                  lists.contains(where: { $0.persistentModelID == removed.list.persistentModelID })
-            else { continue }
-            withAnimation(.packingSpring) { removed.restore(in: modelContext) }
+        while let batch = removedBatches.popLast() {
+            let restorable = batch.filter { removed in
+                !removed.list.isDeleted
+                    && lists.contains(where: { $0.persistentModelID == removed.list.persistentModelID })
+            }
+            guard !restorable.isEmpty else { continue }
+            withAnimation(.packingSpring) {
+                for removed in restorable {
+                    removed.restore(in: modelContext)
+                }
+            }
             return
+        }
+    }
+
+    func startDrag(of item: Item) {
+        // A frame later: the system snapshots the card to lift before it turns into the placeholder
+        DispatchQueue.main.async { [weak self] in
+            self?.draggingItem = item
+        }
+    }
+
+    /// The drag ended (dropped or cancelled); ignored if another drag has already started
+    func endDrag(of item: Item) {
+        guard draggingItem?.persistentModelID == item.persistentModelID else { return }
+        draggingItem = nil
+    }
+
+    /// Live reorder while a card is dragged over another card: takes that card's place,
+    /// moving to its section if needed
+    func dragMoved(over target: Item) {
+        guard let draggingItem, draggingItem.persistentModelID != target.persistentModelID,
+              !draggingItem.isDeleted, !target.isDeleted else { return }
+        // The card just swapped past slides back under the finger while it animates, which would
+        // swap it straight back (a flicker loop). Ignore it until it has settled.
+        if lastDragSwap?.id == target.persistentModelID, Date.now < lastDragSwap?.until ?? .distantPast {
+            return
+        }
+        lastDragSwap = (target.persistentModelID, .now + Self.dragSwapSettle)
+        withAnimation(.snappy(duration: Self.dragSwapSettle)) {
+            PackingItemActions.move(draggingItem, to: target)
+        }
+    }
+
+    /// Dragged over a section with no cards to land on (or the All page's section header)
+    func dragMoved(into list: PackingList, atStart: Bool) {
+        guard let draggingItem, !draggingItem.isDeleted else { return }
+        if atStart, let first = Item.sorted(list.incompleteItems, sortOrder: .byCustomOrder).first {
+            dragMoved(over: first)
+            return
+        }
+        withAnimation(.packingSpring) {
+            PackingItemActions.moveToList(draggingItem, list)
         }
     }
 

@@ -29,7 +29,7 @@ struct PackingListContainerView: View {
     let title: String?
     @State private var featureFlags = FeatureFlags.shared
 
-    /// Add, Remove Items, template editing, and check-off state (shared with the Focus pages)
+    /// Add, Edit Mode, template editing, and check-off state (shared with the Focus pages)
     @State var editor: PackingEditor
     /// The one sheet showing, if any (see `PackingListContainerView+Sheets.swift`)
     @State var activeSheet: ActiveSheet?
@@ -162,7 +162,7 @@ struct PackingListContainerView: View {
         .toolbar {
             containerToolbar
         }
-        .sensoryFeedback(.impact(weight: .light), trigger: editor.removedItems.count)
+        .sensoryFeedback(.impact(weight: .light), trigger: editor.removedBatches.count)
         .onAppear {
             editor.configure(modelContext: modelContext)
             // Only seed on first appearance so returning to this view keeps the user's picks

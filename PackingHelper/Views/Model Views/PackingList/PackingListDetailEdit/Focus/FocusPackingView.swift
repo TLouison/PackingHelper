@@ -9,8 +9,9 @@
 //  the rail's + creates a section or applies a template, as does the "Add a List" page at the
 //  end. The rail's first chip, All, opens a page listing every section's items under name
 //  headers. Wide layouts show two pages side by side (swipe moves one at a time).
-//  A section title's menu turns on Remove Items: minus buttons replace the checkboxes (packed
-//  items show as cards too) and the container's toolbar swaps to Undo + Done.
+//  Edit Mode (the toolbar's Edit, or a section title's Select Items): tapping a card selects it
+//  for the toolbar's bulk Move / Mark as Packed / Delete, cards show a handle and drag (hold) to move
+//  within or between sections, packed items hide, and the chips jiggle to show they reorder.
 //
 
 import SwiftData
@@ -414,6 +415,10 @@ private struct FocusBagRail: View {
 
     /// Section whose chip is being dragged (hold a chip, then drag to reorder)
     @State private var draggingList: PackingList?
+    /// Edit Mode drags the chip under the finger right away (no hold): where the finger is, and
+    /// where on the chip it grabbed, both in the rail's visible bounds
+    @State private var liftedChipX: CGFloat = 0
+    @State private var liftedChipGrab: CGFloat = 0
     /// Chip frames in the rail's visible bounds, the same space as drop locations
     @State private var chipFrames: [PersistentIdentifier: CGRect] = [:]
     @State private var position = ScrollPosition(idType: PersistentIdentifier.self)
@@ -445,6 +450,15 @@ private struct FocusBagRail: View {
         }
         .scrollIndicators(.hidden)
         .scrollPosition($position)
+        // An Edit Mode chip drag owns the finger; only autoscroll moves the rail meanwhile
+        .scrollDisabled(editor.isEditing && draggingList != nil)
+        .sensoryFeedback(.impact(weight: .light), trigger: draggingList?.persistentModelID) { _, new in
+            editor.isEditing && new != nil
+        }
+        .onChange(of: editor.isEditing) {
+            // A cancelled hold-drag never clears this, and Edit Mode would show that chip as lifted
+            draggingList = nil
+        }
         .onScrollGeometryChange(for: RailScrollGeometry.self) { geometry in
             RailScrollGeometry(
                 offset: geometry.contentOffset.x,
@@ -459,7 +473,11 @@ private struct FocusBagRail: View {
         // One drop target for the whole rail, so gaps, the ends, and past the last chip all work
         .onDrop(
             of: [UTType.text],
-            delegate: ChipReorderDropDelegate(draggingList: $draggingList, onUpdate: dragMoved(to:))
+            delegate: ChipReorderDropDelegate(
+                draggingList: $draggingList,
+                isDraggingItem: editor.draggingItem != nil,
+                onUpdate: dragMoved(to:)
+            )
         )
         .onChange(of: visibleListIDs.first) { _, id in
             guard let id else { return }
@@ -488,6 +506,8 @@ private struct FocusBagRail: View {
             isSelected: visibleListIDs.contains(list.persistentModelID)
         )
 
+        let isLifted = editor.isEditing && draggingList?.persistentModelID == list.persistentModelID
+
         // No context menu here: it would open before the drag lifts. Section actions live on the page header.
         return Button {
             onSelect(list)
@@ -495,8 +515,19 @@ private struct FocusBagRail: View {
             label
         }
         .buttonStyle(PressableCardStyle(scale: 0.94))
-        .modifier(ChipReorderDrag(list: list, isEnabled: !editor.isRemovingItems, draggingList: $draggingList) { label })
-        .accessibilityHint(editor.isRemovingItems ? "" : "Hold and drag to reorder")
+        .modifier(Jiggle(isActive: editor.isEditing && !isLifted, seed: list.uuid))
+        // Edit Mode's lifted chip follows the finger; the others reflow around it
+        .scaleEffect(isLifted ? 1.08 : 1)
+        .shadow(color: .black.opacity(isLifted ? 0.18 : 0), radius: 8, y: 3)
+        .offset(x: isLifted ? liftedOffset(for: list) : 0)
+        .zIndex(isLifted ? 1 : 0)
+        // Outside Edit Mode, hold then drag (a plain drag scrolls the rail)
+        .modifier(ChipReorderDrag(list: list, isEnabled: !editor.isEditing, draggingList: $draggingList) {
+            // A stale item drag must not hijack this one
+            editor.draggingItem = nil
+        } preview: { label })
+        .highPriorityGesture(editModeDrag(for: list), isEnabled: editor.isEditing)
+        .accessibilityHint(editor.isEditing ? "Drag to reorder" : "Hold and drag to reorder")
         .accessibilityActions {
             Button("Edit List") { input.onEditList(list) }
             if let index = index(of: list) {
@@ -508,6 +539,33 @@ private struct FocusBagRail: View {
                 }
             }
         }
+    }
+
+    /// Edit Mode: a plain drag on a chip reorders straight away, no hold
+    private func editModeDrag(for list: PackingList) -> some Gesture {
+        DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.coordinateSpace))
+            .onChanged { value in
+                if draggingList?.persistentModelID != list.persistentModelID {
+                    editor.draggingItem = nil
+                    let minX = chipFrames[list.persistentModelID]?.minX ?? value.startLocation.x
+                    liftedChipGrab = value.startLocation.x - minX
+                    liftedChipX = value.location.x
+                    withAnimation(.snappy(duration: 0.2)) { draggingList = list }
+                }
+                liftedChipX = value.location.x
+                // Slot by the chip's center, so neighbors move when the chip (not the finger) crosses them
+                let width = chipFrames[list.persistentModelID]?.width ?? 0
+                dragMoved(to: CGPoint(x: liftedChipX - liftedChipGrab + width / 2, y: value.location.y))
+            }
+            .onEnded { _ in
+                withAnimation(.snappy) { draggingList = nil }
+            }
+    }
+
+    /// Keeps the lifted chip under the finger as its slot moves during the live reorder
+    private func liftedOffset(for list: PackingList) -> CGFloat {
+        guard let frame = chipFrames[list.persistentModelID] else { return 0 }
+        return liftedChipX - liftedChipGrab - frame.minX
     }
 
     private var addSectionMenu: some View {
@@ -525,7 +583,7 @@ private struct FocusBagRail: View {
         }
         .buttonStyle(.plain)
         .popoverTip(currentTip as? ApplyTemplateTip, arrowEdge: .top)
-        .disabled(editor.isRemovingItems)
+        .disabled(editor.isEditing)
         .accessibilityLabel("Add List")
         .accessibilityAddTraits(isAddPageVisible ? .isSelected : [])
     }
@@ -562,21 +620,46 @@ private struct FocusBagRail: View {
     }
 }
 
-/// Hold a chip and drag to reorder; off in Remove Items mode
+/// Hold a chip and drag to reorder; Edit Mode uses a plain drag gesture instead
 private struct ChipReorderDrag<Preview: View>: ViewModifier {
     let list: PackingList
     let isEnabled: Bool
     @Binding var draggingList: PackingList?
+    let onStart: () -> Void
     @ViewBuilder let preview: () -> Preview
 
     func body(content: Content) -> some View {
         if isEnabled {
             content
                 .onDrag {
+                    onStart()
                     draggingList = list
                     return NSItemProvider(object: list.uuid.uuidString as NSString)
                 } preview: {
                     preview()
+                }
+        } else {
+            content
+        }
+    }
+}
+
+/// Edit Mode's home-screen wobble on the chips, so it's clear they can be dragged. Each chip's
+/// pace comes from `seed`, so they don't swing in step. Still with Reduce Motion.
+private struct Jiggle: ViewModifier {
+    let isActive: Bool
+    let seed: UUID
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if isActive && !reduceMotion {
+            let duration = 0.2 + Double(seed.uuid.0 % 4) * 0.015
+            content
+                .phaseAnimator([-1.0, 1.0]) { view, phase in
+                    view.rotationEffect(.degrees(phase * 0.7))
+                } animation: { _ in
+                    .easeInOut(duration: duration)
                 }
         } else {
             content
@@ -592,11 +675,13 @@ private struct RailScrollGeometry: Equatable {
 
 private struct ChipReorderDropDelegate: DropDelegate {
     @Binding var draggingList: PackingList?
+    /// An item card's handle is being dragged, not a chip
+    let isDraggingItem: Bool
     let onUpdate: (CGPoint) -> Void
 
-    /// Only our own chip drags (not text dragged in from elsewhere)
+    /// Only our own chip drags (not text or items dragged in from elsewhere)
     func validateDrop(info: DropInfo) -> Bool {
-        draggingList != nil
+        draggingList != nil && !isDraggingItem
     }
 
     func dropEntered(info: DropInfo) {
@@ -714,7 +799,7 @@ private struct FocusAddSectionPage: View {
                 EmptyStateButton(title: "New List", systemImage: "plus", isProminent: false, action: input.onCreateList)
             }
             .padding(.top, 8)
-            .disabled(editor.isRemovingItems)
+            .disabled(editor.isEditing)
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -736,9 +821,9 @@ private struct FocusBagPage: View {
 
     var body: some View {
         let items = input.items(in: list)
-        // Remove Items mode lists packed items as cards too, so they can be removed
-        let unpacked = editor.isRemovingItems ? items : pendingPacks.visibleUnpacked(items)
-        let packed = editor.isRemovingItems ? [] : pendingPacks.settledPacked(items)
+        // Edit Mode hides packed items (and skips the check-off delay)
+        let unpacked = editor.isEditing ? items.filter { !$0.isPacked } : pendingPacks.visibleUnpacked(items)
+        let packed = editor.isEditing ? [] : pendingPacks.settledPacked(items)
         let packedCount = items.filter(\.isPacked).count
         let isComplete = !items.isEmpty && packedCount == items.count
 
@@ -747,7 +832,7 @@ private struct FocusBagPage: View {
                 VStack(alignment: .leading, spacing: 20) {
                     header(packed: packedCount, total: items.count, isComplete: isComplete)
 
-                    if isComplete && unpacked.isEmpty {
+                    if isComplete && unpacked.isEmpty && !editor.isEditing {
                         completionCard
                             .transition(.scale(scale: 0.9).combined(with: .opacity))
                     }
@@ -779,7 +864,7 @@ private struct FocusBagPage: View {
                         .frame(height: 160)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            if !editor.isRemovingItems { editor.handleTapOnEmptyArea(in: list) }
+                            if !editor.isEditing { editor.handleTapOnEmptyArea(in: list) }
                         }
                         .accessibilityHidden(true)
                 }
@@ -901,16 +986,16 @@ private struct FocusSectionMenu: View {
     @Environment(PackingEditor.self) private var editor
 
     var body: some View {
-        if !editor.isRemovingItems {
+        if !editor.isEditing {
             Button("New Item", systemImage: "plus") { editor.startAdding(in: list) }
         }
         Button("Edit List", systemImage: "pencil") { input.onEditList(list) }
         // Lists made on the trip; ones from a template save back through trip review instead
-        if list.isNewTemplateCandidate && !editor.isRemovingItems {
+        if list.isNewTemplateCandidate && !editor.isEditing {
             Button("Save as Template", systemImage: "plus.square.on.square") { input.onSaveAsTemplate(list) }
         }
-        if !editor.isRemovingItems {
-            Button("Remove Items", systemImage: "minus.circle", action: editor.startRemoving)
+        if !editor.isEditing {
+            Button("Select Items", systemImage: "checkmark.circle", action: editor.startEditing)
         }
         Divider()
         Button("Delete List", systemImage: "trash", role: .destructive) { input.onDeleteList(list) }
@@ -934,32 +1019,66 @@ private struct FocusSectionItems: View {
         let otherLists = input.lists.filter { $0.persistentModelID != list.persistentModelID }
 
         VStack(spacing: 6) {
-            ForEach(unpacked) { item in
+            ForEach(Array(unpacked.enumerated()), id: \.element.id) { index, item in
                 FocusItemCard(
                     item: item,
-                    isRemoving: editor.isRemovingItems,
+                    isEditing: editor.isEditing,
+                    isSelected: editor.isSelected(item),
+                    isDragging: editor.draggingItem?.persistentModelID == item.persistentModelID,
                     showsPacker: input.hasMultiplePackers,
                     otherLists: otherLists,
                     onToggle: { pendingPacks.toggle(item) },
+                    onSelect: { editor.toggleSelection(item) },
+                    onStartDrag: { editor.startDrag(of: item) },
+                    onEndDrag: { editor.endDrag(of: item) },
                     onShowDetails: { onShowDetails(item) },
                     onMove: { target in
                         withAnimation(.packingSpring) { PackingItemActions.moveToList(item, target) }
                     },
+                    onMoveUp: index > 0 ? { move(item, to: unpacked[index - 1]) } : nil,
+                    onMoveDown: index < unpacked.count - 1 ? { move(item, to: unpacked[index + 1]) } : nil,
                     onDelete: {
                         withAnimation(.packingSpring) { modelContext.delete(item) }
-                    },
-                    onRemove: { editor.remove(item) }
+                    }
                 )
+                .onDrop(of: [UTType.text], delegate: ItemReorderDropDelegate(editor: editor) {
+                    editor.dragMoved(over: item)
+                })
                 .transition(.asymmetric(
                     insertion: .opacity,
                     removal: .scale(scale: 0.6, anchor: .bottom).combined(with: .opacity)
                 ))
             }
 
-            if !editor.isRemovingItems {
+            if editor.isEditing {
+                if unpacked.isEmpty {
+                    emptyDropZone
+                }
+            } else {
                 addCard
             }
         }
+    }
+
+    private func move(_ item: Item, to neighbor: Item) {
+        withAnimation(.packingSpring) { PackingItemActions.move(item, to: neighbor) }
+    }
+
+    /// Edit Mode with nothing left here: somewhere to drop a dragged item
+    private var emptyDropZone: some View {
+        Text("Drag items here")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+                    .foregroundStyle(.quaternary)
+            }
+            .onDrop(of: [UTType.text], delegate: ItemReorderDropDelegate(editor: editor) {
+                editor.dragMoved(into: list, atStart: false)
+            })
+            .accessibilityHidden(true)
     }
 
     /// The inline new item row in this section, otherwise a dashed card that starts one
@@ -1072,8 +1191,8 @@ private struct FocusAllItemsPage: View {
 
                     ForEach(input.lists) { list in
                         let items = input.items(in: list)
-                        let unpacked = editor.isRemovingItems ? items : pendingPacks.visibleUnpacked(items)
-                        let packed = editor.isRemovingItems ? [] : pendingPacks.settledPacked(items)
+                        let unpacked = editor.isEditing ? items.filter { !$0.isPacked } : pendingPacks.visibleUnpacked(items)
+                        let packed = editor.isEditing ? [] : pendingPacks.settledPacked(items)
 
                         Section {
                             FocusSectionItems(
@@ -1100,7 +1219,7 @@ private struct FocusAllItemsPage: View {
                         .frame(height: 160)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            if !editor.isRemovingItems { editor.handleTapOnEmptyArea(in: nil) }
+                            if !editor.isEditing { editor.handleTapOnEmptyArea(in: nil) }
                         }
                         .accessibilityHidden(true)
                 }
@@ -1133,6 +1252,10 @@ private struct FocusAllItemsPage: View {
             .contextMenu {
                 FocusSectionMenu(list: list, input: input)
             }
+            // Edit Mode: a dragged item over a header goes to the top of that section
+            .onDrop(of: [UTType.text], delegate: ItemReorderDropDelegate(editor: editor) {
+                editor.dragMoved(into: list, atStart: true)
+            })
             .accessibilityAddTraits(.isHeader)
     }
 
@@ -1149,28 +1272,81 @@ private struct FocusAllItemsPage: View {
     }
 }
 
+// MARK: - Item Drag
+
+/// Edit Mode: a card (or empty section, or All page header) a dragged item is passing over.
+/// Moves happen live as the item enters each target, like the chip rail.
+@MainActor
+private struct ItemReorderDropDelegate: DropDelegate {
+    let editor: PackingEditor
+    let onEnter: () -> Void
+
+    /// Only our own item drags (not chips, or text dragged in from elsewhere)
+    func validateDrop(info: DropInfo) -> Bool {
+        editor.isEditing && editor.draggingItem != nil
+    }
+
+    func dropEntered(info: DropInfo) {
+        onEnter()
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        // Move, not copy: no green plus badge on the drag preview
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        editor.draggingItem = nil
+        return true
+    }
+}
+
+/// `onDrag` has no end callback, but the drag session holds its item provider until the drop
+/// (or cancel) finishes, so the provider going away is the end of the drag
+private final class DragEndingItemProvider: NSItemProvider {
+    private var onEnd: (() -> Void)?
+
+    convenience init(object: NSItemProviderWriting, onEnd: @escaping () -> Void) {
+        self.init(object: object)
+        self.onEnd = onEnd
+    }
+
+    deinit {
+        guard let onEnd else { return }
+        DispatchQueue.main.async(execute: onEnd)
+    }
+}
+
 // MARK: - Item Card
 
 private struct FocusItemCard: View {
     let item: Item
-    /// Remove Items mode: a remove button replaces the checkbox and tapping the card does nothing
-    let isRemoving: Bool
+    /// Edit Mode: tapping selects, a selection ring replaces the checkbox, and a handle drags
+    let isEditing: Bool
+    let isSelected: Bool
+    /// Its handle is being dragged: the card shows as the empty slot it will land in
+    let isDragging: Bool
     let showsPacker: Bool
     let otherLists: [PackingList]
     let onToggle: () -> Void
+    let onSelect: () -> Void
+    let onStartDrag: () -> Void
+    /// The drag session let go of its item provider (dropped anywhere, or cancelled)
+    let onEndDrag: () -> Void
     let onShowDetails: () -> Void
     let onMove: (PackingList) -> Void
+    /// VoiceOver's stand-in for dragging; nil at the ends of the section
+    let onMoveUp: (() -> Void)?
+    let onMoveDown: (() -> Void)?
     let onDelete: () -> Void
-    let onRemove: () -> Void
 
     var body: some View {
-        if isRemoving {
-            removableCard
+        if isEditing {
+            selectableCard
         } else {
             packableCard
         }
     }
-
     private var packableCard: some View {
         Button(action: onToggle) {
             cardContent {
@@ -1196,25 +1372,50 @@ private struct FocusItemCard: View {
         .accessibilityHint(accessibilityToggleHint)
     }
 
-    private var removableCard: some View {
+    private var selectableCard: some View {
         cardContent {
-            Button(action: onRemove) {
-                Image(systemName: "minus.circle.fill")
-                    .font(.system(size: 22))
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, .red)
-                    // Reach ~44pt without growing the card
-                    .contentShape(Rectangle().inset(by: -11))
-            }
-            .buttonStyle(.plain)
-            .transition(.scale.combined(with: .opacity))
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 22))
+                .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.secondary.opacity(0.5)))
+                .contentTransition(.symbolEffect(.replace))
+                .transition(.scale.combined(with: .opacity))
+        } trailing: {
+            Image(systemName: "line.3.horizontal")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .transition(.scale.combined(with: .opacity))
         }
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.accentColor, lineWidth: 1.5)
+            }
+        }
+        // The system lifts this exact shape, so the card itself is what gets picked up
+        .contentShape(.dragPreview, .rect(cornerRadius: 12))
+        .onDrag {
+            onStartDrag()
+            return DragEndingItemProvider(object: item.uuid.uuidString as NSString, onEnd: onEndDrag)
+        }
+        // While dragging, the card stays in its spot as a faded copy: the placeholder for where
+        // it will land (it moves live)
+        .opacity(isDragging ? 0.4 : 1)
+        .animation(.snappy(duration: 0.2), value: isDragging)
+        .onTapGesture(perform: onSelect)
+        .sensoryFeedback(.selection, trigger: isSelected)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityName)
-        .accessibilityValue(accessibilityState)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Removes the item")
-        .accessibilityAction { onRemove() }
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint(isSelected ? "Deselects the item" : "Selects the item")
+        .accessibilityAction { onSelect() }
+        .accessibilityActions {
+            if let onMoveUp {
+                Button("Move Up", action: onMoveUp)
+            }
+            if let onMoveDown {
+                Button("Move Down", action: onMoveDown)
+            }
+        }
     }
 
     private var accessibilityName: String {
@@ -1234,6 +1435,13 @@ private struct FocusItemCard: View {
     }
 
     private func cardContent(@ViewBuilder leading: () -> some View) -> some View {
+        cardContent(leading: leading) { EmptyView() }
+    }
+
+    private func cardContent(
+        @ViewBuilder leading: () -> some View,
+        @ViewBuilder trailing: () -> some View
+    ) -> some View {
         HStack(spacing: 12) {
             leading()
 
@@ -1259,6 +1467,8 @@ private struct FocusItemCard: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
+
+            trailing()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)

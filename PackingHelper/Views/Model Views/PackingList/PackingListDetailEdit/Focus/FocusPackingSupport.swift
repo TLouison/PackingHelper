@@ -3,7 +3,7 @@
 //  PackingHelper
 //
 //  Shared pieces for FocusPackingView: the container's input, item actions, the
-//  Remove Items undo record, and small controls.
+//  Edit Mode delete undo record, and small controls.
 //
 
 import SwiftData
@@ -21,7 +21,7 @@ enum PackingStartPage: String, CaseIterable {
 
 // MARK: - Input
 
-/// What the container hands FocusPackingView. Add, Remove Items, and check-off state lives in
+/// What the container hands FocusPackingView. Add, Edit Mode, and check-off state lives in
 /// `PackingEditor` (environment).
 struct FocusPackingInput {
     let trip: Trip
@@ -74,11 +74,31 @@ enum PackingItemActions {
         item.list = list
         item.sortOrder = order
     }
+
+    /// Puts an item where `target` is among its section's unpacked items, moving it to that
+    /// section if needed. Coming from above in the same section lands after `target`, otherwise before.
+    static func move(_ item: Item, to target: Item) {
+        guard item.persistentModelID != target.persistentModelID, let list = target.list else { return }
+        var items = Item.sorted(list.incompleteItems, sortOrder: .byCustomOrder)
+        guard let targetIndex = items.firstIndex(where: { $0.persistentModelID == target.persistentModelID }) else {
+            return
+        }
+        items.removeAll { $0.persistentModelID == item.persistentModelID }
+        if item.list?.persistentModelID != list.persistentModelID {
+            item.list?.removeItem(item)
+            list.addItem(item)
+            item.list = list
+        }
+        items.insert(item, at: min(targetIndex, items.count))
+        for (index, item) in items.enumerated() {
+            item.sortOrder = index
+        }
+    }
 }
 
 // MARK: - Removed Items
 
-/// Enough of a deleted item to put it back where it was (Remove Items mode's Undo)
+/// Enough of a deleted item to put it back where it was (Edit Mode's Undo)
 struct RemovedItem {
     let uuid: UUID
     let name: String
