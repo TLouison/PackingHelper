@@ -220,12 +220,10 @@ struct TripDetailView: View {
 
     private var forecastSection: some View {
         TripDetailForecastView(trip: trip, tripWeather: $tripWeather)
-            .shadow(radius: defaultShadowRadius)
     }
 
     private var infoSection: some View {
         TripDetailInfoView(trip: trip)
-            .shadow(radius: defaultShadowRadius)
     }
 
     @ViewBuilder

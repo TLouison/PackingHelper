@@ -64,7 +64,7 @@ struct PastTripsEntryCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
             .contentShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
-            .shadow(radius: defaultShadowRadius)
+            .shaded()
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

@@ -95,6 +95,6 @@ struct UserGridCell: View {
         .padding()
         .background(.thinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(radius: 2)
+        .shaded()
     }
 }

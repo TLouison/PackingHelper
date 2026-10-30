@@ -80,7 +80,7 @@ struct PastTripsSummaryCard: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
-        .shadow(radius: defaultShadowRadius)
+        .shaded()
     }
 
     private func section<Content: View>(
@@ -140,6 +140,7 @@ private struct RecentTripRow: View {
             }
             // Box inside the label so its padding is part of the tap target
             .roundedBox(background: .ultraThick)
+            .shaded()
         }
         .buttonStyle(.plain)
     }

@@ -45,6 +45,7 @@ struct TemplateReviewTripRow: View {
             .accessibilityLabel("Dismiss review for \(trip.name)")
         }
         .roundedBox(background: .ultraThick)
+        .shaded()
     }
 }
 

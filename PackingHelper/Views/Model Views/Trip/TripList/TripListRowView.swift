@@ -212,7 +212,7 @@ struct TripListRowView: View {
             TripBackgroundView(trip: trip, style: .card)
         }
         .clipShape(RoundedRectangle(cornerRadius: defaultCornerRadius))
-        .shadow(radius: defaultShadowRadius)
+        .shaded()
         .onGeometryChange(for: Bool.self) { proxy in
             proxy.size.width >= Self.wideCardWidth
         } action: { isWide in
