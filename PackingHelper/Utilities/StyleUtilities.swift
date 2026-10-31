@@ -12,8 +12,8 @@ let defaultCornerRadius: CGFloat = 16
 let defaultLinearGradient: LinearGradient = LinearGradient(colors: [.accentColor, .purple], startPoint: .leading, endPoint: .trailing)
 
 let suitcaseIcon: String = "suitcase.rolling.fill"
-let suitcaseDayOfIcon: String = "DayOfPacking"
-let checklistDayOfIcon: String = "DayOfTask"
+/// Day-of items: their card badge, the Day Of chip, and the add bar toggle
+let dayOfIcon: String = "sunrise"
 let defaultPackingListIcon: String = suitcaseIcon
 let userIcon: String = "person.circle"
 

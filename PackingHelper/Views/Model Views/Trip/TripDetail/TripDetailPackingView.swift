@@ -37,10 +37,10 @@ struct TripDetailPackingView: View {
         Array(sections.prefix(sectionLimit))
     }
 
-    /// Unchecked items in day-of lists, counted on the day the trip leaves
+    /// Unchecked day-of items, counted on the day the trip leaves
     private var dayOfItemsLeft: Int {
         guard Calendar.current.isDateInToday(trip.startDate) else { return 0 }
-        return trip.dayOfLists.reduce(0) { $0 + $1.incompleteItems.count }
+        return trip.dayOfItems.count(where: { !$0.isPacked })
     }
 
     /// Unpacked items in packing-list order, shown under the sections when the card has spare height
@@ -134,7 +134,7 @@ struct TripDetailPackingView: View {
                 Label {
                     Text("^[\(dayOfItemsLeft) thing](inflect: true) left for today")
                 } icon: {
-                    Image(suitcaseDayOfIcon)
+                    Image(systemName: dayOfIcon)
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)

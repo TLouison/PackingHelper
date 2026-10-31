@@ -35,7 +35,7 @@ struct TemplateListInfoView: View {
         NavigationStack {
             List {
                 Section("List Details") {
-                    infoRow("Type", Label { Text(list.kind.displayName(isDayOf: list.isDayOf)) } icon: { list.glyph ?? list.kind.image })
+                    infoRow("Type", Label { Text(list.kind.name) } icon: { list.glyph ?? list.kind.image })
 
                     infoRow("Total Items", Text("\(list.totalItems)"))
 

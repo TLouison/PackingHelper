@@ -51,7 +51,6 @@ enum AITemplateCandidatesBuilder {
                 templateUUID: template.uuid,
                 name: template.name,
                 kind: template.kind.rawValue,
-                isDayOf: template.isDayOf,
                 itemCount: items.count,
                 items: Array(items.prefix(maxItemsPerCandidate)),
                 signals: candidate.signals

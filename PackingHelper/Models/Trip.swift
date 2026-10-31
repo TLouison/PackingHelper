@@ -292,8 +292,11 @@ extension Trip {
         PackingList.sorted(lists ?? [], sortOrder: .byCustomOrder).filter { $0.kind == kind }
     }
 
-    var dayOfLists: [PackingList] {
-        PackingList.sorted(lists ?? [], sortOrder: .byCustomOrder).filter(\.isDayOf)
+    /// Items flagged day-of, in list order then item order
+    var dayOfItems: [Item] {
+        PackingList.sorted(lists ?? [], sortOrder: .byCustomOrder).flatMap { list in
+            Item.sorted(list.items ?? [], sortOrder: .byCustomOrder).filter(\.isDayOf)
+        }
     }
 
     // MARK: CRUD Lists
@@ -301,16 +304,9 @@ extension Trip {
         if self.lists == nil {
             self.lists = []
         }
-        // New sections go last; the Default section keeps its -1 so it stays first.
-        // Day-of lists stay at the end: other new lists go in front of them.
+        // New sections go last; the Default section keeps its -1 so it stays first
         if !list.isDefault {
-            let dayOfLists = self.dayOfLists
-            if !list.isDayOf, let firstDayOf = dayOfLists.first {
-                list.sortOrder = firstDayOf.sortOrder
-                for dayOfList in dayOfLists { dayOfList.sortOrder += 1 }
-            } else {
-                list.sortOrder = SortOrderManager.nextListSortOrder(in: self.lists!)
-            }
+            list.sortOrder = SortOrderManager.nextListSortOrder(in: self.lists!)
         }
         self.lists!.append(list)
     }

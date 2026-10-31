@@ -62,15 +62,16 @@ struct AITripList: Encodable {
     let listUUID: UUID
     let name: String
     let kind: String  // "packing" | "tasks"
-    let isDayOf: Bool
     let isDefault: Bool
     /// The template it was applied from; nil for lists made on this trip
     let fromTemplate: String?
     /// The packer's items plus unassigned ones on this list, packed or not
     let items: [String]
+    /// Which of `items` are for the day they leave; nil when none
+    let dayOfItems: [String]?
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, kind, isDayOf, isDefault, fromTemplate, items
+        case id, name, kind, isDefault, fromTemplate, items, dayOfItems
     }
 }
 
@@ -82,7 +83,6 @@ struct AITemplateCandidate: Encodable {
     let templateUUID: UUID
     let name: String
     let kind: String  // "packing" | "tasks"
-    let isDayOf: Bool
     let itemCount: Int
     /// The first items, in order
     let items: [String]
@@ -90,14 +90,13 @@ struct AITemplateCandidate: Encodable {
     let signals: [String]
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, kind, isDayOf, itemCount, items, signals
+        case id, name, kind, itemCount, items, signals
     }
 }
 
 struct AITemplateContext: Encodable {
     let name: String
     let listKind: String  // "packing" | "tasks"
-    let isDayOf: Bool
     /// Item counts become the trip's length when applied, so counts don't matter
     let countAsDays: Bool
     let existingItems: [String]
@@ -172,13 +171,15 @@ struct AISuggestedItem: Codable, Identifiable {
     /// The trip list the model picked: a short `AITripList.id` on the wire, replaced with the
     /// list's UUID string before the suggestion is shown or saved. Checked again before use
     var listId: String?
+    /// Something to pack or do the day they leave; added as a day-of item
+    let isDayOf: Bool
 
     enum Kind: String, Codable {
         case packing, task
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, category, count, kind, accessoryFor, fromTrip, listId
+        case id, name, category, count, kind, accessoryFor, fromTrip, listId, isDayOf
     }
 
     init(from decoder: Decoder) throws {
@@ -194,6 +195,7 @@ struct AISuggestedItem: Codable, Identifiable {
         accessoryFor = try container.decodeIfPresent(String.self, forKey: .accessoryFor)
         fromTrip = try container.decodeIfPresent(String.self, forKey: .fromTrip)
         listId = try container.decodeIfPresent(String.self, forKey: .listId)
+        isDayOf = try container.decodeIfPresent(Bool.self, forKey: .isDayOf) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -206,6 +208,7 @@ struct AISuggestedItem: Codable, Identifiable {
         try container.encodeIfPresent(accessoryFor, forKey: .accessoryFor)
         try container.encodeIfPresent(fromTrip, forKey: .fromTrip)
         try container.encodeIfPresent(listId, forKey: .listId)
+        if isDayOf { try container.encode(isDayOf, forKey: .isDayOf) }
     }
 }
 

@@ -11,8 +11,7 @@ import SwiftData
 import OSLog
 
 /// What a list holds. Packing lists check items off as packed, task lists as done.
-/// Either kind can also be a day-of list (`PackingList.isDayOf`): things you can't
-/// pack or do ahead, for the day you leave.
+/// Day-of is per item (`Item.isDayOf`), not per list.
 enum ListKind: String, Codable, CaseIterable, Identifiable {
     case packing, tasks
 
@@ -38,23 +37,12 @@ enum ListKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Glyph shown before a list's name. nil for everyday packing lists,
+    /// Glyph shown before a list's name. nil for packing lists,
     /// so trips with only packing lists look unchanged.
-    func glyph(isDayOf: Bool) -> Image? {
-        switch (self, isDayOf) {
-        case (.packing, false): nil
-        case (.tasks, false): Image(systemName: "checklist")
-        case (.packing, true): Image(suitcaseDayOfIcon)
-        case (.tasks, true): Image(checklistDayOfIcon)
-        }
-    }
-
-    /// "Tasks", "Day Of", or "Day Of Tasks", for VoiceOver and info rows
-    func displayName(isDayOf: Bool) -> String {
-        switch (self, isDayOf) {
-        case (_, false): name
-        case (.packing, true): "Day Of"
-        case (.tasks, true): "Day Of Tasks"
+    var glyph: Image? {
+        switch self {
+        case .packing: nil
+        case .tasks: Image(systemName: "checklist")
         }
     }
 }
@@ -90,8 +78,9 @@ final class PackingList {
         set { kindRawValue = newValue.rawValue }
     }
 
-    /// For the day you leave: stays at the end of the trip's lists and feeds the
-    /// trip detail "left for today" line. The Default list is never day-of.
+    /// Legacy: day-of moved to items (`Item.isDayOf`). Read only by the day-of items migration,
+    /// which clears it and flags the list's items. Not renamed: the CloudKit-backed store
+    /// can't rename attributes, and the container fails to load if one is
     var isDayOf: Bool = false
 
     var name: String = "List"
@@ -120,10 +109,9 @@ final class PackingList {
     /// The saved AI assistant chat (templates only)
     @Relationship(deleteRule: .cascade, inverse: \AIConversation.template) var aiConversation: AIConversation?
 
-    init(kind: ListKind = .packing, isDayOf: Bool = false, template: Bool, name: String, countAsDays: Bool, sortOrder: Int = 0) {
+    init(kind: ListKind = .packing, template: Bool, name: String, countAsDays: Bool, sortOrder: Int = 0) {
         self.created = Date.now
         self.kindRawValue = kind.rawValue
-        self.isDayOf = isDayOf
         self.template = template
         self.items = []
         self.appliedToLists = []
@@ -162,8 +150,8 @@ final class PackingList {
 }
 
 extension PackingList {
-    /// Glyph before the list's name; nil for everyday packing lists
-    var glyph: Image? { kind.glyph(isDayOf: isDayOf) }
+    /// Glyph before the list's name; nil for packing lists
+    var glyph: Image? { kind.glyph }
 }
 
 extension PackingList {
@@ -192,7 +180,6 @@ extension PackingList {
         name: String,
         template: Bool,
         kind: ListKind? = nil,
-        isDayOf: Bool? = nil,
         owner: User? = nil,
         in context: ModelContext,
         for trip: Trip?
@@ -202,16 +189,15 @@ extension PackingList {
             AppLogger.packingList.debug("Packing list already exists. Updating with new info.")
             packingList.name = name
             // The Default list stays an everyday packing list
-            if !packingList.isDefault {
-                if let kind { packingList.kind = kind }
-                if let isDayOf { packingList.isDayOf = isDayOf }
+            if !packingList.isDefault, let kind {
+                packingList.kind = kind
             }
             if packingList.template {
                 packingList.user = owner
             }
         } else {
             AppLogger.packingList.debug("Packing list does not already exist. Creating with new info.")
-            let newPackingList = PackingList(kind: kind ?? .packing, isDayOf: isDayOf ?? false, template: template, name: name, countAsDays: false)
+            let newPackingList = PackingList(kind: kind ?? .packing, template: template, name: name, countAsDays: false)
             if template {
                 newPackingList.user = owner
             }
@@ -303,7 +289,7 @@ extension PackingList {
 
 extension PackingList {
     private static func _copy(_ packingList: PackingList, for trip: Trip? = nil, template: Bool = false) -> PackingList {
-        let newList = PackingList(kind: packingList.kind, isDayOf: packingList.isDayOf, template: packingList.template, name: packingList.name, countAsDays: packingList.countAsDays)
+        let newList = PackingList(kind: packingList.kind, template: packingList.template, name: packingList.name, countAsDays: packingList.countAsDays)
         AppLogger.packingList.info("Copied list.")
 
         if let items = packingList.items {
@@ -365,7 +351,7 @@ extension PackingList {
             .filter { seen.insert(AITripContextBuilder.matchKey($0.name)).inserted }
         guard !sourceItems.isEmpty else { return 0 }
 
-        let list = PackingList(kind: template.kind, isDayOf: template.isDayOf, template: false, name: template.name, countAsDays: template.countAsDays)
+        let list = PackingList(kind: template.kind, template: false, name: template.name, countAsDays: template.countAsDays)
         context.insert(list)
         list.appliedFromTemplate = template
         // An owned template's items always go to its owner; the chosen packer only applies to shared templates
@@ -378,6 +364,7 @@ extension PackingList {
                 isPacked: false,
                 sortOrder: order
             )
+            item.isDayOf = source.isDayOf
             context.insert(item)
             item.user = user
             list.addItem(item)
@@ -461,7 +448,6 @@ extension PackingList {
     func saveAsNewTemplate(named name: String, owner: User?, in context: ModelContext) -> PackingList {
         let template = PackingList(
             kind: kind,
-            isDayOf: isDayOf,
             template: true,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             countAsDays: false

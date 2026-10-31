@@ -40,17 +40,14 @@ struct PackingListApplyDefaultView: View {
         }
     }
 
-    /// Everyday packing, tasks, then day-of packing and day-of tasks (the order they sit on a
-    /// trip); each sorted by name. Empty groups are dropped.
+    /// Packing, then tasks; each sorted by name. Empty groups are dropped.
     private var templateGroups: [TemplateGroup] {
         let available = availableTemplates
-        return [false, true].flatMap { isDayOf in
-            ListKind.allCases.compactMap { kind in
-                let lists = available
-                    .filter { $0.kind == kind && $0.isDayOf == isDayOf }
-                    .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-                return lists.isEmpty ? nil : TemplateGroup(kind: kind, isDayOf: isDayOf, lists: lists)
-            }
+        return ListKind.allCases.compactMap { kind in
+            let lists = available
+                .filter { $0.kind == kind }
+                .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            return lists.isEmpty ? nil : TemplateGroup(kind: kind, lists: lists)
         }
     }
 
@@ -195,13 +192,12 @@ struct PackingListApplyDefaultView: View {
 
 private struct TemplateGroup: Identifiable {
     let kind: ListKind
-    let isDayOf: Bool
     let lists: [PackingList]
 
-    var id: String { "\(kind.rawValue)-\(isDayOf)" }
+    var id: ListKind { kind }
 
-    /// "Packing", "Tasks", "Day Of", "Day Of Tasks"
-    var title: String { kind.displayName(isDayOf: isDayOf) }
+    /// "Packing" or "Tasks"
+    var title: String { kind.name }
 }
 
 /// `.searchable` only when there are enough templates to need it

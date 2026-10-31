@@ -55,6 +55,11 @@ struct FocusPackingInput {
         return items.filter { $0.user?.persistentModelID == selectedUser.persistentModelID }
     }
 
+    /// Whether any section has a day-of item for the selected packer (shows the Day Of page)
+    var hasDayOfItems: Bool {
+        lists.contains { filteredItems(in: $0).contains(where: \.isDayOf) }
+    }
+
     /// Sections (by id) with at least one unchecked item for the selected packer
     var incompleteListIDs: Set<PersistentIdentifier> {
         Set(lists.filter { list in filteredItems(in: list).contains { !$0.isPacked } }.map(\.persistentModelID))
@@ -105,6 +110,7 @@ struct RemovedItem {
     let category: String
     let count: Int
     let isPacked: Bool
+    let isDayOf: Bool
     let created: Date
     let sortOrder: Int
     let user: User?
@@ -117,6 +123,7 @@ struct RemovedItem {
         category = item.category
         count = item.count
         isPacked = item.isPacked
+        isDayOf = item.isDayOf
         created = item.created
         sortOrder = item.sortOrder
         user = item.user
@@ -129,6 +136,7 @@ struct RemovedItem {
     func restore(in modelContext: ModelContext) {
         let item = Item(name: name, category: category, count: count, isPacked: isPacked, sortOrder: sortOrder)
         item.uuid = uuid
+        item.isDayOf = isDayOf
         item.created = created
         item.user = user?.isDeleted == false ? user : nil
         modelContext.insert(item)
@@ -202,6 +210,7 @@ struct ItemDetailSheet: View {
     @State private var user: User?
     @State private var list: PackingList?
     @State private var isPacked: Bool
+    @State private var isDayOf: Bool
 
     init(item: Item, lists: [PackingList], users: [User]?) {
         self.item = item
@@ -212,6 +221,7 @@ struct ItemDetailSheet: View {
         _user = State(initialValue: item.user)
         _list = State(initialValue: item.list)
         _isPacked = State(initialValue: item.isPacked)
+        _isDayOf = State(initialValue: item.isDayOf)
     }
 
     var body: some View {
@@ -221,6 +231,9 @@ struct ItemDetailSheet: View {
                     TextField("Item", text: $name)
                     Stepper("Count: \(count)", value: $count, in: 1...99)
                     Toggle((list?.kind ?? .packing).checkedWord, isOn: $isPacked)
+                    Toggle("Day Of", isOn: $isDayOf)
+                } footer: {
+                    Text("For things you can only pack or do the day you leave.")
                 }
 
                 Section {
@@ -248,7 +261,7 @@ struct ItemDetailSheet: View {
                     }
                 }
             }
-            .navigationTitle("Details")
+            .navigationTitle("Edit Item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -269,6 +282,7 @@ struct ItemDetailSheet: View {
             item.count = count
             item.user = user
             item.isPacked = isPacked
+            item.isDayOf = isDayOf
             if let list {
                 PackingItemActions.moveToList(item, list)
             }

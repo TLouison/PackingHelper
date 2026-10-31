@@ -16,6 +16,10 @@ class Item {
     var category: String = "Clothing"
     var isPacked: Bool = false
 
+    /// Can only be packed or done the day you leave. Shown with a sunrise badge and gathered
+    /// on the trip's Day Of page; feeds the trip detail "left for today" line.
+    var isDayOf: Bool = false
+
     var created: Date = Date.now
     var uuid: UUID = UUID()
 
@@ -44,6 +48,7 @@ class Item {
             isPacked: item.isPacked,
             sortOrder: item.sortOrder
         )
+        copyItem.isDayOf = item.isDayOf
         copyItem.list = item.list
         copyItem.user = item.user
         return copyItem
@@ -57,6 +62,7 @@ class Item {
             isPacked: false,
             sortOrder: item.sortOrder
         )
+        copyItem.isDayOf = item.isDayOf
         copyItem.list = item.list
         // Templates are generic — user assignment is not carried over
         return copyItem
@@ -72,6 +78,7 @@ class Item {
             isPacked: false,
             sortOrder: sortOrder
         )
+        templateItem.isDayOf = item.isDayOf
         context.insert(templateItem)
         templateItem.list = template
         return templateItem

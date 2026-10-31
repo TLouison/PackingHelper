@@ -106,11 +106,13 @@ extension PreviewTrait where T == Preview.ViewTraits {
     workTripChecklist.addItem(chkItem2)
     workTripChecklist.trip = workTrip
     
-    let workTripMorningOf = PackingList(kind: .tasks, isDayOf: true, template: false, name: "Morning Of", countAsDays: false)
+    let workTripMorningOf = PackingList(kind: .tasks, template: false, name: "Morning Of", countAsDays: false)
     let moItem1 = Item(name: "Take Out Trash", category: "Task", count: 1, isPacked: false)
     moItem1.user = userEmma
+    moItem1.isDayOf = true
     let moItem2 = Item(name: "Kiss Todd", category: "Task", count: 1, isPacked: true)
     moItem2.user = userEmma
+    moItem2.isDayOf = true
     workTripMorningOf.addItem(moItem1)
     workTripMorningOf.addItem(moItem2)
     workTripMorningOf.trip = workTrip

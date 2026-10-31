@@ -16,7 +16,6 @@ import SwiftUI
 struct AISuggestionDestination {
     let name: String
     let kind: ListKind
-    let isDayOf: Bool
     /// The trip has no such list yet; tapping makes it (Default or Tasks)
     let isNew: Bool
 }
@@ -111,9 +110,14 @@ struct AISuggestedItemList: View {
                     .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(suggestion.name)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(added ? .secondary : .primary)
+                    HStack(spacing: 4) {
+                        Text(suggestion.name)
+                            .foregroundStyle(added ? .secondary : .primary)
+                        if suggestion.isDayOf {
+                            DayOfBadge()
+                        }
+                    }
+                    .font(.subheadline.weight(.medium))
                     detailLine(for: suggestion, added: added)
                 }
 
@@ -164,7 +168,7 @@ struct AISuggestedItemList: View {
                         if destination.isNew {
                             Text("New list:")
                         }
-                        ListNameLabel(name: destination.name, kind: destination.kind, isDayOf: destination.isDayOf)
+                        ListNameLabel(name: destination.name, kind: destination.kind)
                     }
                     .layoutPriority(1)
                 }
@@ -225,6 +229,7 @@ struct AISuggestedItemList: View {
     private func accessibilityLabel(for suggestion: AISuggestedItem, added: Bool) -> String {
         var parts = [suggestion.name]
         if suggestion.count > 1 { parts.append("quantity \(suggestion.count)") }
+        if suggestion.isDayOf { parts.append("Day Of") }
         if let detail = detail(for: suggestion) { parts.append(detail) }
         if !added, let destination = shownDestination(for: suggestion) {
             parts.append(destination.isNew ? "adds to a new \(destination.name) list" : "adds to \(destination.name)")

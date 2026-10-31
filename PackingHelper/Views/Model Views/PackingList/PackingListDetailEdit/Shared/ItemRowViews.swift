@@ -211,7 +211,7 @@ struct EditableItemRow: View {
 
 // MARK: - Item Row
 
-/// Template item: tap to edit, swipe to reveal delete, full swipe to delete
+/// Template item: tap to edit, hold to flag as day-of, swipe to reveal delete, full swipe to delete
 struct UnifiedItemRow: View {
     let item: Item
     let onEdit: () -> Void
@@ -247,6 +247,9 @@ struct UnifiedItemRow: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
         .gesture(swipeGesture)
+        .contextMenu {
+            DayOfToggleButton(item: item)
+        }
         .sensoryFeedback(.impact(weight: .medium), trigger: isPastFullSwipe) { _, isPast in isPast }
         .accessibilityAction(named: "Delete", onDelete)
         .onChange(of: item.id) { _, _ in
@@ -329,9 +332,15 @@ struct UnifiedItemRow: View {
                     onEdit()
                 }
             } label: {
-                Text(item.name)
-                    .font(TemplateItemStyle.font)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 6) {
+                    Text(item.name)
+                    if item.isDayOf {
+                        DayOfBadge()
+                            .font(.footnote.weight(.semibold))
+                    }
+                }
+                .font(TemplateItemStyle.font)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
 

@@ -57,13 +57,13 @@ struct DefaultPackingListView: View {
         hasActiveFilters ? searchResults.map(\.list) : sortedLists
     }
 
-    /// Groups shown when not searching: one per list type (empty types left out).
+    /// Groups shown when not searching: one per list kind (empty kinds left out).
     /// A single untitled group when every template is the same type, so a lone header doesn't sit over the whole list.
     private var listGroups: [TemplateGroup] {
-        let byType = Dictionary(grouping: sortedLists, by: TemplateListType.init(list:))
-        guard byType.count > 1 else { return [TemplateGroup(type: nil, lists: sortedLists)] }
-        return TemplateListType.allCases.compactMap { type in
-            byType[type].map { TemplateGroup(type: type, lists: $0) }
+        let byKind = Dictionary(grouping: sortedLists, by: \.kind)
+        guard byKind.count > 1 else { return [TemplateGroup(type: nil, lists: sortedLists)] }
+        return ListKind.allCases.compactMap { kind in
+            byKind[kind].map { TemplateGroup(type: kind, lists: $0) }
         }
     }
     
@@ -340,46 +340,20 @@ struct DefaultPackingListView: View {
     }
 }
 
-/// A template's type for grouping: kind plus day-of, in the order lists sit on a trip
-/// (and in Apply Templates)
-private enum TemplateListType: CaseIterable, Identifiable {
-    case packing, tasks, dayOfPacking, dayOfTasks
-
-    var id: Self { self }
-
-    init(list: PackingList) {
-        switch (list.kind, list.isDayOf) {
-        case (.packing, false): self = .packing
-        case (.packing, true): self = .dayOfPacking
-        case (.tasks, false): self = .tasks
-        case (.tasks, true): self = .dayOfTasks
-        }
-    }
-
-    var kind: ListKind {
-        switch self {
-        case .packing, .dayOfPacking: .packing
-        case .tasks, .dayOfTasks: .tasks
-        }
-    }
-
-    var isDayOf: Bool { self == .dayOfPacking || self == .dayOfTasks }
-}
-
 private struct TemplateGroup: Identifiable {
-    /// nil when every template is the same type
-    let type: TemplateListType?
+    /// nil when every template is the same kind
+    let type: ListKind?
     let lists: [PackingList]
 
-    var id: TemplateListType? { type }
+    var id: ListKind? { type }
 }
 
 /// Section title for a group of templates, styled like Apply Templates' headers
 private struct TemplateGroupHeader: View {
-    let type: TemplateListType
+    let type: ListKind
 
     var body: some View {
-        Text(type.kind.displayName(isDayOf: type.isDayOf))
+        Text(type.name)
             .font(.footnote.weight(.semibold))
             .foregroundStyle(.secondary)
             .textCase(.uppercase)

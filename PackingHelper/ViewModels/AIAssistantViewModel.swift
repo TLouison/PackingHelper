@@ -32,7 +32,6 @@ final class AIAssistantViewModel {
         let templateID: UUID
         let name: String
         let kind: ListKind
-        let isDayOf: Bool
         let itemCount: Int
         let reason: String
         var state: State
@@ -269,7 +268,6 @@ final class AIAssistantViewModel {
             templateID: candidate.templateUUID,
             name: candidate.name,
             kind: ListKind(rawValue: candidate.kind) ?? .packing,
-            isDayOf: candidate.isDayOf,
             itemCount: candidate.itemCount,
             reason: match.reason.trimmingCharacters(in: .whitespacesAndNewlines),
             state: .pending
@@ -379,6 +377,7 @@ final class AIAssistantViewModel {
             isPacked: false,
             sortOrder: SortOrderManager.nextSortOrder(for: list)
         )
+        item.isDayOf = suggestion.isDayOf
         item.user = isTemplate ? nil : targetUser
         modelContext.insert(item)
         list.addItem(item)
@@ -389,15 +388,15 @@ final class AIAssistantViewModel {
     func destination(for suggestion: AISuggestedItem) -> AISuggestionDestination? {
         guard case .trip(let trip) = context else { return nil }
         if let list = routedList(for: suggestion, in: trip) ?? fallbackList(for: suggestion, in: trip) {
-            return AISuggestionDestination(name: list.name, kind: list.kind, isDayOf: list.isDayOf, isNew: false)
+            return AISuggestionDestination(name: list.name, kind: list.kind, isNew: false)
         }
         return suggestion.kind == .task
-            ? AISuggestionDestination(name: "Tasks", kind: .tasks, isDayOf: false, isNew: true)
-            : AISuggestionDestination(name: PackingList.defaultListName, kind: .packing, isDayOf: false, isNew: true)
+            ? AISuggestionDestination(name: "Tasks", kind: .tasks, isNew: true)
+            : AISuggestionDestination(name: PackingList.defaultListName, kind: .packing, isNew: true)
     }
 
     /// Templates take everything. On a trip, the list the model picked, if it still exists and
-    /// is the right kind; otherwise tasks go to the first everyday (not day-of) Tasks list and
+    /// is the right kind; otherwise tasks go to the first Tasks list and
     /// everything else to the trip's Default list, either made on first use if it's missing.
     /// Never another list: a toothbrush has no business on a Clothes list.
     private func destinationList(for suggestion: AISuggestedItem) -> PackingList? {
@@ -422,7 +421,7 @@ final class AIAssistantViewModel {
 
     private func fallbackList(for suggestion: AISuggestedItem, in trip: Trip) -> PackingList? {
         if suggestion.kind == .task {
-            return trip.sortedLists(of: .tasks).first { !$0.isDayOf }
+            return trip.sortedLists(of: .tasks).first
         }
         return trip.defaultPackingList
     }

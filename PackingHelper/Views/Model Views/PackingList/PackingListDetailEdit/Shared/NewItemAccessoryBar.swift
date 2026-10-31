@@ -3,7 +3,7 @@
 //  PackingHelper
 //
 //  Sits directly above the keyboard while the inline new item row is focused: target list,
-//  packer, and count. Reads and writes `PackingEditor`.
+//  packer, Day Of, and count. Reads and writes `PackingEditor`.
 //
 
 import SwiftUI
@@ -28,6 +28,8 @@ struct NewItemAccessoryBar: View {
                 )
             }
 
+            dayOfToggle
+
             Spacer()
 
             ItemCountStepper(count: Bindable(editor).count)
@@ -37,6 +39,26 @@ struct NewItemAccessoryBar: View {
         .padding(.horizontal)
         .padding(.bottom, 8)
         .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    /// Lit while new items are day-of; stays on for the next row until adding ends
+    private var dayOfToggle: some View {
+        Button {
+            editor.isDayOf.toggle()
+        } label: {
+            Label("Day Of", systemImage: dayOfIcon)
+                .fontWeight(.medium)
+                .foregroundStyle(editor.isDayOf ? .white : .primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                // `opaqueGlassCapsule`, tinted orange while on
+                .background(Color(UIColor.systemBackground).opacity(editor.isDayOf ? 0 : 0.3), in: Capsule())
+                .glassEffect(editor.isDayOf ? .regular.tint(.orange) : .regular, in: .capsule)
+                .animation(.snappy, value: editor.isDayOf)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(editor.isDayOf ? .isSelected : [])
+        .accessibilityHint("New items are for the day you leave")
     }
 
     private var listPickerMenu: some View {

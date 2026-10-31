@@ -39,7 +39,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 ## 4. Dates, status & notifications — all [Behavior]
 
 - **4.1** Trip dates keep the creation time of day (`TripDateRangePicker` uses `keepingTime(of:)`); `.departing`/`.returning` use `Date.now == startDate` (unreachable). Normalize to start of day on save; use `Calendar.isDateInToday`. `TripListView` predicates capture `now` once (static) — refresh on scene active.
-- **4.2** Day-of notification (behind `showingNotifications`): scheduled in `Trip.init` before lists exist, never rescheduled/cancelled, random ID, hardcoded 8 AM. Build a `TripNotificationScheduler` with stable id `dayOf-<uuid>`, awaited auth, `notificationTime` setting (re-add its Settings picker to the Trips section), `rescheduleAll` on foreground. The body should list what's in the trip's day-of lists (`trip.dayOfLists`) and skip trips with nothing left.
+- **4.2** Day-of notification (behind `showingNotifications`): scheduled in `Trip.init` before lists exist, never rescheduled/cancelled, random ID, hardcoded 8 AM. Build a `TripNotificationScheduler` with stable id `dayOf-<uuid>`, awaited auth, `notificationTime` setting (re-add its Settings picker to the Trips section), `rescheduleAll` on foreground. The body should list the trip's day-of items (`trip.dayOfItems`) and skip trips with nothing left.
 - **4.4** "Duration" is nights in some places, days in others: `TripDetailInfoView` shows `duration` (nights) as "days", the date picker says nights; `countAsDays` gives 0 on day trips. Define `nights` and `days = nights + 1`.
 - **4.5** Forecast labels off by a day for far time zones; window can skip day one / overrun trip end. Store `TripLocation.timeZoneIdentifier`. (`TripDetailView` already uses `.task(id: WeatherRequest(trip:))`.)
 - **4.6** Forecast defaults to °F (`TripDetailForecastView` `temperatureUnit = .fahrenheit`); the chip uses the locale.
@@ -80,7 +80,7 @@ The app sources are a synced folder, so deleting a file on disk removes it from 
 
 ## 12. Schema cleanup ⚠️ one change, do last — [Behavior] (data reset)
 
-- Remove legacy `PackingList.user` (trip lists only), `countAsDays`?, `Item.unifiedSortOrder`, `User.lists`.
+- Remove legacy `PackingList.user` (trip lists only), `countAsDays`?, `Item.unifiedSortOrder`, `User.lists`, and `PackingList.isDayOf` with its `migrateDayOfItems` pass in `PackingHelperApp` (and the unused `DayOfPacking` / `DayOfTask` symbol assets).
 - `Trip.dayOfNotificationUUID` is written, never read (4.2's stable id makes it unnecessary).
 - No UI creates `countAsDays` templates. Build UI ([Behavior]) or remove.
 - `User.defaultLocation` if §2's decision is to drop it.

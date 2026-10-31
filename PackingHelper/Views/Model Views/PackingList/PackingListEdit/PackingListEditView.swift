@@ -28,7 +28,6 @@ struct PackingListEditView: View {
 
     @State private var listName = ""
     @State private var kind: ListKind = .packing
-    @State private var isDayOf = false
     @FocusState private var isNameFocused: Bool
     @State private var owner: User?
 
@@ -106,8 +105,6 @@ struct PackingListEditView: View {
                             }
                         }
                         .pickerStyle(.menu)
-
-                        Toggle("Day Of", isOn: $isDayOf)
                     }
 
                     if showsOwnerPicker {
@@ -115,10 +112,6 @@ struct PackingListEditView: View {
                     }
                 } header: {
                     Text("\(self.titleName) Details")
-                } footer: {
-                    if !(packingList?.isDefault ?? false) {
-                        Text("Day Of lists hold what you can't do or pack ahead. They stay at the end of your lists.")
-                    }
                 }
 
                 if packingList != nil {
@@ -148,7 +141,6 @@ struct PackingListEditView: View {
             if let packingList {
                 listName = packingList.name
                 kind = packingList.kind
-                isDayOf = packingList.isDayOf
             }
             if isTemplate {
                 owner = packingList?.user ?? users.first
@@ -183,7 +175,6 @@ struct PackingListEditView: View {
             name: listName,
             template: isTemplate,
             kind: kind,
-            isDayOf: isDayOf,
             owner: isTemplate ? (owner ?? users.first) : nil,
             in: modelContext,
             for: trip

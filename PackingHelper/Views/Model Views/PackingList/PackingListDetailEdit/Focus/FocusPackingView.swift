@@ -8,7 +8,8 @@
 //  The add row always targets the page you're on. Hold a chip and drag to reorder sections;
 //  the rail's + creates a section or applies a template, as does the "Add a List" page at the
 //  end. The rail's first chip, All, opens a page listing every section's items under name
-//  headers. Wide layouts show two pages side by side (swipe moves one at a time).
+//  headers; once any item is day-of, a Day Of chip after it opens the same page narrowed to
+//  day-of items. Wide layouts show two pages side by side (swipe moves one at a time).
 //  Edit Mode (the toolbar's Edit, or a section title's Select Items): tapping a card selects it
 //  for the toolbar's bulk Move / Mark as Packed / Delete, cards show a handle and drag (hold) to move
 //  within or between sections, packed items hide, and the chips jiggle to show they reorder.
@@ -19,15 +20,21 @@ import SwiftUI
 import TipKit
 import UniformTypeIdentifiers
 
-/// A pager page: everything at once, one section, or the trailing "Add a List" page
+/// A pager page: everything at once, the day-of items, one section, or the trailing "Add a List" page
 private enum FocusPage: Hashable {
     case all
+    case dayOf
     case list(PersistentIdentifier)
     case addSection
 
     var listID: PersistentIdentifier? {
         if case .list(let id) = self { return id }
         return nil
+    }
+
+    /// All and Day Of fill the whole width on their own, even in the two-column layout
+    var isFullWidth: Bool {
+        self == .all || self == .dayOf
     }
 }
 
@@ -62,14 +69,15 @@ struct FocusPackingView: View {
 
     private var pendingPacks: PendingPackTracker { editor.pendingPacks }
 
-    /// Every page in order: All, each section, Add a Section
+    /// Every page in order: All, Day Of (once an item is day-of), each section, Add a Section
     private var pages: [FocusPage] {
-        [.all] + input.lists.map { .list($0.persistentModelID) } + [.addSection]
+        [.all] + (input.hasDayOfItems ? [.dayOf] : [])
+            + input.lists.map { .list($0.persistentModelID) } + [.addSection]
     }
 
-    /// Pages on screen, leading first. All always fills the whole width on its own.
+    /// Pages on screen, leading first. All and Day Of always fill the whole width on their own.
     private var visiblePages: [FocusPage] {
-        if currentPage == .all { return [.all] }
+        if let currentPage, currentPage.isFullWidth { return [currentPage] }
         let pages = pages
         guard let currentPage, let index = pages.firstIndex(of: currentPage) else { return [] }
         return Array(pages[index..<min(index + columns, pages.count)])
@@ -80,9 +88,20 @@ struct FocusPackingView: View {
         visiblePages.compactMap(\.listID)
     }
 
-    /// Sections whose items are on screen: all of them while the All page is showing
+    /// Sections whose items are on screen: all of them while the All page is showing, the
+    /// ones the Day Of page lists while it is
     private var listIDsOnScreen: [PersistentIdentifier] {
-        visiblePages.contains(.all) ? input.lists.map(\.persistentModelID) : visibleListIDs
+        if visiblePages.contains(.all) { return input.lists.map(\.persistentModelID) }
+        if visiblePages.contains(.dayOf) { return dayOfPageLists.map(\.persistentModelID) }
+        return visibleListIDs
+    }
+
+    /// Sections on the Day Of page: those with day-of items, plus the one being added to
+    private var dayOfPageLists: [PackingList] {
+        let target = editor.isAdding ? editor.targetList?.persistentModelID : nil
+        return input.lists.filter { list in
+            list.persistentModelID == target || input.filteredItems(in: list).contains(where: \.isDayOf)
+        }
     }
 
     private var isAllVisible: Bool {
@@ -99,9 +118,11 @@ struct FocusPackingView: View {
                 input: input,
                 visibleListIDs: onScreenListIDs,
                 isAllVisible: onScreen.contains(.all),
+                isDayOfVisible: onScreen.contains(.dayOf),
                 isAddPageVisible: onScreen.contains(.addSection),
                 currentTip: tips.currentTip,
                 onSelectAll: goToAll,
+                onSelectDayOf: goToDayOf,
                 onSelect: goTo,
                 onMove: moveList
             )
@@ -168,6 +189,12 @@ struct FocusPackingView: View {
                 setPage(ids.first.map(FocusPage.list) ?? .addSection)
             }
         }
+        .onChange(of: input.hasDayOfItems) { _, hasDayOfItems in
+            // The last day-of item was unflagged or deleted from the Day Of page
+            if !hasDayOfItems && currentPage == .dayOf {
+                withAnimation(.smooth) { setPage(.all) }
+            }
+        }
         .sheet(item: $detailItem) { item in
             ItemDetailSheet(item: item, lists: input.lists, users: input.users)
         }
@@ -190,6 +217,18 @@ struct FocusPackingView: View {
                     // Full width even in the two-column layout: one swipe on, the sections pair up
                     .frame(width: proxy.size.width)
                     .id(FocusPage.all)
+
+                    if input.hasDayOfItems {
+                        FocusAllItemsPage(
+                            input: input,
+                            sectionPagesOnScreen: visibleListIDs,
+                            pendingPacks: pendingPacks,
+                            onShowDetails: { detailItem = $0 },
+                            dayOfLists: dayOfPageLists
+                        )
+                        .frame(width: proxy.size.width)
+                        .id(FocusPage.dayOf)
+                    }
 
                     ForEach(input.lists) { list in
                         FocusBagPage(
@@ -252,7 +291,7 @@ struct FocusPackingView: View {
         }
     }
 
-    /// The page to lead with after a column change. All never counts; the first section is the
+    /// The page to lead with after a column change. All and Day Of never count; the first section is the
     /// left edge. One → two puts the current page on the right (the first section stays on the
     /// left). Two → one returns to the page from before widening if the user hasn't moved,
     /// otherwise keeps the right page.
@@ -264,10 +303,10 @@ struct FocusPackingView: View {
             if visiblePages.count > 1 {
                 return visiblePages[1]
             }
-            return currentPage == .all ? firstSectionPage : currentPage
+            return currentPage?.isFullWidth == true ? firstSectionPage : currentPage
         }
         if columns == 1 && newColumns > 1, let currentPage {
-            pageForNarrowing = currentPage == .all ? firstSectionPage : currentPage
+            pageForNarrowing = currentPage.isFullWidth ? firstSectionPage : currentPage
             return leadingPage(focusingOnRight: currentPage)
         }
         return currentPage
@@ -278,14 +317,14 @@ struct FocusPackingView: View {
         input.lists.first.map { .list($0.persistentModelID) } ?? .addSection
     }
 
-    /// Wide layout: the leading page that puts `page` in the right column. Never All: the first
-    /// section (or All itself) leads with the first section on the left.
+    /// Wide layout: the leading page that puts `page` in the right column. Never All or Day Of:
+    /// the first section (or a full-width page itself) leads with the first section on the left.
     private func leadingPage(focusingOnRight page: FocusPage) -> FocusPage {
         let pages = pages
         guard let index = pages.firstIndex(of: page), index > 0 else { return firstSectionPage }
         let previous = pages[index - 1]
-        // The page before the first section is All: the first section leads instead
-        return previous == .all ? page : previous
+        // The page before the first section is All or Day Of: the first section leads instead
+        return previous.isFullWidth ? page : previous
     }
 
     /// Re-scrolls to `page` without animation after the pages moved or resized under the scroll view
@@ -336,6 +375,13 @@ struct FocusPackingView: View {
         guard !isAllVisible else { return }
         withAnimation(.smooth) {
             setPage(.all)
+        }
+    }
+
+    private func goToDayOf() {
+        guard currentPage != .dayOf else { return }
+        withAnimation(.smooth) {
+            setPage(.dayOf)
         }
     }
 
@@ -398,11 +444,14 @@ private struct FocusBagRail: View {
     let visibleListIDs: [PersistentIdentifier]
     /// Highlights the All chip while the All page is showing
     let isAllVisible: Bool
+    /// Highlights the Day Of chip while the Day Of page is showing
+    let isDayOfVisible: Bool
     /// Highlights the + like a selected chip while the "Add a List" page is showing
     let isAddPageVisible: Bool
     /// The packing tip showing, if it anchors to the rail
     let currentTip: (any Tip)?
     let onSelectAll: () -> Void
+    let onSelectDayOf: () -> Void
     let onSelect: (PackingList) -> Void
     /// Moves a section to a slot among the other sections
     let onMove: (PackingList, Int) -> Void
@@ -432,6 +481,15 @@ private struct FocusBagRail: View {
                 }
                 .buttonStyle(PressableCardStyle(scale: 0.94))
                 .accessibilityLabel("All Items")
+
+                if input.hasDayOfItems {
+                    Button(action: onSelectDayOf) {
+                        FocusBagChip(name: "Day Of", icon: dayOfIcon, isSelected: isDayOfVisible)
+                    }
+                    .buttonStyle(PressableCardStyle(scale: 0.94))
+                    .accessibilityLabel("Day Of Items")
+                    .transition(.scale.combined(with: .opacity))
+                }
 
                 ForEach(input.lists) { list in
                     chip(for: list)
@@ -483,7 +541,8 @@ private struct FocusBagRail: View {
             guard let id else { return }
             withAnimation(.smooth) { position.scrollTo(id: id, anchor: .center) }
         }
-        .onChange(of: isAllVisible) { _, isVisible in
+        .animation(.snappy, value: input.hasDayOfItems)
+        .onChange(of: isAllVisible || isDayOfVisible) { _, isVisible in
             if isVisible {
                 withAnimation(.smooth) { position.scrollTo(edge: .leading) }
             }
@@ -500,7 +559,6 @@ private struct FocusBagRail: View {
         let label = FocusBagChip(
             name: list.name,
             kind: list.kind,
-            isDayOf: list.isDayOf,
             packed: items.filter(\.isPacked).count,
             total: items.count,
             isSelected: visibleListIDs.contains(list.persistentModelID)
@@ -703,8 +761,9 @@ private struct ChipReorderDropDelegate: DropDelegate {
 private struct FocusBagChip: View {
     let name: String
     var kind: ListKind = .packing
-    var isDayOf = false
-    /// nil for the All chip, which shows no progress
+    /// SF Symbol before the name, for the Day Of chip (lists show their kind's glyph instead)
+    var icon: String? = nil
+    /// nil for the All and Day Of chips, which show no progress
     var packed: Int? = nil
     var total: Int = 0
     let isSelected: Bool
@@ -728,7 +787,13 @@ private struct FocusBagChip: View {
                 .frame(width: 18, height: 18)
             }
 
-            ListNameLabel(name: name, kind: kind, isDayOf: isDayOf)
+            if let icon {
+                Image(systemName: icon)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+            }
+
+            ListNameLabel(name: name, kind: kind)
                 .fontWeight(.semibold)
                 .lineLimit(1)
 
@@ -747,7 +812,7 @@ private struct FocusBagChip: View {
         .animation(.snappy, value: packed)
         .animation(.snappy, value: isSelected)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(kind.glyph(isDayOf: isDayOf) == nil ? name : "\(name), \(kind.displayName(isDayOf: isDayOf))")
+        .accessibilityLabel(kind.glyph == nil ? name : "\(name), \(kind.name)")
         .accessibilityValue(packed.map { accessibilityProgress(packed: $0) } ?? "")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -1014,6 +1079,8 @@ private struct FocusSectionItems: View {
     let onShowDetails: (Item) -> Void
     /// Off when another page on screen already shows this section's new item row (one text field only)
     var showsInlineRow = true
+    /// On the Day Of page: cards skip the day-of badge, and new items start as day-of
+    var isDayOfPage = false
 
     var body: some View {
         let otherLists = input.lists.filter { $0.persistentModelID != list.persistentModelID }
@@ -1026,6 +1093,7 @@ private struct FocusSectionItems: View {
                     isSelected: editor.isSelected(item),
                     isDragging: editor.draggingItem?.persistentModelID == item.persistentModelID,
                     showsPacker: input.hasMultiplePackers,
+                    showsDayOfBadge: item.isDayOf && !isDayOfPage,
                     otherLists: otherLists,
                     onToggle: { pendingPacks.toggle(item) },
                     onSelect: { editor.toggleSelection(item) },
@@ -1112,6 +1180,7 @@ private struct FocusSectionItems: View {
         } else {
             Button {
                 editor.startAdding(in: list)
+                if isDayOfPage { editor.isDayOf = true }
             } label: {
                 Label("Add Item", systemImage: "plus")
                     .font(.body.weight(.medium))
@@ -1170,13 +1239,24 @@ private struct FocusPackedChips: View {
 
 // MARK: - All Items Page
 
-/// The first page: every section in one scrolling list under pinned name headers, no stats
+/// The first page: every section in one scrolling list under pinned name headers, no stats.
+/// Also the Day Of page, narrowed to day-of items (`dayOfLists` set).
 private struct FocusAllItemsPage: View {
     let input: FocusPackingInput
     /// Sections with their own page beside this one (wide layout); they host the new item row
     let sectionPagesOnScreen: [PersistentIdentifier]
     let pendingPacks: PendingPackTracker
     let onShowDetails: (Item) -> Void
+    /// The Day Of page's sections (`FocusPackingView.dayOfPageLists`); nil for All
+    var dayOfLists: [PackingList]? = nil
+
+    private var isDayOfPage: Bool { dayOfLists != nil }
+
+    /// A section's items on this page: day-of only on the Day Of page
+    private func pageItems(in list: PackingList) -> [Item] {
+        let items = input.items(in: list)
+        return isDayOfPage ? items.filter(\.isDayOf) : items
+    }
 
     @Environment(PackingEditor.self) private var editor
     @State private var scrollTask: Task<Void, Never>?
@@ -1185,12 +1265,10 @@ private struct FocusAllItemsPage: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
-                    Text("All Items")
-                        .font(.largeTitle.bold())
-                        .accessibilityAddTraits(.isHeader)
+                    title
 
-                    ForEach(input.lists) { list in
-                        let items = input.items(in: list)
+                    ForEach(dayOfLists ?? input.lists) { list in
+                        let items = pageItems(in: list)
                         let unpacked = editor.isEditing ? items.filter { !$0.isPacked } : pendingPacks.visibleUnpacked(items)
                         let packed = editor.isEditing ? [] : pendingPacks.settledPacked(items)
 
@@ -1201,7 +1279,8 @@ private struct FocusAllItemsPage: View {
                                 input: input,
                                 pendingPacks: pendingPacks,
                                 onShowDetails: onShowDetails,
-                                showsInlineRow: !sectionPagesOnScreen.contains(list.persistentModelID)
+                                showsInlineRow: !sectionPagesOnScreen.contains(list.persistentModelID),
+                                isDayOfPage: isDayOfPage
                             )
                             .animation(.packingSpring, value: unpacked.map(\.persistentModelID))
 
@@ -1219,7 +1298,10 @@ private struct FocusAllItemsPage: View {
                         .frame(height: 160)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            if !editor.isEditing { editor.handleTapOnEmptyArea(in: nil) }
+                            guard !editor.isEditing else { return }
+                            let wasAdding = editor.isAdding
+                            editor.handleTapOnEmptyArea(in: nil)
+                            if isDayOfPage && !wasAdding { editor.isDayOf = true }
                         }
                         .accessibilityHidden(true)
                 }
@@ -1237,6 +1319,35 @@ private struct FocusAllItemsPage: View {
                 // Return added an item: keep the new row above the keyboard
                 if editor.isAdding { scrollToNewRow(proxy) }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var title: some View {
+        if isDayOfPage {
+            let left = (dayOfLists ?? []).reduce(0) { total, list in
+                total + pageItems(in: list).count(where: { !$0.isPacked })
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Day Of")
+                    .font(.largeTitle.bold())
+                    .accessibilityAddTraits(.isHeader)
+                // Separate Texts: a ternary would make a plain String and skip the inflection
+                Group {
+                    if left == 0 {
+                        Text("All set")
+                    } else {
+                        Text("^[\(left) thing](inflect: true) left")
+                    }
+                }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+            }
+        } else {
+            Text("All Items")
+                .font(.largeTitle.bold())
+                .accessibilityAddTraits(.isHeader)
         }
     }
 
@@ -1327,6 +1438,8 @@ private struct FocusItemCard: View {
     /// Its handle is being dragged: the card shows as the empty slot it will land in
     let isDragging: Bool
     let showsPacker: Bool
+    /// Sunrise after the name; off on the Day Of page, where every card is day-of
+    let showsDayOfBadge: Bool
     let otherLists: [PackingList]
     let onToggle: () -> Void
     let onSelect: () -> Void
@@ -1356,7 +1469,8 @@ private struct FocusItemCard: View {
         .buttonStyle(PressableCardStyle())
         .sensoryFeedback(.impact(weight: .light), trigger: item.isPacked)
         .contextMenu {
-            Button("Details", systemImage: "info.circle", action: onShowDetails)
+            Button("Edit", systemImage: "pencil", action: onShowDetails)
+            DayOfToggleButton(item: item)
             if !otherLists.isEmpty {
                 Menu("Move To", systemImage: "arrow.right.square") {
                     ForEach(otherLists) { list in
@@ -1419,7 +1533,9 @@ private struct FocusItemCard: View {
     }
 
     private var accessibilityName: String {
-        item.count > 1 ? "\(item.name), \(item.count)" : item.name
+        var name = item.count > 1 ? "\(item.name), \(item.count)" : item.name
+        if showsDayOfBadge { name += ", Day Of" }
+        return name
     }
 
     private var isPackingItem: Bool { (item.list?.kind ?? .packing) == .packing }
@@ -1446,11 +1562,17 @@ private struct FocusItemCard: View {
             leading()
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.name)
-                    .font(.body.weight(.medium))
-                    .strikethrough(item.isPacked)
-                    .foregroundStyle(item.isPacked ? .secondary : .primary)
-                    .multilineTextAlignment(.leading)
+                HStack(spacing: 6) {
+                    Text(item.name)
+                        .strikethrough(item.isPacked)
+                        .foregroundStyle(item.isPacked ? .secondary : .primary)
+                        .multilineTextAlignment(.leading)
+                    if showsDayOfBadge {
+                        DayOfBadge()
+                            .font(.footnote.weight(.semibold))
+                    }
+                }
+                .font(.body.weight(.medium))
 
                 if showsPacker, let user = item.user {
                     Text(user.name)

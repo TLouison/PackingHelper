@@ -18,6 +18,7 @@ struct PackingHelperApp: App {
     @AppStorage("hasMigratedDefaultLists") private var hasMigratedDefaultLists = false
     @AppStorage("hasMigratedPackingModelV2") private var hasMigratedPackingModelV2 = false
     @AppStorage("hasAssignedTemplateOwners") private var hasAssignedTemplateOwners = false
+    @AppStorage("hasMigratedDayOfItems") private var hasMigratedDayOfItems = false
 
     @Environment(\.scenePhase) var scenePhase
 
@@ -29,7 +30,7 @@ struct PackingHelperApp: App {
         do {
             modelContainer = try ModelContainer(for: Trip.self, TripLocation.self, PackingList.self, Item.self, TripCoverPhoto.self, AIConversation.self)
         } catch {
-            fatalError("Could not initialize ModelContainer")
+            fatalError("Could not initialize ModelContainer: \(error)")
         }
 
         // Configure RevenueCat to manage purchases (Test Store in dev, App Store
@@ -64,6 +65,36 @@ struct PackingHelperApp: App {
 
         if !hasAssignedTemplateOwners {
             assignTemplateOwners()
+        }
+
+        if !hasMigratedDayOfItems {
+            migrateDayOfItems()
+        }
+    }
+
+    // Day-of moved from lists to items: each day-of list (trip or template) becomes an everyday
+    // list of the same kind, in the same spot, and every item in it becomes a day-of item.
+    // Retried next launch if the fetch or save fails.
+    private func migrateDayOfItems() {
+        let context = modelContainer.mainContext
+
+        let descriptor = FetchDescriptor<PackingList>(
+            predicate: #Predicate<PackingList> { $0.isDayOf == true }
+        )
+        guard let lists = try? context.fetch(descriptor) else { return }
+
+        for list in lists {
+            for item in list.items ?? [] {
+                item.isDayOf = true
+            }
+            list.isDayOf = false
+        }
+
+        do {
+            try context.save()
+            hasMigratedDayOfItems = true
+        } catch {
+            AppLogger.packingList.error("Failed to migrate day-of lists: \(error.localizedDescription)")
         }
     }
 

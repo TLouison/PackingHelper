@@ -21,6 +21,8 @@ final class PackingEditor {
     var isAdding = false
     var name = ""
     var count = 1
+    /// New items are day-of (`Item.isDayOf`). Stays on between rows; resets when adding ends
+    var isDayOf = false
     /// Packer for new items (trip packing only)
     var user: User?
     /// Section the new item row is in
@@ -151,6 +153,7 @@ final class PackingEditor {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
             name = ""
             count = 1
+            isDayOf = false
             isAdding = false
         }
     }
@@ -184,6 +187,7 @@ final class PackingEditor {
                 sortOrder: SortOrderManager.nextSortOrder(for: list)
             )
             newItem.user = context.isTrip ? user : nil
+            newItem.isDayOf = isDayOf
             modelContext.insert(newItem)
             list.addItem(newItem)
 
@@ -247,6 +251,24 @@ final class PackingEditor {
             }
             selectedItemIDs = []
         }
+    }
+
+    /// Flags the selection as day-of, or unflags it when every selected item already is
+    func toggleDayOfSelected() {
+        let items = selectedItems
+        let isDayOf = !items.allSatisfy(\.isDayOf)
+        withAnimation(.packingSpring) {
+            for item in items {
+                item.isDayOf = isDayOf
+            }
+            selectedItemIDs = []
+        }
+    }
+
+    /// Every selected item is already day-of, so the bulk action unflags
+    var selectionIsAllDayOf: Bool {
+        let items = selectedItems
+        return !items.isEmpty && items.allSatisfy(\.isDayOf)
     }
 
     func deleteSelected() {

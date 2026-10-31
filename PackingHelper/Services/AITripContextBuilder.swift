@@ -74,7 +74,6 @@ enum AITripContextBuilder {
         AITemplateContext(
             name: template.name,
             listKind: template.kind.rawValue,
-            isDayOf: template.isDayOf,
             countAsDays: template.countAsDays,
             existingItems: uniqueNames(template.items ?? []),
             pastTrips: pastTrips
@@ -100,20 +99,21 @@ enum AITripContextBuilder {
         let included = Set(items.map(\.persistentModelID))
         return PackingList.sorted(trip.lists ?? [], sortOrder: .byCustomOrder).enumerated().map { index, list in
             var seen = Set<String>()
-            let names = (list.items ?? [])
+            let entries = (list.items ?? [])
                 .filter { included.contains($0.persistentModelID) }
                 .sorted { $0.sortOrder < $1.sortOrder }
-                .map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty && seen.insert(matchKey($0)).inserted }
+                .map { (name: $0.name.trimmingCharacters(in: .whitespacesAndNewlines), isDayOf: $0.isDayOf) }
+                .filter { !$0.name.isEmpty && seen.insert(matchKey($0.name)).inserted }
+            let dayOfNames = entries.filter(\.isDayOf).map(\.name)
             return AITripList(
                 id: "L\(index + 1)",
                 listUUID: list.uuid,
                 name: list.name,
                 kind: list.kind.rawValue,
-                isDayOf: list.isDayOf,
                 isDefault: list.isDefault,
                 fromTemplate: list.appliedFromTemplate?.name,
-                items: names
+                items: entries.map(\.name),
+                dayOfItems: dayOfNames.isEmpty ? nil : dayOfNames
             )
         }
     }

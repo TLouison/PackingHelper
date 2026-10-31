@@ -70,7 +70,7 @@ struct AITemplateOfferRow: View {
 
     /// The list's glyph; a plain packing template uses the Templates tab's suitcase
     private var glyph: Image {
-        offer.kind.glyph(isDayOf: offer.isDayOf) ?? Image(systemName: suitcaseIcon)
+        offer.kind.glyph ?? Image(systemName: suitcaseIcon)
     }
 
     @ViewBuilder
