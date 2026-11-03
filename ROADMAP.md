@@ -24,8 +24,7 @@ Keep [Behavior] and [No change] work in separate PRs where possible, so a refact
 
 The app sources are a synced folder, so deleting a file on disk removes it from the target.
 
-- **[No change] Leftovers** found during the 2026-10-27 dead-code pass: `plusSubscriptionWithText` (`Shop/PackingHelperPlusViews.swift`) has no callers; `Item.copyForTemplate` is only reached from the `template: true` branch of `PackingList._copy`, which nothing calls; `TripListScrollView.tripCard(_:index:)` ignores `index`. `ProductSuggestionModel.mlproj/Data Sources/itemClassifications.json` still names the deleted "1 copy" experiment — check Create ML still opens the project.
-- **[Behavior] Shop CTA copy** (`Shop/PackingHelperPlusCTA.swift` ~130–138) promises "unlimited trips", "unlimited packing lists", "Share lists with travel companions". Plus actually gives AI + Unsplash search/Load More. Delete the view if nothing shows it, otherwise rewrite the copy.
+- **[No change] Leftovers** found during the 2026-10-27 dead-code pass: `Item.copyForTemplate` is only reached from the `template: true` branch of `PackingList._copy`, which nothing calls; `TripListScrollView.tripCard(_:index:)` ignores `index`. `ProductSuggestionModel.mlproj/Data Sources/itemClassifications.json` still names the deleted "1 copy" experiment — check Create ML still opens the project.
 - **Decision — `SubscriptionAwareButton`** hardcodes `canPerformAction = true` (used by `UserGridView`). Replacing it with a plain `Button` is [No change]; wiring it to `PurchaseManager` is [Behavior].
 - **Decision — `User.defaultLocation`** (home base, Settings → Your Profile) is set in `UserEditView` but never read; new trips are created with `origin: nil`. Bringing origin back (prefilled from it, asked on the first trip) is [Behavior]; dropping both goes in the §12 schema change.
 
