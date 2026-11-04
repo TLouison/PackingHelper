@@ -177,6 +177,16 @@ private struct AboutSettingsSection: View {
                 }
                 .disabled(isRestoring)
             }
+
+            Link(destination: AppLinks.privacyPolicy) {
+                Label("Privacy Policy", systemImage: "hand.raised")
+            }
+            Link(destination: AppLinks.termsOfUse) {
+                Label("Terms of Use", systemImage: "doc.text")
+            }
+            Link(destination: AppLinks.support) {
+                Label("Support", systemImage: "questionmark.circle")
+            }
         }
         .alert(
             "Restore Purchases",
