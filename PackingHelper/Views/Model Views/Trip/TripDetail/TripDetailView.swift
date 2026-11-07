@@ -42,6 +42,8 @@ struct TripDetailView: View {
     @State private var isApplyingDefaultPackingList: Bool = false
     
     @State private var tripWeather: TripWeather?
+    /// Starts true so the forecast's skeleton is there on the first frame, not inserted after it
+    @State private var isLoadingWeather: Bool = true
 
     /// Compact only: the inline nav title fades in once the hero's title has scrolled away
     @State private var isShowingNavigationTitle: Bool = false
@@ -89,9 +91,11 @@ struct TripDetailView: View {
             }
             // Refetch when the destination or dates are edited (e.g. moved past the forecast window)
             .task(id: WeatherRequest(trip: trip)) {
+                isLoadingWeather = true
                 let weather = await trip.destination?.getTripWeather(for: trip)
                 withAnimation(.smooth) {
                     tripWeather = weather
+                    isLoadingWeather = false
                 }
             }
             .onChange(of: isDeleted) {
@@ -190,7 +194,7 @@ struct TripDetailView: View {
 
             HStack(alignment: .top, spacing: 20) {
                 // Info takes the whole row when there's no forecast to show
-                if TripDetailForecastView.isShown(for: trip, weather: tripWeather) {
+                if TripDetailForecastView.isShown(for: trip, weather: tripWeather, isLoading: isLoadingWeather) {
                     forecastSection
                         .frame(maxWidth: .infinity)
                 }
@@ -219,7 +223,7 @@ struct TripDetailView: View {
     }
 
     private var forecastSection: some View {
-        TripDetailForecastView(trip: trip, tripWeather: $tripWeather)
+        TripDetailForecastView(trip: trip, tripWeather: $tripWeather, isLoading: isLoadingWeather)
     }
 
     private var infoSection: some View {
