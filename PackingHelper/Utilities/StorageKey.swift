@@ -15,6 +15,8 @@ enum StorageKey {
     static let packingStartPage = "packingStartPage"
     static let resetTipsOnLaunch = "resetTipsOnLaunch"
     static let workerURLOverride = "debug_workerURLOverride"
+    /// Agreed to send trip details to the AI service (asked once, before the assistant's first use)
+    static let aiDataSharingConsent = "aiDataSharingConsent"
 
     // Feature flags
     static let showingMultiplePackers = "featureFlag_showingMultiplePackers"

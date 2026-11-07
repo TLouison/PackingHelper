@@ -5,7 +5,8 @@
 //  The AI packing assistant chat, for a trip or a template. The presenter owns the view model
 //  so a conversation survives moving between the wide side panel and the sheet, and the view
 //  model saves it, so closing the assistant keeps it until New Chat. Without Plus the chat is
-//  replaced by a locked state and the paywall opens right away; buying reveals the chat.
+//  replaced by a locked state and the paywall opens right away; buying reveals the chat. With
+//  Plus, a one-time consent screen comes first, since chatting sends trip details to the AI service.
 //
 
 import SwiftUI
@@ -24,12 +25,18 @@ struct AIAssistantSheet: View {
     @Environment(PurchaseManager.self) private var purchaseManager
     @Environment(\.dismiss) private var dismiss
 
+    @AppStorage(StorageKey.aiDataSharingConsent) private var hasConsented = false
+
     @FocusState private var composerFocused: Bool
     @State private var showingPaywall = false
+    /// Height of the consent screen's scroll area, so its content can center in it
+    @State private var consentViewportHeight: CGFloat = 0
 
     /// Destinations for "Add to"; a template only has itself
     private var lists: [PackingList] { viewModel.context.trip?.lists ?? [] }
     private var hasMultiplePackers: Bool { !viewModel.isTemplate && (users?.count ?? 0) > 1 }
+    /// The conversation and its controls only show once Plus is active and the user has agreed to share
+    private var showsChat: Bool { purchaseManager.isPlusActive && hasConsented }
 
     var body: some View {
         Group {
@@ -52,7 +59,7 @@ struct AIAssistantSheet: View {
                                     dismiss()
                                 }
                             }
-                            if purchaseManager.isPlusActive {
+                            if showsChat {
                                 ToolbarItem(placement: .primaryAction) {
                                     chatMenu
                                 }
@@ -113,10 +120,14 @@ struct AIAssistantSheet: View {
         .disabled(viewModel.entries.isEmpty && viewModel.composerText.isEmpty)
     }
 
-    /// Without Plus nothing of the conversation (including a saved one) shows
+    /// Without Plus or consent nothing of the conversation (including a saved one) shows
     @ViewBuilder
     private var chat: some View {
-        if purchaseManager.isPlusActive {
+        if !purchaseManager.isPlusActive {
+            lockedState
+        } else if !hasConsented {
+            consentState
+        } else {
             VStack(spacing: 0) {
                 if hasMultiplePackers {
                     packerPicker
@@ -126,8 +137,6 @@ struct AIAssistantSheet: View {
                 disclaimer
                 composer
             }
-        } else {
-            lockedState
         }
     }
 
@@ -146,6 +155,82 @@ struct AIAssistantSheet: View {
         }
     }
 
+    // MARK: - Consent
+
+    /// Asked once, before anything is sent: what the assistant shares and with whom (App Review 5.1.2(i)).
+    /// The website's privacy policy names the provider; this copy stays general so switching needs no app update.
+    private var consentState: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 0) {
+                    VStack(spacing: 12) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 44))
+                            .foregroundStyle(.tint)
+                            .accessibilityHidden(true)
+
+                        Text("Before You Start")
+                            .font(.largeTitle.bold())
+                            .multilineTextAlignment(.center)
+                    }
+
+                    // The body centers in the space under the title
+                    Spacer(minLength: 24)
+
+                    // Left-aligned for readability
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(viewModel.isTemplate
+                             ? "To suggest items, the assistant sends your message along with this template's items and similar past trips to a third-party AI service."
+                             : "To suggest items, the assistant sends your message along with this trip's details and your lists, including similar past trips and templates, to a third-party AI service.")
+                        Text("Nothing is sent until you send a message.")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Spacer(minLength: 24)
+                }
+                .padding()
+                // At least the visible height, so the title sits at the top and long content scrolls
+                .frame(maxWidth: .infinity, minHeight: consentViewportHeight)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            // Visible height minus the bars it scrolls under
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.containerSize.height - geometry.contentInsets.top - geometry.contentInsets.bottom
+            } action: { _, height in
+                consentViewportHeight = height
+            }
+
+            VStack(spacing: 12) {
+                Link("Privacy Policy", destination: AppLinks.privacyPolicy)
+                    .font(.subheadline)
+
+                Button {
+                    withAnimation { hasConsented = true }
+                } label: {
+                    Text("Continue")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent)
+
+                Button {
+                    if let onClose {
+                        onClose()
+                    } else {
+                        dismiss()
+                    }
+                } label: {
+                    Text("Not Now")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glass)
+            }
+            .controlSize(.extraLarge)
+            .padding()
+        }
+    }
+
     // MARK: - Panel header
 
     private func panelHeader(onClose: @escaping () -> Void) -> some View {
@@ -154,7 +239,7 @@ struct AIAssistantSheet: View {
                 .font(.headline)
             Spacer()
             // A bare button, not the sheet's ⋯ menu, so New Chat is one visible tap
-            if purchaseManager.isPlusActive {
+            if showsChat {
                 newChatButton
                     .labelStyle(.iconOnly)
                     .fontWeight(.semibold)
