@@ -187,6 +187,10 @@ private struct AboutSettingsSection: View {
             Link(destination: AppLinks.support) {
                 Label("Support", systemImage: "questionmark.circle")
             }
+
+            LabeledContent("Weather Data") {
+                WeatherAttributionView()
+            }
         }
         .alert(
             "Restore Purchases",

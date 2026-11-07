@@ -131,7 +131,7 @@ struct TripDetailView: View {
                     packingSection
                     forecastSection
                     infoSection
-                    photoCredit
+                    credits
                 }
                 .padding()
             }
@@ -173,7 +173,7 @@ struct TripDetailView: View {
             packingSection
             forecastSection
             infoSection
-            photoCredit
+            credits
         }
     }
 
@@ -200,7 +200,7 @@ struct TripDetailView: View {
             .environment(\.tripDetailCardFillsHeight, true)
             .fixedSize(horizontal: false, vertical: true)
 
-            photoCredit
+            credits
         }
         .padding()
     }
@@ -226,11 +226,23 @@ struct TripDetailView: View {
         TripDetailInfoView(trip: trip)
     }
 
+    /// Captions under the last card: the Unsplash photo credit, and the Apple Weather
+    /// attribution WeatherKit requires whenever the hero chip or forecast shows its data
     @ViewBuilder
-    private var photoCredit: some View {
-        if let coverPhoto = trip.coverPhoto, coverPhoto.source == .unsplash {
-            TripDetailPhotoCreditView(photo: coverPhoto)
-                .padding(.top, -8)
+    private var credits: some View {
+        let unsplashPhoto = trip.coverPhoto.flatMap { $0.source == .unsplash ? $0 : nil }
+        let showsWeather = tripWeather?.currentWeather != nil || tripWeather?.dailyForecast != nil
+
+        if unsplashPhoto != nil || showsWeather {
+            VStack(spacing: 4) {
+                if let unsplashPhoto {
+                    TripDetailPhotoCreditView(photo: unsplashPhoto)
+                }
+                if showsWeather {
+                    WeatherAttributionView()
+                }
+            }
+            .padding(.top, -8)
         }
     }
 }

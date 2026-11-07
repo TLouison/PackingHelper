@@ -49,6 +49,21 @@ actor WeatherProvider {
 
     private let service = WeatherService()
     private var cache: [Key: (weather: TripWeather, fetched: Date)] = [:]
+    private var cachedAttribution: WeatherAttribution?
+
+    /// The Apple Weather mark and legal link, which must be shown wherever weather data is.
+    /// Cached for the session once it loads; nil while offline.
+    func attribution() async -> WeatherAttribution? {
+        if let cachedAttribution { return cachedAttribution }
+        do {
+            let attribution = try await service.attribution
+            cachedAttribution = attribution
+            return attribution
+        } catch {
+            AppLogger.weather.error("Failed to fetch weather attribution: \(error.localizedDescription)")
+            return nil
+        }
+    }
 
     func currentWeather(latitude: Double, longitude: Double) async -> CurrentWeather? {
         try? await service.weather(for: CLLocation(latitude: latitude, longitude: longitude)).currentWeather
