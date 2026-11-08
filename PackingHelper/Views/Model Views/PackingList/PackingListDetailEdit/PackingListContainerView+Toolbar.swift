@@ -68,8 +68,10 @@ extension PackingListContainerView {
         let hasSelection = !editor.selectedItemIDs.isEmpty
         ToolbarItem(placement: .bottomBar) {
             Menu {
-                ForEach(editor.sortedLists) { list in
-                    Button { editor.moveSelected(to: list) } label: { ListMenuLabel(list: list) }
+                Section("Move To") {
+                    ForEach(editor.sortedLists) { list in
+                        Button { editor.moveSelected(to: list) } label: { ListMenuLabel(list: list) }
+                    }
                 }
             } label: {
                 Label("Move To", systemImage: "arrow.right.square")
@@ -77,14 +79,13 @@ extension PackingListContainerView {
             .disabled(!hasSelection || lists.count < 2)
         }
         ToolbarSpacer(placement: .bottomBar)
-        // The tab bar takes the middle of the bottom bar, so only the ends fit: the rest of the
-        // bulk actions sit in a menu beside Delete
+        // The rest of the bulk actions sit in a menu beside Delete
         ToolbarItemGroup(placement: .bottomBar) {
             Menu {
                 Button("Mark as Packed", systemImage: "checkmark.circle", action: editor.packSelected)
                 Button(editor.selectionIsAllDayOf ? "Remove from Day Of" : "Mark as Day Of", systemImage: dayOfIcon, action: editor.toggleDayOfSelected)
             } label: {
-                Label("More", systemImage: "ellipsis")
+                Label("Mark Selected", systemImage: "checkmark.rectangle.stack")
             }
             .disabled(!hasSelection)
 

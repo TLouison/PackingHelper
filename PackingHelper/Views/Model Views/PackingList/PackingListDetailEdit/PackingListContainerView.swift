@@ -162,6 +162,8 @@ struct PackingListContainerView: View {
         .toolbar {
             containerToolbar
         }
+        // Edit Mode's bulk actions live in the bottom bar; the tab bar would cover them
+        .toolbarVisibility(editor.isEditing ? .hidden : .automatic, for: .tabBar)
         .sensoryFeedback(.impact(weight: .light), trigger: editor.removedBatches.count)
         .onAppear {
             editor.configure(modelContext: modelContext)
